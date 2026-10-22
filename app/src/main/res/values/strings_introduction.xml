@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="introduction_0_greeting">Hello!</string>
+    <string name="introduction_0_whats_new">What’s new?</string>
+    <string name="introduction_0_get_started">Get started</string>
+</resources>
