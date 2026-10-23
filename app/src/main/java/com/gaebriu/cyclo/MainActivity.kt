@@ -6,7 +6,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.gaebriu.cyclo.ui.effects.ProvideVisualEffects
-import com.gaebriu.cyclo.ui.screens.Introduction0Screen
+import com.gaebriu.cyclo.ui.screens.IntroductionFlow
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -18,9 +18,7 @@ class MainActivity : ComponentActivity() {
         window.isNavigationBarContrastEnforced = false
         setContent {
             ProvideVisualEffects {
-                Introduction0Screen(
-                    onGetStarted = { /* a ligar à navegação */ },
-                )
+                IntroductionFlow()
             }
         }
     }

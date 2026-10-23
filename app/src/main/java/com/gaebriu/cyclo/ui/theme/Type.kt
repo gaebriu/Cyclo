@@ -20,6 +20,7 @@ val Typography = Typography(
 )
 
 val Inter = FontFamily(
+    Font(R.font.inter_medium, FontWeight.Medium),
     Font(R.font.inter_semibold, FontWeight.SemiBold),
     Font(R.font.inter_bold, FontWeight.Bold),
 )
@@ -31,6 +32,24 @@ object CycloType {
         fontWeight = FontWeight.Bold,
         fontSize = 39.sp,
         color = CycloColors.TextPrimary,
+    )
+
+    /** "header-medium": Inter Bold 24, centrado. */
+    val HeaderMedium = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        color = CycloColors.TextPrimary,
+        textAlign = TextAlign.Center,
+    )
+
+    /** Texto corrido: Inter Medium 15, cinzento, centrado. */
+    val Body = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        color = CycloColors.TextSecondary,
+        textAlign = TextAlign.Center,
     )
 
     /** Texto dos botões: Inter SemiBold 15. */

@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Comuns -->
+    <string name="close">Close</string>
+    <string name="next">Next</string>
+    <string name="introduction_progress">Step %1$d of %2$d</string>
+
+    <!-- Introduction 0 -->
     <string name="introduction_0_greeting">Hello!</string>
     <string name="introduction_0_whats_new">What’s new?</string>
     <string name="introduction_0_get_started">Get started</string>
+
+    <!-- Introduction 1 -->
+    <string name="introduction_1_title">Sleep cycles, what are they?</string>
+    <string name="introduction_1_body_1">When you sleep, your brain cycles through loops. One full loop takes about 90 minutes and is called a sleep cycle</string>
+    <string name="introduction_1_body_2">A full, refreshing night typically includes 4 to 6 cycles, which adds up to 6 to 9 hours of sleep</string>
+    <string name="introduction_1_body_3">Waking up between cycles feels natural and refreshing. Waking up during one causes that heavy, disoriented feeling known as sleep inertia</string>
+    <string name="introduction_1_body_4">Cyclo helps you avoid that by finding the best times to fall asleep or wake up, always aligned with the end of a cycle</string>
 </resources>

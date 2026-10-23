@@ -10,4 +10,13 @@ object CycloDimens {
 
     /** Altura da barra de navegação do frame do Figma; é o mínimo que reservamos em baixo. */
     val MinBottomInset = 48.dp
+
+    /** Botão redondo (X / seta): o círculo tem 39 dp, mas a zona de toque tem 48 dp. */
+    val CircleButtonSize = 39.dp
+    val TouchTarget = 48.dp
+
+    val ProgressBarHeight = 24.dp
+
+    /** Distância do topo do ecrã ao botão X / seta no frame do Figma. */
+    val TopBarTop = 48.dp
 }

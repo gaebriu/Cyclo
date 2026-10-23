@@ -43,3 +43,24 @@ fun DrawScope.drawInnerShadow(
         drawIntoCanvas { canvas -> canvas.drawPath(outside, paint) }
     }
 }
+
+/**
+ * Círculo desfocado, para as sombras exteriores ("drop shadow" do Figma) da bolinha da barra de progresso.
+ *
+ * @param cssBlurPx raio de desfoque tal como o Figma o indica.
+ */
+fun DrawScope.drawBlurredCircle(
+    center: Offset,
+    radius: Float,
+    color: Color,
+    cssBlurPx: Float,
+) {
+    val sigma = cssBlurPx / 2f
+    val maskRadius = ((sigma - 0.5f) / 0.57735f).coerceAtLeast(0.1f)
+    val paint = Paint().apply {
+        this.color = color
+        isAntiAlias = true
+        asFrameworkPaint().maskFilter = BlurMaskFilter(maskRadius, BlurMaskFilter.Blur.NORMAL)
+    }
+    drawIntoCanvas { canvas -> canvas.drawCircle(center, radius, paint) }
+}
