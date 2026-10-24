@@ -14,11 +14,14 @@ object FigmaBlur {
     /** Brilho do topo do Introduction 0 (elipse "gradient with blur"). */
     const val Glow = 267f
 
-    /** Letras do "Hello!" a aparecer. */
-    const val Letter = 6f
+    /** Letras do "Hello!" a aparecer: desfoque 9 a 0. */
+    const val HelloReveal = 9f
 
-    /** Texto a aparecer (títulos): desfoque 6 a 0. */
+    /** Títulos a aparecer (Introduction 1): desfoque 6 a 0. */
     const val TextReveal = 6f
+
+    /** Ecrã que recua por baixo de outro (Introduction 0 enquanto o 1 sobe). */
+    const val BackgroundRecede = 9f
 
     /** Holofote atrás dos ícones dos ecrãs de introdução (fx spotlight). */
     const val Spotlight = 100f

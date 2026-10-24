@@ -15,17 +15,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import com.gaebriu.cyclo.ui.theme.FigmaBlur
+import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 
 /**
  * Fluxo dos ecrãs de introdução. Por agora: Introduction 0 e 1.
  *
- * O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto.
+ * O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto,
+ * enquanto o 0 recua (zoom out, desfoque, véu escuro).
  * O X e o gesto/botão de voltar do Android fazem-no descer de volta.
  * Sem animações no sistema, a subida passa a um fade com a mesma duração.
  *
@@ -51,11 +56,38 @@ fun IntroductionFlow(
     val showIntroduction1 by remember { derivedStateOf { step >= 1 || enter.value > 0f } }
 
     Box(modifier = modifier.fillMaxSize().background(CycloColors.Background)) {
-        Introduction0Screen(
-            onGetStarted = { step = 1 },
-            // Tapado pelo Introduction 1: fica fora do alcance do TalkBack.
-            modifier = if (showIntroduction1) Modifier.clearAndSetSemantics { } else Modifier,
-        )
+        // Introduction 0: enquanto o 1 sobe, recua com zoom out, desfoque e um véu escuro.
+        // Ao voltar atrás, tudo se desfaz ao mesmo tempo que o 1 desce: seguem o mesmo progresso.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    if (effects.animationsEnabled) {
+                        val e = enter.value
+                        val s = 1f - (1f - CycloMotion.BackgroundScale) * e
+                        scaleX = s
+                        scaleY = s
+                        renderEffect = if (effects.blurEnabled && e > 0f) {
+                            val sigma = figmaBlurPx(FigmaBlur.BackgroundRecede) * e
+                            BlurEffect(sigma, sigma, TileMode.Clamp)
+                        } else {
+                            null
+                        }
+                    }
+                }
+                // Tapado pelo Introduction 1: fica fora do alcance do TalkBack.
+                .then(if (showIntroduction1) Modifier.clearAndSetSemantics { } else Modifier),
+        ) {
+            Introduction0Screen(onGetStarted = { step = 1 })
+
+            // Véu #010101 a 24 % de opacidade quando o ecrã está recuado.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = CycloMotion.BackgroundOverlayAlpha * enter.value }
+                    .background(CycloColors.Background),
+            )
+        }
 
         if (showIntroduction1) {
             Box(

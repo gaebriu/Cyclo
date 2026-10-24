@@ -13,9 +13,15 @@ object CycloMotion {
     // Introduction 0
     const val GlowDurationMs = 1800
     const val LettersStartDelayMs = 250
-    const val LetterStaggerMs = 90
-    const val LetterDurationMs = 650
-    const val ButtonsDelayMs = 1150
+
+    /** O "Hello" dura 2 s, do início da primeira letra ao fim da última. */
+    const val HelloDurationMs = 2000
+    const val LetterStaggerMs = 100
+
+    /** Espaçamento máximo entre letras do "Hello" (15 % do tamanho da letra), a fechar até zero. */
+    const val HelloLetterSpacingEm = 0.15f
+
+    const val ButtonsDelayMs = 1600
     const val ButtonsDurationMs = 700
 
     /** Distância de onde os botões sobem. */
@@ -30,6 +36,10 @@ object CycloMotion {
      * O fade e o desfoque dos textos seguem o progresso desta mola, por isso têm a mesma duração.
      */
     val ScreenRiseSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 280f)
+
+    /** Ecrã que recua por baixo de outro: zoom out até 92 % e um véu #010101 a 24 %. */
+    const val BackgroundScale = 0.92f
+    const val BackgroundOverlayAlpha = 0.24f
 
     /** Crescimento da barra de progresso. */
     val ProgressSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 130f)

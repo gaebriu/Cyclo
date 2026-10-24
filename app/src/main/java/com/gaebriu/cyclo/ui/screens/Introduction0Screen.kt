@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -33,6 +32,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -56,6 +56,7 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // Medidas do frame do Figma (393 x 852).
 private val GlowOffset = DpOffset((-19).dp, (-134).dp)
@@ -84,17 +85,26 @@ fun Introduction0Screen(
 
     val glow = remember { Animatable(0f) }
     val letters = remember(greeting) { List(greeting.length) { Animatable(0f) } }
+    val letterSpacing = remember { Animatable(0f) }
     val buttons = remember { Animatable(0f) }
 
     LaunchedEffect(greeting) {
+        // O "Hello" dura HelloDurationMs: cada letra começa com um pequeno intervalo e
+        // a última acaba exatamente ao fim desse tempo.
+        val letterDuration = (CycloMotion.HelloDurationMs - CycloMotion.LetterStaggerMs * (letters.size - 1))
+            .coerceAtLeast(CycloMotion.LetterStaggerMs)
         coroutineScope {
             launch {
                 glow.animateTo(1f, tween(CycloMotion.GlowDurationMs, easing = CycloMotion.Decelerate))
             }
+            launch {
+                delay(CycloMotion.LettersStartDelayMs.toLong())
+                letterSpacing.animateTo(1f, tween(CycloMotion.HelloDurationMs, easing = CycloMotion.Decelerate))
+            }
             letters.forEachIndexed { index, letter ->
                 launch {
                     delay((CycloMotion.LettersStartDelayMs + index * CycloMotion.LetterStaggerMs).toLong())
-                    letter.animateTo(1f, tween(CycloMotion.LetterDurationMs, easing = CycloMotion.Decelerate))
+                    letter.animateTo(1f, tween(letterDuration, easing = CycloMotion.Decelerate))
                 }
             }
             launch {
@@ -121,6 +131,14 @@ fun Introduction0Screen(
         AnimatedGreeting(
             greeting = greeting,
             letters = letters,
+            letterSpacingEm = {
+                // Sem animações no sistema, as letras aparecem só com fade, sem espaçamento.
+                if (effects.animationsEnabled) {
+                    CycloMotion.HelloLetterSpacingEm * (1f - letterSpacing.value)
+                } else {
+                    0f
+                }
+            },
             effects = effects,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -142,6 +160,9 @@ fun Introduction0Screen(
  */
 @Composable
 private fun TopGlow(glow: Progress, effects: VisualEffects) {
+    // Sem desfoque (acessibilidade) o brilho não se desenha: seria uma elipse de contorno duro.
+    if (!effects.blurEnabled) return
+
     Spacer(
         modifier = Modifier
             // Coloca a elipse nas coordenadas exatas do Figma, mesmo saindo do ecrã.
@@ -183,11 +204,15 @@ private fun TopGlow(glow: Progress, effects: VisualEffects) {
     )
 }
 
-/** "Hello!" letra a letra: cada uma aparece com fade e desfoque 6 a 0. */
+/**
+ * "Hello!" letra a letra: cada uma aparece com fade e desfoque 9 a 0 (do Figma),
+ * enquanto o espaçamento entre letras fecha de 15 % até zero.
+ */
 @Composable
 private fun AnimatedGreeting(
     greeting: String,
     letters: List<Progress>,
+    letterSpacingEm: () -> Float,
     effects: VisualEffects,
     modifier: Modifier = Modifier,
 ) {
@@ -202,7 +227,10 @@ private fun AnimatedGreeting(
     val style = remember(shadow) { CycloType.HeaderBig.copy(shadow = shadow) }
 
     // Para o TalkBack ler a palavra inteira, e não letra a letra.
-    Row(modifier = modifier.clearAndSetSemantics { contentDescription = greeting }) {
+    SpacedLetters(
+        letterSpacingEm = letterSpacingEm,
+        modifier = modifier.clearAndSetSemantics { contentDescription = greeting },
+    ) {
         greeting.forEachIndexed { index, letter ->
             BasicText(
                 text = letter.toString(),
@@ -211,7 +239,7 @@ private fun AnimatedGreeting(
                     val p = letters[index].value
                     alpha = p
                     renderEffect = if (effects.blurEnabled && effects.animationsEnabled && p < 1f) {
-                        val sigma = figmaBlurPx(FigmaBlur.Letter) * (1f - p)
+                        val sigma = figmaBlurPx(FigmaBlur.HelloReveal) * (1f - p)
                         BlurEffect(sigma, sigma, TileMode.Decal)
                     } else {
                         null
@@ -219,6 +247,31 @@ private fun AnimatedGreeting(
                     clip = false
                 },
             )
+        }
+    }
+}
+
+/**
+ * Põe as letras lado a lado com um espaçamento (em múltiplos do tamanho da letra) que se
+ * anima sem recompor: o valor só é lido ao medir, por isso cada frame é só uma nova medição.
+ */
+@Composable
+private fun SpacedLetters(
+    letterSpacingEm: () -> Float,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+        val gap = (letterSpacingEm() * CycloType.HeaderBig.fontSize.toPx()).roundToInt()
+        val width = placeables.sumOf { it.width } + gap * (placeables.size - 1).coerceAtLeast(0)
+        val height = placeables.maxOfOrNull { it.height } ?: 0
+        layout(width, height) {
+            var x = 0
+            placeables.forEach { placeable ->
+                placeable.placeRelative(x, 0)
+                x += placeable.width + gap
+            }
         }
     }
 }
