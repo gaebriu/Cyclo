@@ -2,6 +2,9 @@
 <resources>
     <!-- Comuns -->
     <string name="close">Close</string>
+    <string name="back">Back</string>
+    <string name="increase">Increase</string>
+    <string name="decrease">Decrease</string>
     <string name="next">Next</string>
     <string name="introduction_progress">Step %1$d of %2$d</string>
 
@@ -16,4 +19,10 @@
     <string name="introduction_1_body_2">A full, refreshing night typically includes 4 to 6 cycles, which adds up to 6 to 9 hours of sleep</string>
     <string name="introduction_1_body_3">Waking up between cycles feels natural and refreshing. Waking up during one causes that heavy, disoriented feeling known as sleep inertia</string>
     <string name="introduction_1_body_4">Cyclo helps you avoid that by finding the best times to fall asleep or wake up, always aligned with the end of a cycle</string>
+
+    <!-- Introduction 2 -->
+    <string name="introduction_2_title">What time do you want to wake up?</string>
+    <string name="introduction_2_hour">hour</string>
+    <string name="introduction_2_minute">min</string>
+    <string name="introduction_2_hint">Scroll or tap to interact</string>
 </resources>

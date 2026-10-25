@@ -52,6 +52,24 @@ object CycloType {
         textAlign = TextAlign.Center,
     )
 
+    /** Números das caixas de hora e minuto: Inter SemiBold 24. */
+    val Picker = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 24.sp,
+        color = CycloColors.TextPrimary,
+        textAlign = TextAlign.Center,
+    )
+
+    /** Os dois pontos entre a hora e os minutos: Inter Medium 24. */
+    val PickerColon = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Medium,
+        fontSize = 24.sp,
+        color = CycloColors.TextPrimary,
+        textAlign = TextAlign.Center,
+    )
+
     /** Texto dos botões: Inter SemiBold 15. */
     val Button = TextStyle(
         fontFamily = Inter,

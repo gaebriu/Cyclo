@@ -32,8 +32,9 @@ import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.components.CycloCircleButton
 import com.gaebriu.cyclo.ui.components.CycloGlassButton
 import com.gaebriu.cyclo.ui.components.CycloProgressBar
-import com.gaebriu.cyclo.ui.components.SleepIconHeader
+import com.gaebriu.cyclo.ui.components.IntroIconHeader
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.icons.CycloHeaderIcons
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
@@ -98,7 +99,7 @@ fun Introduction1Screen(
         )
 
         Spacer(Modifier.height(46.dp))
-        SleepIconHeader(modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Bed, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         // 7 dp de espaço + 8 dp de folga dentro da área com scroll = 15 dp até ao título.
         // A folga deixa o desfoque do título sair do texto sem ser cortado.

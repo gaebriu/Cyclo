@@ -20,20 +20,21 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
+import com.gaebriu.cyclo.ui.icons.HeaderIcon
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 
 /**
- * Ícone da cama com o holofote roxo por trás (sleep-icon), 63 x 95 dp.
+ * Ícone com o holofote roxo por trás (sleep-icon, sun-icon...), 63 x 95 dp.
  *
  * O holofote é um círculo de 63 dp (#4A3C99, 63 % de opacidade) com desfoque 100 do Figma.
  * O ícone leva gradiente vertical #FCFCFE a #9F9FA0 e mistura Luminosity, como no design.
  */
 @Composable
-fun SleepIconHeader(modifier: Modifier = Modifier) {
+fun IntroIconHeader(icon: HeaderIcon, modifier: Modifier = Modifier) {
     val effects = LocalVisualEffects.current
-    val bed = remember { PathParser().parsePathString(CycloIconPaths.Bed).toPath() }
+    val shape = remember(icon) { PathParser().parsePathString(icon.path).toPath() }
 
     Box(modifier = modifier.size(63.dp, 95.dp)) {
         // Sem desfoque (acessibilidade) o holofote não se desenha: seria um círculo duro.
@@ -63,12 +64,12 @@ fun SleepIconHeader(modifier: Modifier = Modifier) {
                         translate(-CycloIconPaths.BedOriginX, -CycloIconPaths.BedOriginY)
                     }) {
                         drawPath(
-                            path = bed,
+                            path = shape,
                             brush = Brush.verticalGradient(
                                 0f to Color(0xFFFCFCFE),
                                 1f to Color(0xFF9F9FA0),
-                                startY = CycloIconPaths.BedGradientTop,
-                                endY = CycloIconPaths.BedGradientBottom,
+                                startY = icon.gradientTop,
+                                endY = icon.gradientBottom,
                             ),
                             blendMode = blend,
                         )

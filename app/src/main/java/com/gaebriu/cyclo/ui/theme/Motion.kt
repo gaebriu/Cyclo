@@ -41,6 +41,12 @@ object CycloMotion {
     const val BackgroundScale = 0.92f
     const val BackgroundOverlayAlpha = 0.24f
 
+    /** Paginação horizontal (Introduction 2...): o ecrã que sai desloca-se 30 % da largura. */
+    const val PageParallax = 0.3f
+
+    /** Desaparecimento do texto "Scroll or tap to interact". */
+    const val HintFadeDurationMs = 350
+
     /** Crescimento da barra de progresso. */
     val ProgressSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 130f)
 }
