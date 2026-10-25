@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import com.gaebriu.cyclo.ui.effects.ProvideVisualEffects
 import com.gaebriu.cyclo.ui.screens.IntroductionFlow
 
+/** Exemplo mínimo para ver o Introduction 0 e 1. Substitui a MainActivity do template. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -5,7 +5,6 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -16,13 +15,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
-import java.util.function.Consumer
 
 /**
  * Estado dos efeitos visuais, segundo as definições do Android.
  *
- * - blurEnabled: se o sistema permite desfoques. Quando é falso, a app tira os desfoques
- *   e as misturas Luminosity passam a normais.
+ * - blurEnabled: se os desfoques e as misturas Luminosity se desenham. Quando é falso, a app
+ *   tira os desfoques e as misturas passam a normais.
  * - animationsEnabled: falso quando as animações do sistema estão desligadas. Quando é
  *   falso, os movimentos passam a fades com a mesma duração.
  */
@@ -36,7 +34,7 @@ val LocalVisualEffects = staticCompositionLocalOf { VisualEffects() }
 
 @Composable
 fun ProvideVisualEffects(content: @Composable () -> Unit) {
-    val blurEnabled by rememberCrossWindowBlurEnabled()
+    val blurEnabled by rememberBlurEnabled()
     val animationsEnabled by rememberAnimationsEnabled()
     CompositionLocalProvider(
         LocalVisualEffects provides VisualEffects(blurEnabled, animationsEnabled),
@@ -44,19 +42,19 @@ fun ProvideVisualEffects(content: @Composable () -> Unit) {
     )
 }
 
-/** Usa a API oficial do Android para saber se os desfoques estão disponíveis (Android 12+). */
+/**
+ * Os desfoques da app (RenderEffect) funcionam em qualquer aparelho com Android 12 ou superior.
+ *
+ * NÃO usar WindowManager.isCrossWindowBlurEnabled para isto: essa API só diz se o sistema
+ * desfoca JANELAS (diálogos, fundos de janela) e devolve falso em muitos aparelhos,
+ * incluindo Samsung. Foi o que escondia os brilhos roxos e os desfoques no S24.
+ *
+ * A definição "Reduzir transparência e desfocagem" da Samsung (Definições > Acessibilidade >
+ * Melhorias de visão) ainda NÃO é lida, porque falta descobrir a chave do sistema onde é guardada.
+ * Quando a tivermos, é só ligá-la aqui.
+ */
 @Composable
-private fun rememberCrossWindowBlurEnabled(): State<Boolean> {
-    val context = LocalContext.current
-    val windowManager = remember(context) { context.getSystemService(WindowManager::class.java) }
-    val state = remember(windowManager) { mutableStateOf(windowManager.isCrossWindowBlurEnabled) }
-    DisposableEffect(windowManager) {
-        val listener = Consumer<Boolean> { enabled -> state.value = enabled }
-        windowManager.addCrossWindowBlurEnabledListener(context.mainExecutor, listener)
-        onDispose { windowManager.removeCrossWindowBlurEnabledListener(listener) }
-    }
-    return state
-}
+private fun rememberBlurEnabled(): State<Boolean> = remember { mutableStateOf(true) }
 
 /** Lê a escala de animações do sistema (0 = animações desligadas). */
 @Composable

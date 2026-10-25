@@ -30,6 +30,8 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
  * quem o usa compensa os 4,5 dp de diferença no posicionamento.
  *
  * @param iconPath vetor do ícone numa grelha de 39 x 39 (ver [com.gaebriu.cyclo.ui.icons.CycloIconPaths]).
+ * @param secondaryIconPath segundo ícone, que substitui o primeiro por fade cruzado;
+ *                          [secondaryIconAmount] vai de 0 (só o primeiro) a 1 (só o segundo).
  */
 @Composable
 fun CycloCircleButton(
@@ -37,9 +39,14 @@ fun CycloCircleButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    secondaryIconPath: String? = null,
+    secondaryIconAmount: () -> Float = { 0f },
 ) {
     val effects = LocalVisualEffects.current
     val icon = remember(iconPath) { PathParser().parsePathString(iconPath).toPath() }
+    val secondaryIcon = remember(secondaryIconPath) {
+        secondaryIconPath?.let { PathParser().parsePathString(it).toPath() }
+    }
 
     Box(
         modifier = modifier
@@ -77,7 +84,12 @@ fun CycloCircleButton(
             // O vetor vem em unidades do Figma (1 unidade = 1 dp).
             val pxPerDp = density
             withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
-                drawPath(path = icon, color = CycloColors.TextPrimary)
+                // O ícone muda por fade cruzado: o círculo fica sempre parado.
+                val amount = secondaryIconAmount().coerceIn(0f, 1f)
+                drawPath(path = icon, color = CycloColors.TextPrimary, alpha = 1f - amount)
+                if (secondaryIcon != null) {
+                    drawPath(path = secondaryIcon, color = CycloColors.TextPrimary, alpha = amount)
+                }
             }
         }
     }

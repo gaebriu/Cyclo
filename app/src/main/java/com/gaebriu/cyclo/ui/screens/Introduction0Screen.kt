@@ -24,29 +24,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.components.CycloGlassButton
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
+import com.gaebriu.cyclo.ui.components.GlassGlow
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.VisualEffects
+import com.gaebriu.cyclo.ui.effects.drawGaussianGlow
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
@@ -57,15 +56,25 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 // Medidas do frame do Figma (393 x 852).
-private val GlowOffset = DpOffset((-19).dp, (-134).dp)
-private val GlowSize = DpSize(432.dp, 267.dp)
-private const val GlowGroupAlpha = 0.63f
 private val GreetingTop = 229.dp
 private val TopShadeHeight = 130.dp
-private val PurpleFxHeight = 19.dp
-private val PurpleFxInset = 24.dp
+
+// Brilho do topo: elipse de 432 x 267 dp, gradiente vertical (roxo a 39 % em cima, 100 % em baixo),
+// desfoque 267 do Figma e 63 % de opacidade do grupo.
+private const val GlowGroupAlpha = 0.63f
+
+/** Média da opacidade do gradiente do preenchimento da elipse (de 39 % a 100 %). */
+private const val GlowMeanFill = 0.695f
+
+/** O gradiente do preenchimento desloca o centro de massa da elipse para baixo (fração do semieixo vertical). */
+private const val GlowCentroidShift = 0.1097f
+
+// Fade do brilho quando o ecrã recua: a frente do fade desce do topo e o brilho some de cima para baixo.
+private val GlowFadeReach = 480.dp
+private val GlowFadeFeather = 180.dp
 
 private typealias Progress = Animatable<Float, AnimationVector1D>
 
@@ -74,11 +83,15 @@ private typealias Progress = Animatable<Float, AnimationVector1D>
  *
  * @param onGetStarted ação do botão Get started (a navegação liga-se por fora).
  * O botão "What's new?" é só visual, por decisão tua, e não tem ação.
+ * @param recede de 0 a 1: quanto este ecrã já recuou por baixo do Introduction 1. O brilho roxo
+ *               desaparece com um fade de cima para baixo (e reaparece de baixo para cima ao
+ *               voltar), para não ficar cortado no topo quando o ecrã encolhe.
  */
 @Composable
 fun Introduction0Screen(
     onGetStarted: () -> Unit,
     modifier: Modifier = Modifier,
+    recede: () -> Float = { 0f },
 ) {
     val effects = LocalVisualEffects.current
     val greeting = stringResource(R.string.introduction_0_greeting)
@@ -115,7 +128,7 @@ fun Introduction0Screen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CycloColors.Background)) {
-        TopGlow(glow = glow, effects = effects)
+        TopGlow(glow = glow, recede = recede, effects = effects)
 
         // "fx top dark gradient": preto a 15 % em cima, transparente em baixo.
         Box(
@@ -155,52 +168,66 @@ fun Introduction0Screen(
 }
 
 /**
- * Brilho do topo: elipse com gradiente vertical (roxo a 39 % em cima, 100 % em baixo),
- * desfocada, a 63 % de opacidade. Nasce do topo e expande-se até à forma do design.
+ * Brilho do topo. Nasce do topo e expande-se até à forma do design.
+ *
+ * É desenhado só com gradientes (ver [drawGaussianGlow]), SEM RenderEffect, por isso aparece
+ * igual em qualquer aparelho. Tem camada própria para a máscara do fade só afetar o brilho.
  */
 @Composable
-private fun TopGlow(glow: Progress, effects: VisualEffects) {
-    // Sem desfoque (acessibilidade) o brilho não se desenha: seria uma elipse de contorno duro.
-    if (!effects.blurEnabled) return
-
+private fun TopGlow(glow: Progress, recede: () -> Float, effects: VisualEffects) {
     Spacer(
         modifier = Modifier
-            // Coloca a elipse nas coordenadas exatas do Figma, mesmo saindo do ecrã.
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(
-                    Constraints.fixed(GlowSize.width.roundToPx(), GlowSize.height.roundToPx()),
-                )
-                layout(constraints.maxWidth, constraints.maxHeight) {
-                    placeable.place(GlowOffset.x.roundToPx(), GlowOffset.y.roundToPx())
-                }
-            }
-            .graphicsLayer {
-                // Sem animações: aparece com um fade em vez de crescer.
-                alpha = if (effects.animationsEnabled) GlowGroupAlpha else GlowGroupAlpha * glow.value
-                renderEffect = if (effects.blurEnabled) {
-                    val sigma = figmaBlurPx(FigmaBlur.Glow)
-                    BlurEffect(sigma, sigma, TileMode.Decal)
-                } else {
-                    null
-                }
-                clip = false
-            }
+            .fillMaxSize()
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .drawBehind {
-                val p = if (effects.animationsEnabled) glow.value else 1f
-                if (p <= 0f) return@drawBehind
-                val w = size.width * p
-                val h = size.height * p
-                val topLeft = Offset((size.width - w) / 2f, (size.height - h) / 2f)
-                drawOval(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(CycloColors.Accent.copy(alpha = 0.39f), CycloColors.Accent),
-                        startY = topLeft.y,
-                        endY = topLeft.y + h,
-                    ),
-                    topLeft = topLeft,
-                    size = Size(w, h),
-                )
+                // Sem animações: aparece com um fade em vez de crescer.
+                val growth = if (effects.animationsEnabled) glow.value else 1f
+                val intensity = if (effects.animationsEnabled) 1f else glow.value
+                drawTopGlow(growth, intensity)
+                drawRecedeFade(recede())
             },
+    )
+}
+
+/**
+ * O desfoque gaussiano de uma elipse com semieixos a e b (432 x 267 dp a escala 1) é, com muito
+ * boa aproximação, uma gaussiana com sigma_x² = sigma² + a²/4 e sigma_y² = sigma² + b²/4,
+ * de pico 0,63 x média do preenchimento x a·b / (2·sigma_x·sigma_y).
+ */
+private fun DrawScope.drawTopGlow(growth: Float, intensity: Float) {
+    if (growth <= 0f || intensity <= 0f) return
+    val sigma = figmaBlurPx(FigmaBlur.Glow)
+    val a = 216.dp.toPx() * growth
+    val b = 133.5.dp.toPx() * growth
+    val sigmaX = sqrt(sigma * sigma + a * a / 4f)
+    val sigmaY = sqrt(sigma * sigma + b * b / 4f)
+    drawGaussianGlow(
+        color = CycloColors.Accent,
+        // A elipse está centrada no topo do ecrã (a 0,5 dp acima dele).
+        center = Offset(size.width / 2f, -0.5.dp.toPx() + GlowCentroidShift * b),
+        sigmaX = sigmaX,
+        sigmaY = sigmaY,
+        peakAlpha = GlowGroupAlpha * GlowMeanFill * a * b / (2f * sigmaX * sigmaY) * intensity,
+    )
+}
+
+/**
+ * Máscara do fade: acima da frente o brilho some, abaixo dela mantém-se. A frente desce com
+ * [recede] (fade out de cima para baixo) e sobe quando ele volta a 0 (fade in de baixo para cima).
+ */
+private fun DrawScope.drawRecedeFade(recede: Float) {
+    if (recede <= 0f) return
+    val reach = GlowFadeReach.toPx()
+    val feather = GlowFadeFeather.toPx()
+    val front = recede * (reach + feather)
+    drawRect(
+        brush = Brush.verticalGradient(
+            0f to Color.Black.copy(alpha = 0f),
+            1f to Color.Black,
+            startY = front - feather,
+            endY = front,
+        ),
+        blendMode = BlendMode.DstIn,
     )
 }
 
@@ -287,6 +314,16 @@ private fun IntroButtons(
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottom = maxOf(CycloDimens.MinBottomInset, navigationInset)
 
+    // "purple fx" do news-b: faixa roxa a 24 % colada à base, com 24 dp de margem de cada lado.
+    val purpleFx = remember {
+        GlassGlow(
+            color = CycloColors.Accent.copy(alpha = 0.24f),
+            insetHorizontal = 24.dp,
+            height = 19.dp,
+            blurFigma = FigmaBlur.NewsButton,
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -302,23 +339,11 @@ private fun IntroButtons(
     ) {
         CycloGlassButton(
             text = stringResource(R.string.introduction_0_whats_new),
-            backdropBlurFigma = FigmaBlur.NewsButton,
-            underlay = { drawPurpleFx() },
+            glow = purpleFx,
         )
         CycloPrimaryButton(
             text = stringResource(R.string.introduction_0_get_started),
             onClick = onGetStarted,
         )
     }
-}
-
-/** "purple fx" do news-b: faixa roxa a 24 % colada à base, com 24 dp de margem de cada lado. */
-private fun DrawScope.drawPurpleFx() {
-    val inset = PurpleFxInset.toPx()
-    val height = PurpleFxHeight.toPx()
-    drawRect(
-        color = CycloColors.Accent.copy(alpha = 0.24f),
-        topLeft = Offset(inset, size.height - height),
-        size = Size(size.width - inset * 2f, height),
-    )
 }

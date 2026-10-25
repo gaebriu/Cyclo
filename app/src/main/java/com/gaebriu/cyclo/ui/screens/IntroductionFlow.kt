@@ -6,7 +6,15 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -22,24 +30,33 @@ import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.zIndex
+import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.ui.components.CycloGlassButton
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloColors
+import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+private const val StepCount = 6
+
 /**
  * Fluxo dos ecrãs de introdução. Por agora: Introduction 0, 1 e 2.
  *
  * - O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto,
- *   enquanto o 0 recua (zoom out, desfoque, véu escuro). O X e o gesto/botão de voltar do
- *   Android fazem-no descer de volta.
- * - Do Introduction 2 em diante, os ecrãs deslizan na horizontal (o que sai desloca-se um pouco
- *   menos). A seta de voltar e o gesto de voltar do Android (com a pré-visualização do sistema,
- *   a seguir o dedo) fazem o caminho inverso.
+ *   enquanto o 0 recua (zoom out, desfoque, véu escuro, e o brilho roxo some de cima para baixo).
+ *   O X e o gesto/botão de voltar do Android fazem-no descer de volta, e o 0 avança com zoom in.
+ * - Do Introduction 1 para o 2 (e seguintes), só as páginas deslizam na horizontal (a que sai
+ *   desloca-se um pouco menos). O botão de cima, a barra de progresso e o Next são FIXOS: não se
+ *   mexem; o ícone do botão muda por fade (X para seta) e a barra cresce.
+ * - A seta de voltar e o gesto de voltar do Android (com a pré-visualização do sistema, a seguir
+ *   o dedo) fazem o caminho inverso.
  * - Sem animações no sistema, os movimentos passam a fades.
  *
  * @param onIntroduction2Next ação do Next do Introduction 2 (o Introduction 3 ainda não existe).
@@ -60,23 +77,29 @@ fun IntroductionFlow(
     var timeChanged by rememberSaveable { mutableStateOf(false) }
 
     // enter: o Introduction 1 sobe (0 a 1). position: página horizontal, de 1 (Introduction 1) em diante.
+    // progress: a barra de progresso (0 a 1).
     val enter = remember { Animatable(if (step >= 1) 1f else 0f) }
     val position = remember { Animatable(maxOf(step, 1).toFloat()) }
+    val progress = remember { Animatable(if (step >= 1) step / StepCount.toFloat() else 0f) }
 
     LaunchedEffect(step) {
-        launch { enter.animateTo(if (step >= 1) 1f else 0f, CycloMotion.ScreenRiseSpring) }
         if (step >= 1) {
+            launch { enter.animateTo(1f, CycloMotion.ScreenRiseSpring) }
             launch { position.animateTo(step.toFloat(), CycloMotion.ScreenRiseSpring) }
+            launch { progress.animateTo(step / StepCount.toFloat(), CycloMotion.ProgressSpring) }
+        } else {
+            enter.animateTo(0f, CycloMotion.ScreenRiseSpring)
+            progress.snapTo(0f)
         }
     }
 
     BackHandler(enabled = step == 1) { step = 0 }
 
     // Gesto de voltar do Android: o ecrã acompanha o dedo; ao confirmar volta, ao cancelar regressa.
-    PredictiveBackHandler(enabled = step >= 2) { progress ->
+    PredictiveBackHandler(enabled = step >= 2) { backProgress ->
         val from = step
         try {
-            progress.collect { event -> position.snapTo(from - event.progress) }
+            backProgress.collect { event -> position.snapTo(from - event.progress) }
             step = from - 1
         } catch (e: CancellationException) {
             scope.launch { position.animateTo(from.toFloat(), CycloMotion.ScreenRiseSpring) }
@@ -86,6 +109,12 @@ fun IntroductionFlow(
     // Cada ecrã só existe enquanto estiver (ou a entrar/sair) em cima do anterior.
     val showIntroduction1 by remember { derivedStateOf { step >= 1 || enter.value > 0f } }
     val showIntroduction2 by remember { derivedStateOf { step >= 2 || position.value > 1.001f } }
+
+    // O frame do Figma tem 48 dp de barra de navegação; reservamos pelo menos isso.
+    val bottomInset = maxOf(
+        CycloDimens.MinBottomInset,
+        WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+    )
 
     Box(modifier = modifier.fillMaxSize().background(CycloColors.Background)) {
         // Introduction 0: enquanto o 1 sobe, recua com zoom out, desfoque e um véu escuro.
@@ -110,7 +139,10 @@ fun IntroductionFlow(
                 // Tapado pelo Introduction 1: fica fora do alcance do TalkBack.
                 .then(if (showIntroduction1) Modifier.clearAndSetSemantics { } else Modifier),
         ) {
-            Introduction0Screen(onGetStarted = { step = 1 })
+            Introduction0Screen(
+                onGetStarted = { step = 1 },
+                recede = { enter.value },
+            )
 
             // Véu #010101 a 24 % de opacidade quando o ecrã está recuado.
             Box(
@@ -122,6 +154,7 @@ fun IntroductionFlow(
         }
 
         if (showIntroduction1) {
+            // Tudo o que é do Introduction 1 em diante sobe junto, uma só vez.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -129,61 +162,96 @@ fun IntroductionFlow(
                         val e = enter.value
                         if (effects.animationsEnabled) {
                             translationY = (1f - e) * size.height
-                            // Quando o Introduction 2 entra, este desloca-se um pouco para a esquerda.
-                            translationX = -(position.value - 1f).coerceAtLeast(0f) *
-                                size.width * CycloMotion.PageParallax
                         } else {
                             alpha = e
                         }
                     }
                     .background(CycloColors.Background)
-                    // Impede que os toques passem para os ecrãs que estão por baixo.
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .then(if (showIntroduction2) Modifier.clearAndSetSemantics { } else Modifier),
-            ) {
-                Introduction1Screen(
-                    enter = { enter.value },
-                    onClose = { step = 0 },
-                    onNext = { step = 2 },
-                )
-            }
-        }
-
-        if (showIntroduction2) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        // 1 = fora, à direita; 0 = no sítio.
-                        val offscreen = (2f - position.value).coerceIn(0f, 1f)
-                        if (effects.animationsEnabled) {
-                            translationX = offscreen * size.width
-                        } else {
-                            alpha = 1f - offscreen
-                        }
-                    }
-                    .background(CycloColors.Background)
+                    // Impede que os toques passem para o ecrã que está por baixo.
                     .pointerInput(Unit) { detectTapGestures { } },
             ) {
-                Introduction2Screen(
-                    wakeHour = wakeHour,
-                    wakeMinute = wakeMinute,
-                    hintVisible = !timeChanged,
-                    onHourChange = {
-                        if (it != wakeHour) {
-                            wakeHour = it
-                            timeChanged = true
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // FIXO: botão de cima e barra de progresso.
+                    IntroTopBar(
+                        leadingIsBack = step >= 2,
+                        backAmount = { (position.value - 1f).coerceIn(0f, 1f) },
+                        progress = { progress.value },
+                        progressDescription = stringResource(
+                            R.string.introduction_progress,
+                            step.coerceAtLeast(1),
+                            StepCount,
+                        ),
+                        onLeadingClick = { step = if (step >= 2) step - 1 else 0 },
+                        modifier = Modifier
+                            .padding(horizontal = CycloDimens.ScreenMargin)
+                            .zIndex(1f),
+                    )
+
+                    // As páginas deslizam aqui, entre a parte de cima e o Next.
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    // Quando o Introduction 2 entra, este desloca-se um pouco para a esquerda.
+                                    if (effects.animationsEnabled) {
+                                        translationX = -(position.value - 1f).coerceAtLeast(0f) *
+                                            size.width * CycloMotion.PageParallax
+                                    }
+                                }
+                                .background(CycloColors.Background)
+                                .then(if (showIntroduction2) Modifier.clearAndSetSemantics { } else Modifier),
+                        ) {
+                            Introduction1Page(enter = { enter.value })
                         }
-                    },
-                    onMinuteChange = {
-                        if (it != wakeMinute) {
-                            wakeMinute = it
-                            timeChanged = true
+
+                        if (showIntroduction2) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        // 1 = fora, à direita; 0 = no sítio.
+                                        val offscreen = (2f - position.value).coerceIn(0f, 1f)
+                                        if (effects.animationsEnabled) {
+                                            translationX = offscreen * size.width
+                                        } else {
+                                            alpha = 1f - offscreen
+                                        }
+                                    }
+                                    .background(CycloColors.Background),
+                            ) {
+                                Introduction2Page(
+                                    wakeHour = wakeHour,
+                                    wakeMinute = wakeMinute,
+                                    hintVisible = !timeChanged,
+                                    onHourChange = {
+                                        if (it != wakeHour) {
+                                            wakeHour = it
+                                            timeChanged = true
+                                        }
+                                    },
+                                    onMinuteChange = {
+                                        if (it != wakeMinute) {
+                                            wakeMinute = it
+                                            timeChanged = true
+                                        }
+                                    },
+                                )
+                            }
                         }
-                    },
-                    onBack = { step = 1 },
-                    onNext = onIntroduction2Next,
-                )
+                    }
+
+                    // FIXO: botão Next.
+                    Spacer(Modifier.height(CycloDimens.Spacing))
+                    CycloGlassButton(
+                        text = stringResource(R.string.next),
+                        onClick = { if (step == 1) step = 2 else onIntroduction2Next() },
+                        modifier = Modifier
+                            .padding(horizontal = CycloDimens.ScreenMargin)
+                            .zIndex(1f),
+                    )
+                    Spacer(Modifier.height(bottomInset))
+                }
             }
         }
     }

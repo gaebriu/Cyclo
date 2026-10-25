@@ -16,27 +16,35 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.drawBlurredStripGlow
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloType
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
-import kotlin.math.roundToInt
+
+/**
+ * Faixa de cor que fica atrás do vidro e é desfocada com ele (o "purple fx" do news-b):
+ * [insetHorizontal] de margem de cada lado, [height] de altura, colada à base do botão.
+ *
+ * @param blurFigma desfoque do que está atrás do botão, tal como no Figma.
+ */
+class GlassGlow(
+    val color: Color,
+    val insetHorizontal: Dp,
+    val height: Dp,
+    val blurFigma: Float,
+)
 
 /** Botão principal roxo (get-started-b). */
 @Composable
@@ -60,17 +68,14 @@ fun CycloPrimaryButton(
  * e sombra interior.
  *
  * @param onClick nulo = botão só visual, sem ação.
- * @param backdropBlurFigma desfoque do que está atrás do botão, tal como no Figma (nulo = sem desfoque).
- * @param underlay desenho que fica atrás do vidro e é desfocado com ele (o "purple fx" do news-b).
- *                 As coordenadas são as do próprio botão.
+ * @param glow faixa de cor desfocada que se vê através do vidro (nulo = sem brilho).
  */
 @Composable
 fun CycloGlassButton(
     text: String,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    backdropBlurFigma: Float? = null,
-    underlay: (DrawScope.() -> Unit)? = null,
+    glow: GlassGlow? = null,
 ) {
     CycloButtonSurface(
         text = text,
@@ -88,8 +93,7 @@ fun CycloGlassButton(
                 endY = size.height,
             )
         },
-        backdropBlurFigma = backdropBlurFigma,
-        underlay = underlay,
+        glow = glow,
     )
 }
 
@@ -101,11 +105,9 @@ private fun CycloButtonSurface(
     fill: Color,
     luminosity: Boolean,
     border: (Size) -> Brush,
-    backdropBlurFigma: Float? = null,
-    underlay: (DrawScope.() -> Unit)? = null,
+    glow: GlassGlow? = null,
 ) {
     val effects = LocalVisualEffects.current
-    val backdropLayer = rememberGraphicsLayer()
 
     // Sem estado de toque: o Figma não define nenhum.
     val clickModifier = if (onClick != null) {
@@ -128,25 +130,23 @@ private fun CycloButtonSurface(
                 val shape = Path().apply {
                     addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
                 }
-                val blurOn = effects.blurEnabled
 
-                // 1. O que está atrás do botão, desfocado, dentro da forma do botão.
-                if (backdropBlurFigma != null && blurOn) {
-                    backdropLayer.record(
-                        this,
-                        layoutDirection,
-                        IntSize(size.width.roundToInt(), size.height.roundToInt()),
-                    ) {
-                        drawRect(CycloColors.Background)
-                        underlay?.invoke(this)
+                // 1. O que está atrás do vidro: a faixa de cor desfocada, dentro da forma do botão.
+                if (glow != null) {
+                    val inset = glow.insetHorizontal.toPx()
+                    clipPath(shape) {
+                        drawBlurredStripGlow(
+                            color = glow.color,
+                            left = inset,
+                            right = size.width - inset,
+                            top = size.height - glow.height.toPx(),
+                            sigma = figmaBlurPx(glow.blurFigma),
+                        )
                     }
-                    val sigma = figmaBlurPx(backdropBlurFigma)
-                    backdropLayer.renderEffect = BlurEffect(sigma, sigma, TileMode.Clamp)
-                    clipPath(shape) { drawLayer(backdropLayer) }
                 }
 
-                // 2. Fundo. Sem desfoques, a mistura Luminosity passa a normal.
-                val blend = if (luminosity && blurOn) BlendMode.Luminosity else BlendMode.SrcOver
+                // 2. Fundo. Sem efeitos, a mistura Luminosity passa a normal.
+                val blend = if (luminosity && effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
                 drawPath(shape, color = fill, blendMode = blend)
 
                 // 3. Sombra interior: 0, -6, desfoque 15, preto a 15 %.
