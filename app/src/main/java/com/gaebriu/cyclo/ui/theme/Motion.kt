@@ -47,6 +47,15 @@ object CycloMotion {
     /** Desaparecimento do texto "Scroll or tap to interact". */
     const val HintFadeDurationMs = 350
 
+    /** Transição da caixa do nome entre escrever e ouvir (ícones, borda, textos). */
+    val ListeningSpring = spring<Float>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+
+    /** Volta de um ciclo dos gradientes animados da caixa a ouvir (texto e borda, da esquerda para a direita). */
+    const val ListeningShimmerMs = 2200
+
+    /** A caixa do nome a ir para cima do teclado (e a voltar). Mola suave, ao estilo iOS / Material You. */
+    val KeyboardSpring = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+
     /** Crescimento da barra de progresso. */
     val ProgressSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 130f)
 }

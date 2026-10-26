@@ -1,6 +1,5 @@
 package com.gaebriu.cyclo.ui.theme
 
-import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -8,16 +7,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import com.gaebriu.cyclo.R
-
-val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    )
-)
 
 val Inter = FontFamily(
     Font(R.font.inter_medium, FontWeight.Medium),
@@ -68,6 +57,22 @@ object CycloType {
         fontSize = 24.sp,
         color = CycloColors.TextPrimary,
         textAlign = TextAlign.Center,
+    )
+
+    /** Texto escrito na caixa do nome: Inter SemiBold 15, branco. */
+    val Input = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
+        color = CycloColors.TextPrimary,
+    )
+
+    /** "Tap to write" e "Listening...": Inter SemiBold 15, cinzento. */
+    val InputHint = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
+        color = CycloColors.TextSecondary,
     )
 
     /** Texto dos botões: Inter SemiBold 15. */

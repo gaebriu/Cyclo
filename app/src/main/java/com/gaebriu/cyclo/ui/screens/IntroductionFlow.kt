@@ -30,11 +30,13 @@ import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.zIndex
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.components.CycloGlassButton
+import com.gaebriu.cyclo.ui.components.MaxRoutineNameLength
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
@@ -47,27 +49,31 @@ import kotlinx.coroutines.launch
 private const val StepCount = 6
 
 /**
- * Fluxo dos ecrãs de introdução. Por agora: Introduction 0, 1 e 2.
+ * Fluxo dos ecrãs de introdução. Por agora: Introduction 0, 1, 2 e 3.
  *
  * - O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto,
  *   enquanto o 0 recua (zoom out, desfoque, véu escuro, e o brilho roxo some de cima para baixo).
  *   O X e o gesto/botão de voltar do Android fazem-no descer de volta, e o 0 avança com zoom in.
- * - Do Introduction 1 para o 2 (e seguintes), só as páginas deslizam na horizontal (a que sai
- *   desloca-se um pouco menos). O botão de cima, a barra de progresso e o Next são FIXOS: não se
- *   mexem; o ícone do botão muda por fade (X para seta) e a barra cresce.
+ * - Do Introduction 1 em diante, só as páginas deslizam na horizontal (a que sai desloca-se um
+ *   pouco menos). O botão de cima, a barra de progresso e o Next são FIXOS: não se mexem; o ícone
+ *   do botão muda por fade (X para seta) e a barra cresce.
  * - A seta de voltar e o gesto de voltar do Android (com a pré-visualização do sistema, a seguir
  *   o dedo) fazem o caminho inverso.
  * - Sem animações no sistema, os movimentos passam a fades.
+ * - Nome da rotina vazio (ou só espaços): ao carregar em Next fica "Routine [Nº]".
  *
- * @param onIntroduction2Next ação do Next do Introduction 2 (o Introduction 3 ainda não existe).
+ * @param nextRoutineNumber o número que a próxima rotina vai ter (as já guardadas + 1).
+ * @param onIntroduction3Next ação do Next do Introduction 3, com o nome final (o Introduction 4 ainda não existe).
  */
 @Composable
 fun IntroductionFlow(
     modifier: Modifier = Modifier,
-    onIntroduction2Next: () -> Unit = {},
+    nextRoutineNumber: Int = 1,
+    onIntroduction3Next: (routineName: String) -> Unit = {},
 ) {
     val effects = LocalVisualEffects.current
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     var step by rememberSaveable { mutableIntStateOf(0) }
 
@@ -75,6 +81,10 @@ fun IntroductionFlow(
     var wakeHour by rememberSaveable { mutableIntStateOf(6) }
     var wakeMinute by rememberSaveable { mutableIntStateOf(0) }
     var timeChanged by rememberSaveable { mutableStateOf(false) }
+
+    // Nome escrito no Introduction 3.
+    var routineName by rememberSaveable { mutableStateOf("") }
+    val defaultRoutineName = stringResource(R.string.routine_default_name, nextRoutineNumber)
 
     // enter: o Introduction 1 sobe (0 a 1). position: página horizontal, de 1 (Introduction 1) em diante.
     // progress: a barra de progresso (0 a 1).
@@ -93,6 +103,11 @@ fun IntroductionFlow(
         }
     }
 
+    // Ao sair do Introduction 3, o teclado fecha.
+    LaunchedEffect(step) {
+        if (step != 3) focusManager.clearFocus()
+    }
+
     BackHandler(enabled = step == 1) { step = 0 }
 
     // Gesto de voltar do Android: o ecrã acompanha o dedo; ao confirmar volta, ao cancelar regressa.
@@ -109,6 +124,7 @@ fun IntroductionFlow(
     // Cada ecrã só existe enquanto estiver (ou a entrar/sair) em cima do anterior.
     val showIntroduction1 by remember { derivedStateOf { step >= 1 || enter.value > 0f } }
     val showIntroduction2 by remember { derivedStateOf { step >= 2 || position.value > 1.001f } }
+    val showIntroduction3 by remember { derivedStateOf { step >= 3 || position.value > 2.001f } }
 
     // O frame do Figma tem 48 dp de barra de navegação; reservamos pelo menos isso.
     val bottomInset = maxOf(
@@ -192,15 +208,9 @@ fun IntroductionFlow(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer {
-                                    // Quando o Introduction 2 entra, este desloca-se um pouco para a esquerda.
-                                    if (effects.animationsEnabled) {
-                                        translationX = -(position.value - 1f).coerceAtLeast(0f) *
-                                            size.width * CycloMotion.PageParallax
-                                    }
-                                }
+                                .introPage(1, { position.value }, effects.animationsEnabled)
                                 .background(CycloColors.Background)
-                                .then(if (showIntroduction2) Modifier.clearAndSetSemantics { } else Modifier),
+                                .then(if (step >= 2) Modifier.clearAndSetSemantics { } else Modifier),
                         ) {
                             Introduction1Page(enter = { enter.value })
                         }
@@ -209,16 +219,9 @@ fun IntroductionFlow(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .graphicsLayer {
-                                        // 1 = fora, à direita; 0 = no sítio.
-                                        val offscreen = (2f - position.value).coerceIn(0f, 1f)
-                                        if (effects.animationsEnabled) {
-                                            translationX = offscreen * size.width
-                                        } else {
-                                            alpha = 1f - offscreen
-                                        }
-                                    }
-                                    .background(CycloColors.Background),
+                                    .introPage(2, { position.value }, effects.animationsEnabled)
+                                    .background(CycloColors.Background)
+                                    .then(if (step >= 3) Modifier.clearAndSetSemantics { } else Modifier),
                             ) {
                                 Introduction2Page(
                                     wakeHour = wakeHour,
@@ -239,13 +242,41 @@ fun IntroductionFlow(
                                 )
                             }
                         }
+
+                        if (showIntroduction3) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .introPage(3, { position.value }, effects.animationsEnabled)
+                                    .background(CycloColors.Background),
+                            ) {
+                                Introduction3Page(
+                                    name = routineName,
+                                    onNameChange = { routineName = it },
+                                )
+                            }
+                        }
                     }
 
                     // FIXO: botão Next.
                     Spacer(Modifier.height(CycloDimens.Spacing))
                     CycloGlassButton(
                         text = stringResource(R.string.next),
-                        onClick = { if (step == 1) step = 2 else onIntroduction2Next() },
+                        onClick = {
+                            when (step) {
+                                1 -> step = 2
+                                2 -> step = 3
+                                else -> {
+                                    // Nome vazio (ou só espaços): fica "Routine [Nº]".
+                                    val finalName = routineName.trim()
+                                        .ifEmpty { defaultRoutineName }
+                                        .take(MaxRoutineNameLength)
+                                    routineName = finalName
+                                    focusManager.clearFocus()
+                                    onIntroduction3Next(finalName)
+                                }
+                            }
+                        },
                         modifier = Modifier
                             .padding(horizontal = CycloDimens.ScreenMargin)
                             .zIndex(1f),
@@ -254,5 +285,26 @@ fun IntroductionFlow(
                 }
             }
         }
+    }
+}
+
+/**
+ * Posição horizontal de uma página: antes de lhe chegar a vez vem da direita; depois de entrar,
+ * quando a seguinte chega, desloca-se um pouco para a esquerda (parallax). Sem animações, só fade.
+ */
+private fun Modifier.introPage(
+    index: Int,
+    position: () -> Float,
+    animationsEnabled: Boolean,
+): Modifier = graphicsLayer {
+    val local = position() - index
+    if (animationsEnabled) {
+        translationX = if (local < 0f) {
+            -local * size.width
+        } else {
+            -local * size.width * CycloMotion.PageParallax
+        }
+    } else {
+        alpha = if (local < 0f) (1f + local).coerceIn(0f, 1f) else 1f
     }
 }

@@ -17,6 +17,10 @@ object CycloDimens {
 
     val ProgressBarHeight = 24.dp
 
+    /** Caixas de texto (tap-to-write-box). */
+    val InputHeight = 48.dp
+    val InputRadius = 15.dp
+
     /** Distância do topo do ecrã ao botão X / seta no frame do Figma. */
     val TopBarTop = 48.dp
 }

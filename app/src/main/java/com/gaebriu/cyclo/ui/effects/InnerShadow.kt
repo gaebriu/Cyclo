@@ -64,3 +64,24 @@ fun DrawScope.drawBlurredCircle(
     }
     drawIntoCanvas { canvas -> canvas.drawCircle(center, radius, paint) }
 }
+
+/**
+ * Forma desfocada (sombra exterior / brilho do Figma), para quando a forma é um caminho qualquer.
+ * Desenha-se por baixo da forma opaca, por isso só se vê o que sai para fora dela.
+ *
+ * @param cssBlurPx raio de desfoque tal como o Figma o indica.
+ */
+fun DrawScope.drawBlurredPath(
+    path: Path,
+    color: Color,
+    cssBlurPx: Float,
+) {
+    val sigma = cssBlurPx / 2f
+    val maskRadius = ((sigma - 0.5f) / 0.57735f).coerceAtLeast(0.1f)
+    val paint = Paint().apply {
+        this.color = color
+        isAntiAlias = true
+        asFrameworkPaint().maskFilter = BlurMaskFilter(maskRadius, BlurMaskFilter.Blur.NORMAL)
+    }
+    drawIntoCanvas { canvas -> canvas.drawPath(path, paint) }
+}
