@@ -89,7 +89,7 @@ fun DrawScope.drawBlurredStripGlow(
             ),
         )
 
-        // 2) Perfil horizontal, applied como máscara (DstIn): 1 dentro da faixa, a cair nas pontas.
+        // 2) Perfil horizontal, aplicado como máscara (DstIn): 1 dentro da faixa, a cair nas pontas.
         val x0 = left - StripReach * sigma
         val x1 = right + StripReach * sigma
         val horizontalStops = Array(StripStops + 1) { i ->

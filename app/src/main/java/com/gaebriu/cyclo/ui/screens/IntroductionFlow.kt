@@ -60,7 +60,8 @@ private const val StepCount = 6
  * - A seta de voltar e o gesto de voltar do Android (com a pré-visualização do sistema, a seguir
  *   o dedo) fazem o caminho inverso.
  * - Sem animações no sistema, os movimentos passam a fades.
- * - Nome da rotina vazio (ou só espaços): ao carregar em Next fica "Routine [Nº]".
+ * - Nome da rotina vazio (ou só espaços): ao carregar em Next avança logo e guarda "Routine [Nº]" em
+ *   segundo plano, sem o mostrar na caixa.
  *
  * @param nextRoutineNumber o número que a próxima rotina vai ter (as já guardadas + 1).
  * @param onIntroduction3Next ação do Next do Introduction 3, com o nome final (o Introduction 4 ainda não existe).
@@ -82,8 +83,10 @@ fun IntroductionFlow(
     var wakeMinute by rememberSaveable { mutableIntStateOf(0) }
     var timeChanged by rememberSaveable { mutableStateOf(false) }
 
-    // Nome escrito no Introduction 3.
+    // routineName: o que está escrito na caixa do Introduction 3 (só o que o utilizador escreveu ou ditou).
+    // savedRoutineName: o nome final, guardado em segundo plano ao carregar em Next.
     var routineName by rememberSaveable { mutableStateOf("") }
+    var savedRoutineName by rememberSaveable { mutableStateOf("") }
     val defaultRoutineName = stringResource(R.string.routine_default_name, nextRoutineNumber)
 
     // enter: o Introduction 1 sobe (0 a 1). position: página horizontal, de 1 (Introduction 1) em diante.
@@ -267,13 +270,13 @@ fun IntroductionFlow(
                                 1 -> step = 2
                                 2 -> step = 3
                                 else -> {
-                                    // Nome vazio (ou só espaços): fica "Routine [Nº]".
-                                    val finalName = routineName.trim()
+                                    // Nome vazio (ou só espaços): fica "Routine [Nº]". Guarda-se em segundo plano
+                                    // e NÃO se escreve na caixa, para não haver salto visual: avança logo.
+                                    savedRoutineName = routineName.trim()
                                         .ifEmpty { defaultRoutineName }
                                         .take(MaxRoutineNameLength)
-                                    routineName = finalName
                                     focusManager.clearFocus()
-                                    onIntroduction3Next(finalName)
+                                    onIntroduction3Next(savedRoutineName)
                                 }
                             }
                         },

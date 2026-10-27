@@ -32,7 +32,6 @@
     <string name="introduction_3_placeholder">Tap to write</string>
     <string name="introduction_3_listening">Listening...</string>
     <string name="introduction_3_dictate">Voice input</string>
-    <string name="introduction_3_cancel_dictation">Cancel voice input</string>
     <string name="introduction_3_switch_to_keyboard">Switch to keyboard</string>
     <string name="routine_default_name">Routine %1$d</string>
 </resources>

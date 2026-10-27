@@ -56,6 +56,9 @@ object CycloMotion {
     /** A caixa do nome a ir para cima do teclado (e a voltar). Mola suave, ao estilo iOS / Material You. */
     val KeyboardSpring = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
 
+    /** Fades de elementos soltos (ex.: o subtítulo do Introduction 3 com o teclado). Mola sem ressalto. */
+    val FadeSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+
     /** Crescimento da barra de progresso. */
     val ProgressSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 130f)
 }
