@@ -10,7 +10,6 @@
 
     <!-- Introduction 0 -->
     <string name="introduction_0_greeting">Hello!</string>
-    <string name="introduction_0_whats_new">What’s new?</string>
     <string name="introduction_0_get_started">Get started</string>
 
     <!-- Introduction 1 -->
@@ -34,4 +33,32 @@
     <string name="introduction_3_dictate">Voice input</string>
     <string name="introduction_3_switch_to_keyboard">Switch to keyboard</string>
     <string name="routine_default_name">Routine %1$d</string>
+
+    <!-- Introduction 4 -->
+    <string name="introduction_4_title">When should it appear on your feed?</string>
+    <string name="introduction_4_subtitle">If it\'s just for one time use, skip this part</string>
+    <string name="introduction_4_repeat_field">When to show</string>
+    <string name="repeat_just_once">Show just this once</string>
+    <string name="repeat_everyday">Everyday</string>
+    <string name="repeat_during_week">During the week</string>
+    <string name="repeat_during_weekend">During the weekend</string>
+    <string name="repeat_selected_days">Show in selected days</string>
+    <string name="repeat_choose_days_hint">Choose days</string>
+    <string name="days_sheet_title">Choose days</string>
+    <string name="days_sheet_description">This routine will repeat every week on the following days</string>
+    <string name="days_sheet_done">Done</string>
+    <string name="day_short_sunday">S</string>
+    <string name="day_short_monday">M</string>
+    <string name="day_short_tuesday">T</string>
+    <string name="day_short_wednesday">W</string>
+    <string name="day_short_thursday">T</string>
+    <string name="day_short_friday">F</string>
+    <string name="day_short_saturday">S</string>
+    <string name="day_sunday">Sunday</string>
+    <string name="day_monday">Monday</string>
+    <string name="day_tuesday">Tuesday</string>
+    <string name="day_wednesday">Wednesday</string>
+    <string name="day_thursday">Thursday</string>
+    <string name="day_friday">Friday</string>
+    <string name="day_saturday">Saturday</string>
 </resources>

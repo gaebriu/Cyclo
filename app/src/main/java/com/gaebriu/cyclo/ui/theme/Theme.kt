@@ -12,7 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = CycloColors.Accent,
+    primary =
+        CycloColors.Accent,
     secondary = CycloColors.GlassBorder,
     tertiary = CycloColors.TextSecondary,
     background = CycloColors.Background,

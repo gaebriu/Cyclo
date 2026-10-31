@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -78,3 +79,16 @@ fun KeyboardLift(
         content()
     }
 }
+
+/**
+ * Opacidade (1 = visível) de um elemento que se esconde enquanto o teclado está aberto, com um
+ * fade fluido, e que reaparece quando ele fecha. Nunca se esconde se [keepVisible] for verdadeiro
+ * (ex.: durante o ditado por voz).
+ */
+@Composable
+fun rememberFadeWithKeyboard(keepVisible: Boolean): State<Float> =
+    animateFloatAsState(
+        targetValue = if (!rememberIsKeyboardOpen() || keepVisible) 1f else 0f,
+        animationSpec = CycloMotion.FadeSpring,
+        label = "fadeWithKeyboard",
+    )

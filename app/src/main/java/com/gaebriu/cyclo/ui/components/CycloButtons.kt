@@ -1,13 +1,10 @@
 package com.gaebriu.cyclo.ui.components
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -21,66 +18,59 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
-import com.gaebriu.cyclo.ui.effects.drawBlurredStripGlow
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloType
-import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 
-/**
- * Faixa de cor que fica atrás do vidro e é desfocada com ele (o "purple fx" do news-b):
- * [insetHorizontal] de margem de cada lado, [height] de altura, colada à base do botão.
- *
- * @param blurFigma desfoque do que está atrás do botão, tal como no Figma.
- */
-class GlassGlow(
-    val color: Color,
-    val insetHorizontal: Dp,
-    val height: Dp,
-    val blurFigma: Float,
-)
+/** Tamanhos do botão principal: o grande (66 dp) e o compacto das folhas (48 dp). */
+enum class CycloButtonSize { Large, Compact }
 
-/** Botão principal roxo (get-started-b). */
+/** Botão principal roxo (get-started-b; "Done" na folha, em tamanho compacto). */
 @Composable
 fun CycloPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    size: CycloButtonSize = CycloButtonSize.Large,
 ) {
-    CycloButtonSurface(
-        text = text,
-        modifier = modifier,
-        onClick = onClick,
-        fill = CycloColors.Accent,
-        luminosity = false,
-        border = { SolidColor(CycloColors.Accent) },
-    )
+    val style = when (size) {
+        CycloButtonSize.Large -> ButtonStyle(
+            height = CycloDimens.ButtonHeight,
+            cornerRadius = CycloDimens.CornerRadius,
+            fill = CycloColors.Accent,
+            luminosity = false,
+            border = { SolidColor(CycloColors.Accent) },
+            innerShadowOffsetY = (-6).dp,
+        )
+        CycloButtonSize.Compact -> ButtonStyle(
+            height = CycloDimens.InputHeight,
+            cornerRadius = CycloDimens.InputRadius,
+            fill = CycloColors.Accent,
+            luminosity = false,
+            border = { SolidColor(CycloColors.Accent.copy(alpha = 0.24f)) },
+            innerShadowOffsetY = 6.dp,
+        )
+    }
+    CycloButtonSurface(text = text, onClick = onClick, style = style, modifier = modifier)
 }
 
 /**
- * Botão de vidro (news-b, next-b): fundo #101011 em mistura Luminosity, borda em gradiente
+ * Botão de vidro (next-b): fundo #101011 em mistura Luminosity, borda em gradiente
  * e sombra interior.
- *
- * @param onClick nulo = botão só visual, sem ação.
- * @param glow faixa de cor desfocada que se vê através do vidro (nulo = sem brilho).
  */
 @Composable
 fun CycloGlassButton(
     text: String,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    glow: GlassGlow? = null,
 ) {
-    CycloButtonSurface(
-        text = text,
-        modifier = modifier,
-        onClick = onClick,
+    val style = ButtonStyle(
+        height = CycloDimens.ButtonHeight,
+        cornerRadius = CycloDimens.CornerRadius,
         fill = CycloColors.GlassFill,
         luminosity = true,
         border = { size ->
@@ -93,71 +83,55 @@ fun CycloGlassButton(
                 endY = size.height,
             )
         },
-        glow = glow,
+        innerShadowOffsetY = (-6).dp,
     )
+    CycloButtonSurface(text = text, onClick = onClick, style = style, modifier = modifier)
 }
+
+/** Tudo o que muda de um botão para outro. */
+private class ButtonStyle(
+    val height: Dp,
+    val cornerRadius: Dp,
+    val fill: Color,
+    val luminosity: Boolean,
+    val border: (Size) -> Brush,
+    val innerShadowOffsetY: Dp,
+)
 
 @Composable
 private fun CycloButtonSurface(
     text: String,
+    onClick: () -> Unit,
+    style: ButtonStyle,
     modifier: Modifier,
-    onClick: (() -> Unit)?,
-    fill: Color,
-    luminosity: Boolean,
-    border: (Size) -> Brush,
-    glow: GlassGlow? = null,
 ) {
     val effects = LocalVisualEffects.current
-
-    // Sem estado de toque: o Figma não define nenhum.
-    val clickModifier = if (onClick != null) {
-        Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            role = Role.Button,
-            onClick = onClick,
-        )
-    } else {
-        Modifier
-    }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(CycloDimens.ButtonHeight)
+            .height(style.height)
+            // O toque (zoom out + háptico) vem ANTES de desenhar, para o desenho também encolher.
+            .cycloPressable(onClick = onClick)
             .drawBehind {
-                val radius = CycloDimens.CornerRadius.toPx()
+                val radius = style.cornerRadius.toPx()
                 val shape = Path().apply {
                     addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
                 }
 
-                // 1. O que está atrás do vidro: a faixa de cor desfocada, dentro da forma do botão.
-                if (glow != null) {
-                    val inset = glow.insetHorizontal.toPx()
-                    clipPath(shape) {
-                        drawBlurredStripGlow(
-                            color = glow.color,
-                            left = inset,
-                            right = size.width - inset,
-                            top = size.height - glow.height.toPx(),
-                            sigma = figmaBlurPx(glow.blurFigma),
-                        )
-                    }
-                }
+                // Fundo. Sem efeitos, a mistura Luminosity passa a normal.
+                val blend = if (style.luminosity && effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+                drawPath(shape, color = style.fill, blendMode = blend)
 
-                // 2. Fundo. Sem efeitos, a mistura Luminosity passa a normal.
-                val blend = if (luminosity && effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
-                drawPath(shape, color = fill, blendMode = blend)
-
-                // 3. Sombra interior: 0, -6, desfoque 15, preto a 15 %.
+                // Sombra interior: 0, ±6, desfoque 15, preto a 15 %.
                 drawInnerShadow(
                     shape = shape,
                     color = Color.Black.copy(alpha = 0.15f),
-                    offset = Offset(0f, -6.dp.toPx()),
+                    offset = Offset(0f, style.innerShadowOffsetY.toPx()),
                     cssBlurPx = 15.dp.toPx(),
                 )
 
-                // 4. Borda de 1 dp, por dentro.
+                // Borda de 1 dp, por dentro.
                 val strokeWidth = 1.dp.toPx()
                 val inset = strokeWidth / 2f
                 val borderShape = Path().apply {
@@ -173,12 +147,11 @@ private fun CycloButtonSurface(
                 }
                 drawPath(
                     borderShape,
-                    brush = border(size),
+                    brush = style.border(size),
                     style = Stroke(width = strokeWidth),
                     blendMode = blend,
                 )
-            }
-            .then(clickModifier),
+            },
         contentAlignment = Alignment.Center,
     ) {
         BasicText(text = text, style = CycloType.Button)

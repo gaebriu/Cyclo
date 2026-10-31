@@ -38,6 +38,8 @@ import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.components.CycloGlassButton
 import com.gaebriu.cyclo.ui.components.MaxRoutineNameLength
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.routine.RepeatOption
+import com.gaebriu.cyclo.ui.routine.rememberRepeatSelection
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
@@ -49,7 +51,7 @@ import kotlinx.coroutines.launch
 private const val StepCount = 6
 
 /**
- * Fluxo dos ecrãs de introdução. Por agora: Introduction 0, 1, 2 e 3.
+ * Fluxo dos ecrãs de introdução. Por agora: Introduction 0, 1, 2, 3 e 4.
  *
  * - O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto,
  *   enquanto o 0 recua (zoom out, desfoque, véu escuro, e o brilho roxo some de cima para baixo).
@@ -58,19 +60,20 @@ private const val StepCount = 6
  *   pouco menos). O botão de cima, a barra de progresso e o Next são FIXOS: não se mexem; o ícone
  *   do botão muda por fade (X para seta) e a barra cresce.
  * - A seta de voltar e o gesto de voltar do Android (com a pré-visualização do sistema, a seguir
- *   o dedo) fazem o caminho inverso.
+ *   o dedo) fazem o caminho inverso. Com um menu aberto, voltar fecha primeiro o menu.
  * - Sem animações no sistema, os movimentos passam a fades.
  * - Nome da rotina vazio (ou só espaços): ao carregar em Next avança logo e guarda "Routine [Nº]" em
- *   segundo plano, sem o mostrar na caixa.
+ *   segundo plano, sem o mostrar na caixa do Introduction 3. O Introduction 4 já mostra o nome guardado.
  *
  * @param nextRoutineNumber o número que a próxima rotina vai ter (as já guardadas + 1).
- * @param onIntroduction3Next ação do Next do Introduction 3, com o nome final (o Introduction 4 ainda não existe).
+ * @param onIntroduction4Next ação do Next do Introduction 4, com o nome final e a repetição escolhida
+ *        (o Introduction 5 ainda não existe).
  */
 @Composable
 fun IntroductionFlow(
     modifier: Modifier = Modifier,
     nextRoutineNumber: Int = 1,
-    onIntroduction3Next: (routineName: String) -> Unit = {},
+    onIntroduction4Next: (routineName: String, repeat: RepeatOption, daysMask: Int) -> Unit = { _, _, _ -> },
 ) {
     val effects = LocalVisualEffects.current
     val scope = rememberCoroutineScope()
@@ -84,10 +87,21 @@ fun IntroductionFlow(
     var timeChanged by rememberSaveable { mutableStateOf(false) }
 
     // routineName: o que está escrito na caixa do Introduction 3 (só o que o utilizador escreveu ou ditou).
-    // savedRoutineName: o nome final, guardado em segundo plano ao carregar em Next.
+    // savedRoutineName: o nome final, guardado em segundo plano; é o que o Introduction 4 mostra e edita.
     var routineName by rememberSaveable { mutableStateOf("") }
     var savedRoutineName by rememberSaveable { mutableStateOf("") }
     val defaultRoutineName = stringResource(R.string.routine_default_name, nextRoutineNumber)
+
+    // Quando a repetição fica pelo menu do Introduction 4.
+    val repeat = rememberRepeatSelection()
+
+    // Guarda o nome: o que foi escrito; se estiver vazio, o que já estava guardado; se também, "Routine [Nº]".
+    fun commitRoutineName(typed: String) {
+        savedRoutineName = typed.trim()
+            .ifEmpty { savedRoutineName.trim() }
+            .ifEmpty { defaultRoutineName }
+            .take(MaxRoutineNameLength)
+    }
 
     // enter: o Introduction 1 sobe (0 a 1). position: página horizontal, de 1 (Introduction 1) em diante.
     // progress: a barra de progresso (0 a 1).
@@ -106,9 +120,10 @@ fun IntroductionFlow(
         }
     }
 
-    // Ao sair do Introduction 3, o teclado fecha.
+    // Ao mudar de ecrã, o teclado e os menus fecham.
     LaunchedEffect(step) {
-        if (step != 3) focusManager.clearFocus()
+        focusManager.clearFocus()
+        repeat.closeOverlays()
     }
 
     BackHandler(enabled = step == 1) { step = 0 }
@@ -124,10 +139,14 @@ fun IntroductionFlow(
         }
     }
 
+    // Com um menu aberto, voltar fecha o menu. Vem DEPOIS dos outros, por isso tem prioridade.
+    BackHandler(enabled = repeat.isOverlayOpen) { repeat.closeOverlays() }
+
     // Cada ecrã só existe enquanto estiver (ou a entrar/sair) em cima do anterior.
     val showIntroduction1 by remember { derivedStateOf { step >= 1 || enter.value > 0f } }
     val showIntroduction2 by remember { derivedStateOf { step >= 2 || position.value > 1.001f } }
     val showIntroduction3 by remember { derivedStateOf { step >= 3 || position.value > 2.001f } }
+    val showIntroduction4 by remember { derivedStateOf { step >= 4 || position.value > 3.001f } }
 
     // O frame do Figma tem 48 dp de barra de navegação; reservamos pelo menos isso.
     val bottomInset = maxOf(
@@ -208,24 +227,12 @@ fun IntroductionFlow(
 
                     // As páginas deslizam aqui, entre a parte de cima e o Next.
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .introPage(1, { position.value }, effects.animationsEnabled)
-                                .background(CycloColors.Background)
-                                .then(if (step >= 2) Modifier.clearAndSetSemantics { } else Modifier),
-                        ) {
+                        IntroPage(1, { position.value }, effects.animationsEnabled, covered = step >= 2) {
                             Introduction1Page(enter = { enter.value })
                         }
 
                         if (showIntroduction2) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .introPage(2, { position.value }, effects.animationsEnabled)
-                                    .background(CycloColors.Background)
-                                    .then(if (step >= 3) Modifier.clearAndSetSemantics { } else Modifier),
-                            ) {
+                            IntroPage(2, { position.value }, effects.animationsEnabled, covered = step >= 3) {
                                 Introduction2Page(
                                     wakeHour = wakeHour,
                                     wakeMinute = wakeMinute,
@@ -247,15 +254,20 @@ fun IntroductionFlow(
                         }
 
                         if (showIntroduction3) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .introPage(3, { position.value }, effects.animationsEnabled)
-                                    .background(CycloColors.Background),
-                            ) {
+                            IntroPage(3, { position.value }, effects.animationsEnabled, covered = step >= 4) {
                                 Introduction3Page(
                                     name = routineName,
                                     onNameChange = { routineName = it },
+                                )
+                            }
+                        }
+
+                        if (showIntroduction4) {
+                            IntroPage(4, { position.value }, effects.animationsEnabled, covered = false) {
+                                Introduction4Page(
+                                    name = savedRoutineName,
+                                    onNameChange = { savedRoutineName = it },
+                                    repeat = repeat,
                                 )
                             }
                         }
@@ -269,14 +281,15 @@ fun IntroductionFlow(
                             when (step) {
                                 1 -> step = 2
                                 2 -> step = 3
+                                3 -> {
+                                    // Nome vazio: fica "Routine [Nº]" guardado em segundo plano, sem aparecer
+                                    // na caixa, e avança logo.
+                                    commitRoutineName(routineName)
+                                    step = 4
+                                }
                                 else -> {
-                                    // Nome vazio (ou só espaços): fica "Routine [Nº]". Guarda-se em segundo plano
-                                    // e NÃO se escreve na caixa, para não haver salto visual: avança logo.
-                                    savedRoutineName = routineName.trim()
-                                        .ifEmpty { defaultRoutineName }
-                                        .take(MaxRoutineNameLength)
-                                    focusManager.clearFocus()
-                                    onIntroduction3Next(savedRoutineName)
+                                    commitRoutineName(savedRoutineName)
+                                    onIntroduction4Next(savedRoutineName, repeat.option, repeat.daysMask)
                                 }
                             }
                         },
@@ -286,8 +299,32 @@ fun IntroductionFlow(
                     )
                     Spacer(Modifier.height(bottomInset))
                 }
+
+                // Menus por cima de tudo (também do Next).
+                RepeatOverlays(selection = repeat, bottomMargin = bottomInset)
             }
         }
+    }
+}
+
+/** Uma página do fluxo: desliza na horizontal com a posição e fica opaca, para tapar a anterior. */
+@Composable
+private fun IntroPage(
+    index: Int,
+    position: () -> Float,
+    animationsEnabled: Boolean,
+    covered: Boolean,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .introPage(index, position, animationsEnabled)
+            .background(CycloColors.Background)
+            // Tapada pela página seguinte: fica fora do alcance do TalkBack.
+            .then(if (covered) Modifier.clearAndSetSemantics { } else Modifier),
+    ) {
+        content()
     }
 }
 

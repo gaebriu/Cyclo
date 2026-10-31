@@ -1,8 +1,6 @@
 package com.gaebriu.cyclo.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -15,13 +13,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
+import com.gaebriu.cyclo.ui.theme.CycloMotion
 
 /**
  * Botão redondo de vidro (close-b, e a seta de voltar nos ecrãs seguintes).
@@ -51,12 +49,7 @@ fun CycloCircleButton(
     Box(
         modifier = modifier
             .size(CycloDimens.TouchTarget)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Button,
-                onClick = onClick,
-            )
+            .cycloPressable(onClick = onClick, pressedScale = CycloMotion.IconButtonPressScale)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {

@@ -75,6 +75,31 @@ object CycloType {
         color = CycloColors.TextSecondary,
     )
 
+    /** Opção de um menu: Inter Medium 15, branco, alinhado à esquerda. */
+    val MenuItem = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        color = CycloColors.TextPrimary,
+    )
+
+    /** Texto pequeno por baixo de uma opção de menu: Inter Medium 9, cinzento. */
+    val MenuHint = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Medium,
+        fontSize = 9.sp,
+        color = CycloColors.TextSecondary,
+    )
+
+    /** Título de uma folha ("Choose days"): Inter SemiBold 15, branco, centrado. */
+    val SheetTitle = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
+        color = CycloColors.TextPrimary,
+        textAlign = TextAlign.Center,
+    )
+
     /** Texto dos botões: Inter SemiBold 15. */
     val Button = TextStyle(
         fontFamily = Inter,

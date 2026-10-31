@@ -4,7 +4,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -40,9 +39,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
-import com.gaebriu.cyclo.ui.components.CycloGlassButton
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
-import com.gaebriu.cyclo.ui.components.GlassGlow
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.VisualEffects
 import com.gaebriu.cyclo.ui.effects.drawGaussianGlow
@@ -314,16 +311,6 @@ private fun IntroButtons(
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottom = maxOf(CycloDimens.MinBottomInset, navigationInset)
 
-    // "purple fx" do news-b: faixa roxa a 24 % colada à base, com 24 dp de margem de cada lado.
-    val purpleFx = remember {
-        GlassGlow(
-            color = CycloColors.Accent.copy(alpha = 0.24f),
-            insetHorizontal = 24.dp,
-            height = 19.dp,
-            blurFigma = FigmaBlur.NewsButton,
-        )
-    }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -335,12 +322,7 @@ private fun IntroButtons(
                 // Sem animações: só fade, sem subir.
                 translationY = if (effects.animationsEnabled) (1f - p) * CycloMotion.ButtonsRise.toPx() else 0f
             },
-        verticalArrangement = Arrangement.spacedBy(CycloDimens.Spacing),
     ) {
-        CycloGlassButton(
-            text = stringResource(R.string.introduction_0_whats_new),
-            glow = purpleFx,
-        )
         CycloPrimaryButton(
             text = stringResource(R.string.introduction_0_get_started),
             onClick = onGetStarted,

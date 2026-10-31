@@ -25,7 +25,4 @@ object FigmaBlur {
 
     /** Holofote atrás dos ícones dos ecrãs de introdução (fx spotlight). */
     const val Spotlight = 100f
-
-    /** Botão "What's new?" (news-b): exceção deliberada ao valor unificado de 39. */
-    const val NewsButton = 63f
 }

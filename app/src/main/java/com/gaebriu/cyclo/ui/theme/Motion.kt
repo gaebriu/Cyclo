@@ -59,6 +59,20 @@ object CycloMotion {
     /** Fades de elementos soltos (ex.: o subtítulo do Introduction 3 com o teclado). Mola sem ressalto. */
     val FadeSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
 
+    /** Zoom out subtil de um botão enquanto está carregado: botões grandes e botões só de ícone. */
+    const val ButtonPressScale = 0.96f
+    const val IconButtonPressScale = 0.88f
+
+    /** Mola do zoom dos botões: responde logo ao toque e assenta com um ligeiro ressalto. */
+    val PressSpring = spring<Float>(dampingRatio = 0.65f, stiffness = 500f)
+
+    /** Caixa do nome ao completar o ditado: a de escrever entra com zoom in, a de ouvir sai com zoom out. */
+    const val CompletionZoom = 0.94f
+    val CompletionSpring = spring<Float>(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow)
+
+    /** Menus e folhas que aparecem por cima do ecrã (entrada e saída). */
+    val OverlaySpring = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+
     /** Crescimento da barra de progresso. */
     val ProgressSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 130f)
 }

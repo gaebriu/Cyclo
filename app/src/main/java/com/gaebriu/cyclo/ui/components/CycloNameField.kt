@@ -1,5 +1,6 @@
 package com.gaebriu.cyclo.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -8,8 +9,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +23,8 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -39,16 +40,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
@@ -64,6 +66,8 @@ import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /** Máximo de caracteres do nome de uma rotina. */
 const val MaxRoutineNameLength = 39
@@ -80,7 +84,12 @@ private val ActionTargetEnd = 3.dp
  * - "Tap to write" (ou o texto escrito) dá lugar a "Listening...";
  * - aparecem a borda e o brilho, e os gradientes do texto e da borda correm da esquerda para a direita.
  *
+ * Quando o ditado COMPLETA ([completionKey] muda), a troca para a caixa de escrever faz um zoom
+ * com mola: a de escrever entra com zoom in e a de ouvir sai com zoom out, em sincronia.
+ * O háptico dessa conclusão é dado por quem usa a caixa; os botões desta caixa não têm háptico.
+ *
  * @param micVisible falso quando o ditado não está disponível (ex.: microfone recusado): o botão some.
+ * @param completionKey sobe uma unidade de cada vez que o ditado completa com um nome.
  * @param onSwitchToKeyboard ícone do teclado (só ao ouvir): deixa de ouvir e passa a escrever.
  */
 @Composable
@@ -89,6 +98,7 @@ fun CycloNameField(
     onValueChange: (String) -> Unit,
     isListening: Boolean,
     micVisible: Boolean,
+    completionKey: Int,
     onMicClick: () -> Unit,
     onSwitchToKeyboard: () -> Unit,
     onDone: () -> Unit,
@@ -101,27 +111,67 @@ fun CycloNameField(
         label = "listening",
     )
     val shimmer = rememberListeningShimmer(listening)
+    val zoom = rememberCompletionZoom(isListening, completionKey)
 
     Box(modifier = modifier.fillMaxWidth().height(CycloDimens.InputHeight)) {
-        NameFieldBackground(listening = listening, shimmer = shimmer)
+        NameFieldFill()
+        ListeningLayer(listening = listening, shimmer = shimmer, zoom = zoom)
         NameFieldInput(
             value = value,
             onValueChange = onValueChange,
             enabled = !isListening,
             micVisible = micVisible,
             listening = listening,
+            zoom = zoom,
             focusRequester = focusRequester,
             onDone = onDone,
         )
-        ListeningLabel(listening = listening, shimmer = shimmer)
         NameFieldAction(
             isListening = isListening,
             micVisible = micVisible,
             listening = listening,
+            zoom = zoom,
             onMicClick = onMicClick,
             onSwitchToKeyboard = onSwitchToKeyboard,
         )
     }
+}
+
+/** Os dois zooms da conclusão do ditado (1 = em repouso). */
+@Stable
+private class CompletionZoom {
+    /** Caixa de escrever: sai de um pouco menor e cresce até 1 (zoom in). */
+    val typing = Animatable(1f)
+
+    /** Caixa de ouvir: de 1 encolhe um pouco (zoom out) enquanto desaparece. */
+    val overlay = Animatable(1f)
+}
+
+@Composable
+private fun rememberCompletionZoom(isListening: Boolean, completionKey: Int): CompletionZoom {
+    val effects = LocalVisualEffects.current
+    val zoom = remember { CompletionZoom() }
+
+    // Ao voltar a ouvir, a caixa de ouvir recomeça com o tamanho normal.
+    LaunchedEffect(isListening) {
+        if (isListening) zoom.overlay.snapTo(1f)
+    }
+    // Só quando o ditado COMPLETA (e só com animações ligadas). Os dois zooms arrancam juntos.
+    LaunchedEffect(completionKey) {
+        if (completionKey > 0 && effects.animationsEnabled) {
+            coroutineScope {
+                launch {
+                    zoom.typing.snapTo(CycloMotion.CompletionZoom)
+                    zoom.typing.animateTo(1f, CycloMotion.CompletionSpring)
+                }
+                launch {
+                    zoom.overlay.snapTo(1f)
+                    zoom.overlay.animateTo(CycloMotion.CompletionZoom, CycloMotion.CompletionSpring)
+                }
+            }
+        }
+    }
+    return zoom
 }
 
 /**
@@ -147,21 +197,60 @@ private fun rememberListeningShimmer(listening: State<Float>): State<Float> {
     }
 }
 
-/** Fundo; ao ouvir, brilho exterior e borda em gradiente por cima. */
+/** Fundo da caixa (#101011, raio 15). */
 @Composable
-private fun BoxScope.NameFieldBackground(listening: State<Float>, shimmer: State<Float>) {
+private fun BoxScope.NameFieldFill() {
     Canvas(modifier = Modifier.matchParentSize()) {
-        val amount = listening.value.coerceIn(0f, 1f)
-        val radius = CycloDimens.InputRadius.toPx()
-        val shape = Path().apply {
-            addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
+        drawPath(roundedShape(CycloDimens.InputRadius.toPx()), CycloColors.GlassFill)
+    }
+}
+
+private fun DrawScope.roundedShape(radius: Float): Path = Path().apply {
+    addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
+}
+
+/** Tudo o que só existe ao ouvir: brilho exterior, borda em gradiente e o texto "Listening...". */
+@Composable
+private fun BoxScope.ListeningLayer(
+    listening: State<Float>,
+    shimmer: State<Float>,
+    zoom: CompletionZoom,
+) {
+    val textMeasurer = rememberTextMeasurer()
+    val label = stringResource(R.string.introduction_3_listening)
+    val layout = remember(label) { textMeasurer.measure(label, CycloType.InputHint) }
+
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .graphicsLayer {
+                scaleX = zoom.overlay.value
+                scaleY = zoom.overlay.value
+            },
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val amount = listening.value.coerceIn(0f, 1f)
+            if (amount > 0f) {
+                val radius = CycloDimens.InputRadius.toPx()
+                // Sombra exterior do Figma (0, 0, desfoque 9, #A3A2A7 a 15 %): só fora da caixa.
+                clipPath(roundedShape(radius), clipOp = ClipOp.Difference) {
+                    drawBlurredPath(
+                        roundedShape(radius),
+                        CycloColors.TextSecondary.copy(alpha = 0.15f * amount),
+                        9.dp.toPx(),
+                    )
+                }
+                drawListeningBorder(radius, shimmer.value, amount)
+            }
         }
-        if (amount > 0f) {
-            // Sombra exterior do Figma: 0, 0, desfoque 9, #A3A2A7 a 15 %.
-            drawBlurredPath(shape, CycloColors.TextSecondary.copy(alpha = 0.15f * amount), 9.dp.toPx())
-        }
-        drawPath(shape, CycloColors.GlassFill)
-        if (amount > 0f) drawListeningBorder(radius, shimmer.value, amount)
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .drawBehind {
+                    val amount = listening.value.coerceIn(0f, 1f)
+                    if (amount > 0f) drawListeningLabel(layout, shimmer.value, amount)
+                },
+        )
     }
 }
 
@@ -187,7 +276,29 @@ private fun DrawScope.drawListeningBorder(radius: Float, phase: Float, amount: F
     )
 }
 
-/** Texto escrito (ou "Tap to write"): desvanece-se ao ouvir. */
+/** "Listening...": gradiente (#A3A2A7, 63 % no meio, #A3A2A7) a correr da esquerda para a direita. */
+private fun DrawScope.drawListeningLabel(layout: TextLayoutResult, phase: Float, amount: Float) {
+    val color = CycloColors.TextSecondary
+    val left = TextStart.toPx() + (1f - amount) * 8.dp.toPx()
+    val top = (size.height - layout.size.height) / 2f
+    val period = layout.size.width.toFloat()
+    val start = left + phase * period
+    drawText(
+        textLayoutResult = layout,
+        brush = Brush.linearGradient(
+            0f to color,
+            0.476f to color.copy(alpha = 0.63f),
+            1f to color,
+            start = Offset(start, 0f),
+            end = Offset(start + period, 0f),
+            tileMode = TileMode.Repeated,
+        ),
+        topLeft = Offset(left, top),
+        alpha = amount,
+    )
+}
+
+/** Texto escrito (ou "Tap to write"): desvanece-se ao ouvir e faz zoom in ao completar o ditado. */
 @Composable
 private fun BoxScope.NameFieldInput(
     value: String,
@@ -195,6 +306,7 @@ private fun BoxScope.NameFieldInput(
     enabled: Boolean,
     micVisible: Boolean,
     listening: State<Float>,
+    zoom: CompletionZoom,
     focusRequester: FocusRequester,
     onDone: () -> Unit,
 ) {
@@ -225,6 +337,8 @@ private fun BoxScope.NameFieldInput(
                     val amount = listening.value.coerceIn(0f, 1f)
                     alpha = 1f - amount
                     translationX = -8.dp.toPx() * amount
+                    scaleX = zoom.typing.value
+                    scaleY = zoom.typing.value
                 },
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.CenterStart) {
@@ -236,54 +350,20 @@ private fun BoxScope.NameFieldInput(
     }
 }
 
-/** "Listening...": gradiente (#A3A2A7, 63 % no meio, #A3A2A7) a correr da esquerda para a direita. */
-@Composable
-private fun BoxScope.ListeningLabel(listening: State<Float>, shimmer: State<Float>) {
-    val textMeasurer = rememberTextMeasurer()
-    val label = stringResource(R.string.introduction_3_listening)
-    val layout = remember(label) { textMeasurer.measure(label, CycloType.InputHint) }
-
-    Box(
-        modifier = Modifier
-            .matchParentSize()
-            .drawBehind {
-                val amount = listening.value.coerceIn(0f, 1f)
-                if (amount > 0f) drawListeningLabel(layout, shimmer.value, amount)
-            },
-    )
-}
-
-private fun DrawScope.drawListeningLabel(layout: TextLayoutResult, phase: Float, amount: Float) {
-    val color = CycloColors.TextSecondary
-    val left = TextStart.toPx() + (1f - amount) * 8.dp.toPx()
-    val top = (size.height - layout.size.height) / 2f
-    val period = layout.size.width.toFloat()
-    val start = left + phase * period
-    drawText(
-        textLayoutResult = layout,
-        brush = Brush.linearGradient(
-            0f to color,
-            0.476f to color.copy(alpha = 0.63f),
-            1f to color,
-            start = Offset(start, 0f),
-            end = Offset(start + period, 0f),
-            tileMode = TileMode.Repeated,
-        ),
-        topLeft = Offset(left, top),
-        alpha = amount,
-    )
-}
-
 /**
  * O botão do canto direito: microfone ao escrever; ao ouvir, o microfone dá lugar ao ícone do
  * teclado no mesmo sítio (e o toque passa a voltar ao teclado). Não há X: o ícone do teclado já
  * é a forma de parar de ouvir.
+ *
+ * Tem o zoom out dos botões mas NÃO tem háptico: entrar e sair do ditado por este botão é
+ * silencioso; o háptico só acontece quando o ditado completa.
  */
 @Composable
 private fun BoxScope.NameFieldAction(
     isListening: Boolean,
     micVisible: Boolean,
     listening: State<Float>,
+    zoom: CompletionZoom,
     onMicClick: () -> Unit,
     onSwitchToKeyboard: () -> Unit,
 ) {
@@ -297,12 +377,11 @@ private fun BoxScope.NameFieldAction(
             .align(Alignment.CenterEnd)
             .padding(end = ActionTargetEnd)
             .size(ActionTarget)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                enabled = isListening || micVisible,
-                role = Role.Button,
+            .cycloPressable(
                 onClick = { if (isListening) onSwitchToKeyboard() else onMicClick() },
+                enabled = isListening || micVisible,
+                haptic = false,
+                pressedScale = CycloMotion.IconButtonPressScale,
             )
             .semantics { contentDescription = if (isListening) keyboardDescription else dictateDescription },
         contentAlignment = Alignment.Center,
@@ -310,12 +389,12 @@ private fun BoxScope.NameFieldAction(
         FieldIcon(
             path = mic,
             alphaOf = { if (micVisible) 1f - listening.value.coerceIn(0f, 1f) else 0f },
-            scaleOf = { 1f - 0.3f * listening.value.coerceIn(0f, 1f) },
+            scaleOf = { (1f - 0.3f * listening.value.coerceIn(0f, 1f)) * zoom.typing.value },
         )
         FieldIcon(
             path = keyboard,
             alphaOf = { listening.value.coerceIn(0f, 1f) },
-            scaleOf = { 0.7f + 0.3f * listening.value.coerceIn(0f, 1f) },
+            scaleOf = { (0.7f + 0.3f * listening.value.coerceIn(0f, 1f)) * zoom.overlay.value },
         )
     }
 }
