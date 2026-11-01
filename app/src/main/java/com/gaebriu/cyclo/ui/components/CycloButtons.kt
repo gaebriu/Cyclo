@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.components
+﻿package com.gaebriu.cyclo.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth

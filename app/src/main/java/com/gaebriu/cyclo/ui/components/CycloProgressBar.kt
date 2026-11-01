@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.components
+﻿package com.gaebriu.cyclo.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,7 +26,7 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
 
 /**
  * Barra de progresso dos ecrãs de introdução: uma pílula preenchida (gradiente roxo, com uma
- * bolinha na ponta) e, à direita, a pílula vazia, separadas por 6 dp.
+ * bolinha na ponta) e, à direita, a pílula vazia, separadas por 6 dp. Sem contorno, como no Figma.
  *
  * @param progress de 0 a 1. É lido só ao desenhar, por isso animar o valor não recompõe nada.
  */
@@ -75,28 +75,6 @@ fun CycloProgressBar(
             size = Size(fillWidth, height),
             cornerRadius = corner,
         )
-
-        // Borda de 1 dp, por dentro: só se acende nos últimos 7 % da pílula, junto à bolinha.
-        val strokeWidth = 1.dp.toPx()
-        val inset = strokeWidth / 2f
-        if (fillWidth > strokeWidth * 4f) {
-            val edge = CycloColors.TextPrimary
-            drawRoundRect(
-                brush = Brush.horizontalGradient(
-                    0f to edge.copy(alpha = 0f),
-                    0.9306f to edge.copy(alpha = 0f),
-                    1f to edge,
-                    startX = 0f,
-                    endX = fillWidth,
-                ),
-                topLeft = Offset(inset, inset),
-                size = Size(fillWidth - strokeWidth, height - strokeWidth),
-                cornerRadius = CornerRadius(height / 2f - inset),
-                style = Stroke(width = strokeWidth),
-                alpha = 0.39f,
-                blendMode = blend,
-            )
-        }
 
         // Bolinha: 15 dp, a 5 dp da ponta. Nasce pequena enquanto a barra ainda é curta.
         val ballScale = (fillWidth / 25.dp.toPx()).coerceAtMost(1f)

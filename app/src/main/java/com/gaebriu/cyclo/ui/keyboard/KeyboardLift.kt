@@ -1,10 +1,11 @@
-package com.gaebriu.cyclo.ui.keyboard
+﻿package com.gaebriu.cyclo.ui.keyboard
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -12,14 +13,15 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import kotlin.math.roundToInt
 
 /**
  * Altura FINAL do teclado, em px (0 = fechado). Muda logo quando o teclado começa a abrir ou a
@@ -74,7 +76,9 @@ fun KeyboardLift(
                 restBottom = coordinates.positionInRoot().y + coordinates.size.height
                 rootHeight = coordinates.findRootCoordinates().size.height.toFloat()
             }
-            .graphicsLayer { translationY = shift },
+            // Deslocação no LAYOUT (e não só no desenho, com graphicsLayer): assim o cursor, as pegas de
+            // seleção e o que o teclado sabe da posição do texto acompanham a caixa a cada frame.
+            .offset { IntOffset(0, shift.roundToInt()) },
     ) {
         content()
     }

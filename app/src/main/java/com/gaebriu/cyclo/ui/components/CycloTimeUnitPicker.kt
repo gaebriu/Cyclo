@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.components
+﻿package com.gaebriu.cyclo.ui.components
 
 import android.os.SystemClock
 import androidx.compose.animation.core.FloatExponentialDecaySpec

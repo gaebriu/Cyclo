@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.debug
+﻿package com.gaebriu.cyclo.ui.debug
 
 import android.os.Build
 import android.provider.Settings

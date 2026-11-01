@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.screens
+﻿package com.gaebriu.cyclo.ui.screens
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D

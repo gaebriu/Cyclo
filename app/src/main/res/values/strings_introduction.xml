@@ -61,4 +61,14 @@
     <string name="day_thursday">Thursday</string>
     <string name="day_friday">Friday</string>
     <string name="day_saturday">Saturday</string>
+
+    <!-- Resumo dos dias escolhidos (ex.: "Sundays, Mondays") -->
+    <string name="day_sunday_plural">Sundays</string>
+    <string name="day_monday_plural">Mondays</string>
+    <string name="day_tuesday_plural">Tuesdays</string>
+    <string name="day_wednesday_plural">Wednesdays</string>
+    <string name="day_thursday_plural">Thursdays</string>
+    <string name="day_friday_plural">Fridays</string>
+    <string name="day_saturday_plural">Saturdays</string>
+    <string name="days_summary_separator">, </string>
 </resources>

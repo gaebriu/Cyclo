@@ -1,8 +1,10 @@
-package com.gaebriu.cyclo.ui.components
+﻿package com.gaebriu.cyclo.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
@@ -35,7 +38,8 @@ private val MenuWidth = 224.dp
 private val RowHeight = 42.dp
 private val RowWithHintHeight = 56.dp
 private val TextStart = 24.dp
-private val CheckEnd = 36.dp
+private val TextEnd = 15.dp
+private val CheckGap = 9.dp
 
 /**
  * Menu de ações (action-menu-when-to-show): as opções em linhas de 42 dp, com um visto na
@@ -83,19 +87,24 @@ private fun ActionMenuRow(
             .cycloPressable(onClick = onClick, pressedScale = 0.97f, role = Role.RadioButton)
             .semantics { selected = isSelected },
     ) {
-        Box(modifier = Modifier.fillMaxWidth().height(RowHeight)) {
+        // O texto e, na opção escolhida, o visto 9 dp a seguir ao fim do texto (como no Figma).
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(RowHeight)
+                .padding(start = TextStart, end = TextEnd),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             BasicText(
                 text = item.label,
                 style = CycloType.MenuItem,
-                modifier = Modifier.align(Alignment.CenterStart).padding(start = TextStart),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
             if (isSelected) {
-                Canvas(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = CheckEnd)
-                        .size(15.dp),
-                ) {
+                Spacer(Modifier.width(CheckGap))
+                Canvas(modifier = Modifier.size(15.dp)) {
                     val pxPerDp = density
                     withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
                         drawPath(path = check, color = CycloColors.TextPrimary)
@@ -104,10 +113,13 @@ private fun ActionMenuRow(
             }
         }
         if (item.hint != null) {
+            // Nunca passa da margem de 15 dp da caixa: o que não couber acaba em reticências.
             BasicText(
                 text = item.hint,
                 style = CycloType.MenuHint,
-                modifier = Modifier.padding(start = TextStart, top = 39.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = TextStart, end = TextEnd, top = 39.dp),
             )
         }
     }

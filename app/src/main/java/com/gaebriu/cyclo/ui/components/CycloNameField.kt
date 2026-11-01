@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.components
+﻿package com.gaebriu.cyclo.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing

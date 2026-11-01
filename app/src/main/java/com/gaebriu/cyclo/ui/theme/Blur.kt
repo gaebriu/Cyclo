@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.theme
+﻿package com.gaebriu.cyclo.ui.theme
 
 import androidx.compose.ui.unit.Density
 
@@ -22,7 +22,4 @@ object FigmaBlur {
 
     /** Ecrã que recua por baixo de outro (Introduction 0 enquanto o 1 sobe). */
     const val BackgroundRecede = 9f
-
-    /** Holofote atrás dos ícones dos ecrãs de introdução (fx spotlight). */
-    const val Spotlight = 100f
 }

@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo
+﻿package com.gaebriu.cyclo
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

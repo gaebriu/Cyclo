@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.routine
+﻿package com.gaebriu.cyclo.ui.routine
 
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
@@ -23,14 +23,18 @@ enum class RepeatOption(@StringRes val label: Int) {
 }
 
 /** Dias da semana pela ordem do design (domingo primeiro). */
-enum class Weekday(@StringRes val shortLabel: Int, @StringRes val fullName: Int) {
-    Sunday(R.string.day_short_sunday, R.string.day_sunday),
-    Monday(R.string.day_short_monday, R.string.day_monday),
-    Tuesday(R.string.day_short_tuesday, R.string.day_tuesday),
-    Wednesday(R.string.day_short_wednesday, R.string.day_wednesday),
-    Thursday(R.string.day_short_thursday, R.string.day_thursday),
-    Friday(R.string.day_short_friday, R.string.day_friday),
-    Saturday(R.string.day_short_saturday, R.string.day_saturday),
+enum class Weekday(
+    @StringRes val shortLabel: Int,
+    @StringRes val fullName: Int,
+    @StringRes val pluralName: Int,
+) {
+    Sunday(R.string.day_short_sunday, R.string.day_sunday, R.string.day_sunday_plural),
+    Monday(R.string.day_short_monday, R.string.day_monday, R.string.day_monday_plural),
+    Tuesday(R.string.day_short_tuesday, R.string.day_tuesday, R.string.day_tuesday_plural),
+    Wednesday(R.string.day_short_wednesday, R.string.day_wednesday, R.string.day_wednesday_plural),
+    Thursday(R.string.day_short_thursday, R.string.day_thursday, R.string.day_thursday_plural),
+    Friday(R.string.day_short_friday, R.string.day_friday, R.string.day_friday_plural),
+    Saturday(R.string.day_short_saturday, R.string.day_saturday, R.string.day_saturday_plural),
 }
 
 /** Os dias escolhidos guardam-se numa máscara de bits: bit 0 = domingo ... bit 6 = sábado. */

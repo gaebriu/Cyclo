@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.effects
+﻿package com.gaebriu.cyclo.ui.effects
 
 import android.content.ContentResolver
 import android.database.ContentObserver

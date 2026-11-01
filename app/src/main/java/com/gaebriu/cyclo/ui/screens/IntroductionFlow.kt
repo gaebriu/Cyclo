@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.screens
+﻿package com.gaebriu.cyclo.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
@@ -86,7 +86,8 @@ fun IntroductionFlow(
     var wakeMinute by rememberSaveable { mutableIntStateOf(0) }
     var timeChanged by rememberSaveable { mutableStateOf(false) }
 
-    // routineName: o que está escrito na caixa do Introduction 3 (só o que o utilizador escreveu ou ditou).
+    // routineName: o que está na caixa do Introduction 3 (o que o utilizador escreveu ou ditou ali, ou
+    // mudou no Introduction 4; o "Routine [Nº]" automático nunca entra aqui).
     // savedRoutineName: o nome final, guardado em segundo plano; é o que o Introduction 4 mostra e edita.
     var routineName by rememberSaveable { mutableStateOf("") }
     var savedRoutineName by rememberSaveable { mutableStateOf("") }
@@ -266,7 +267,11 @@ fun IntroductionFlow(
                             IntroPage(4, { position.value }, effects.animationsEnabled, covered = false) {
                                 Introduction4Page(
                                     name = savedRoutineName,
-                                    onNameChange = { savedRoutineName = it },
+                                    // O que se muda aqui passa também para a caixa do Introduction 3.
+                                    onNameChange = {
+                                        savedRoutineName = it
+                                        routineName = it
+                                    },
                                     repeat = repeat,
                                 )
                             }

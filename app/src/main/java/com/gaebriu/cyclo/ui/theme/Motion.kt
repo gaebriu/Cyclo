@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.theme
+﻿package com.gaebriu.cyclo.ui.theme
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring

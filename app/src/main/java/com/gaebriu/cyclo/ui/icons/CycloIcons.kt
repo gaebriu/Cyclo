@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.icons
+﻿package com.gaebriu.cyclo.ui.icons
 
 /**
  * Vetores exportados do Figma (SVG), com as coordenadas originais.

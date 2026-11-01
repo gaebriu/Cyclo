@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.dictation
+﻿package com.gaebriu.cyclo.ui.dictation
 
 import android.Manifest
 import android.content.Context

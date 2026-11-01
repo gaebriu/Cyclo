@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.screens
+﻿package com.gaebriu.cyclo.ui.screens
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +17,8 @@ import com.gaebriu.cyclo.ui.components.CycloActionMenu
 import com.gaebriu.cyclo.ui.components.CycloDaysSheet
 import com.gaebriu.cyclo.ui.routine.RepeatOption
 import com.gaebriu.cyclo.ui.routine.RepeatSelection
+import com.gaebriu.cyclo.ui.routine.Weekday
+import com.gaebriu.cyclo.ui.routine.hasDay
 import com.gaebriu.cyclo.ui.routine.withDayToggled
 
 /**
@@ -24,6 +26,7 @@ import com.gaebriu.cyclo.ui.routine.withDayToggled
  * botão Next). Só existem enquanto estão abertos (ou a fechar).
  *
  * - Escolher uma opção fecha o menu e passa a valer; "Show in selected days" abre a folha em vez disso.
+ * - Por baixo de "Show in selected days" aparece o resumo dos dias escolhidos (ver [selectedDaysHint]).
  * - Na folha, os dias mexem num rascunho: "Done" confirma (com pelo menos um dia); fechar de
  *   outra forma (arrastar, tocar fora, voltar) deita o rascunho fora.
  */
@@ -33,11 +36,10 @@ fun RepeatOverlays(
     bottomMargin: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val hint = stringResource(R.string.repeat_choose_days_hint)
     val items = RepeatOption.values().map { option ->
         ActionMenuItem(
             label = stringResource(option.label),
-            hint = if (option == RepeatOption.SelectedDays) hint else null,
+            hint = if (option == RepeatOption.SelectedDays) selectedDaysHint(selection) else null,
         )
     }
 
@@ -87,4 +89,20 @@ fun RepeatOverlays(
             },
         )
     }
+}
+
+/**
+ * Texto por baixo de "Show in selected days": com dias escolhidos (e essa opção em vigor), o resumo
+ * deles no plural, pela ordem do design (ex.: domingo + segunda dá "Sundays, Mondays");
+ * caso contrário, "Choose days".
+ */
+@Composable
+private fun selectedDaysHint(selection: RepeatSelection): String {
+    val chooseDays = stringResource(R.string.repeat_choose_days_hint)
+    val separator = stringResource(R.string.days_summary_separator)
+    val pluralNames = Weekday.values().map { stringResource(it.pluralName) }
+    if (selection.option != RepeatOption.SelectedDays || selection.daysMask == 0) return chooseDays
+    return Weekday.values()
+        .filter { selection.daysMask.hasDay(it) }
+        .joinToString(separator) { pluralNames[it.ordinal] }
 }

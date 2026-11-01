@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.ui.haptics
+﻿package com.gaebriu.cyclo.ui.haptics
 
 import android.os.Build
 import android.view.HapticFeedbackConstants
