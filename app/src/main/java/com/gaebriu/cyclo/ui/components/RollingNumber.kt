@@ -19,6 +19,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloMotion
@@ -77,6 +79,62 @@ fun RollingNumber(value: Int, style: TextStyle, modifier: Modifier = Modifier) {
                 .graphicsLayer {
                     val p = progress.value
                     rollLayer(this, leaving = false, p = p, direction = direction, effects.animationsEnabled, effects.blurEnabled)
+                },
+        )
+    }
+}
+
+/**
+ * Texto que rola ao mudar, com o mesmo movimento do [RollingNumber] (as horas para dormir do Feed,
+ * quando a cafeína, os fatores ou as emoções as mudam). [direction] 1: o novo sobe de baixo; -1: desce
+ * de cima. [description] é o que o TalkBack lê.
+ *
+ * Algarismos proporcionais e texto centrado, como no Figma (as horas têm larguras diferentes): com
+ * "tnum" os "1" ficavam com espaço à volta e o texto visível saía do centro, debaixo do ícone. O
+ * texto que sai não conta para a largura (sai centrado por cima do lugar), para a fila não saltar
+ * quando ele desaparece no fim da animação.
+ */
+@Composable
+fun RollingText(text: String, style: TextStyle, direction: Int, modifier: Modifier = Modifier, description: String = text) {
+    val effects = LocalVisualEffects.current
+    val centered = remember(style) { style.copy(textAlign = TextAlign.Center) }
+    var current by remember { mutableStateOf(text) }
+    var previous by remember { mutableStateOf<String?>(null) }
+    var dir by remember { mutableIntStateOf(1) }
+    val progress = remember { Animatable(1f) }
+
+    LaunchedEffect(text) {
+        if (text == current) return@LaunchedEffect
+        dir = direction
+        previous = current
+        current = text
+        progress.snapTo(0f)
+        progress.animateTo(1f, CycloMotion.CounterSpring)
+        previous = null
+    }
+
+    Box(modifier = modifier.semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+        previous?.let { old ->
+            BasicText(
+                text = old,
+                style = centered,
+                softWrap = false,
+                modifier = Modifier
+                    .matchParentSize()
+                    .wrapContentWidth(unbounded = true)
+                    .clearAndSetSemantics { }
+                    .graphicsLayer {
+                        rollLayer(this, leaving = true, p = progress.value.coerceIn(0f, 1f), direction = dir, effects.animationsEnabled, effects.blurEnabled)
+                    },
+            )
+        }
+        BasicText(
+            text = current,
+            style = centered,
+            modifier = Modifier
+                .clearAndSetSemantics { }
+                .graphicsLayer {
+                    rollLayer(this, leaving = false, p = progress.value, direction = dir, effects.animationsEnabled, effects.blurEnabled)
                 },
         )
     }

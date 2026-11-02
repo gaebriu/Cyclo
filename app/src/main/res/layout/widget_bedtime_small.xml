@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Widget pequeno (menos de 180 dp de largura, ou 3 colunas altas: 2 x 2, 2 x 3, 3 x 3...). O que
+    mais importa em primeiro lugar: o nome (SemiBold 13) em cima e, em baixo, a hora de ir para a
+    cama em grande (com a estrela e "In bed by" por cima) e a lua com a hora de começar a abrandar.
+    Margens de 12 dp; o espaço que sobra fica entre o nome e a hora.
+    - Alto (≥ 176 dp), mostra também o sol e a hora de acordar, e o calendário e a repetição
+      (widget_details; o código esconde-os quando não cabem).
+    - Sem botões (não cabem): tocar abre a app.
+    - Desligada, o véu "fx upper-shadow" por cima de tudo.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background">
+
+    <LinearLayout
+        android:id="@+id/widget_root"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/widget_name"
+            style="@style/CycloWidgetName"
+            android:layout_height="16dp"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/widget_details"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                style="@style/CycloWidgetRow"
+                android:layout_marginTop="8dp">
+
+                <ImageView
+                    style="@style/CycloWidgetIcon.Small"
+                    android:src="@drawable/widget_ic_sunny" />
+
+                <TextView
+                    android:id="@+id/widget_wake"
+                    style="@style/CycloWidgetValue.Small" />
+            </LinearLayout>
+
+            <LinearLayout
+                style="@style/CycloWidgetRow"
+                android:layout_marginTop="5dp">
+
+                <ImageView
+                    style="@style/CycloWidgetIcon.Small"
+                    android:src="@drawable/widget_ic_calendar" />
+
+                <TextView
+                    android:id="@+id/widget_repeat"
+                    style="@style/CycloWidgetValue.Small" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/widget_bed_label_row"
+            style="@style/CycloWidgetRow"
+            android:layout_height="15dp">
+
+            <ImageView
+                style="@style/CycloWidgetIcon.Small"
+                android:src="@drawable/widget_ic_star" />
+
+            <TextView
+                android:id="@+id/widget_bed_label"
+                style="@style/CycloWidgetLabel"
+                android:layout_height="15dp"
+                android:text="@string/widget_bed_label"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ViewFlipper
+            android:id="@+id/widget_bedtime_flipper"
+            style="@style/CycloWidgetFlipper"
+            android:layout_height="30dp"
+            android:layout_marginTop="1dp">
+
+            <TextView
+                android:id="@+id/widget_bedtime_a"
+                style="@style/CycloWidgetHero"
+                android:autoSizeMaxTextSize="26sp" />
+
+            <TextView
+                android:id="@+id/widget_bedtime_b"
+                style="@style/CycloWidgetHero"
+                android:autoSizeMaxTextSize="26sp" />
+        </ViewFlipper>
+
+        <!-- Só a hora (a lua diz o que é; "Wind down at ..." não cabe a esta largura). -->
+        <LinearLayout
+            style="@style/CycloWidgetRow"
+            android:layout_height="15dp"
+            android:layout_marginTop="3dp">
+
+            <ImageView
+                style="@style/CycloWidgetIcon.Small"
+                android:src="@drawable/widget_ic_bedtime" />
+
+            <ViewFlipper
+                android:id="@+id/widget_winddown_flipper"
+                style="@style/CycloWidgetFlipper">
+
+                <TextView
+                    android:id="@+id/widget_winddown_a"
+                    style="@style/CycloWidgetValue.Small"
+                    android:layout_height="15dp" />
+
+                <TextView
+                    android:id="@+id/widget_winddown_b"
+                    style="@style/CycloWidgetValue.Small"
+                    android:layout_height="15dp" />
+            </ViewFlipper>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- fx upper-shadow (só com a rotina desligada). -->
+    <ImageView
+        android:id="@+id/widget_veil"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_veil"
+        android:visibility="gone" />
+</FrameLayout>

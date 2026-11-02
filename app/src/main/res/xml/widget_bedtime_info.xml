@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Widget da hora de dormir de uma rotina (ver widget/BedtimeWidget.kt). -->
+<!-- Widget da hora de dormir de uma rotina (ver widget/BedtimeWidgets.kt). Abre a 4 x 2 e pode ir
+     de 2 x 2 até ao tamanho que o lançador deixar; o código escolhe a versão para o tamanho atual
+     (pequena, larga ou grande). A altura mínima de 110 dp deixa de fora a fila única (o formato de
+     cápsula): uma fila tem ~51 a 102 dp e duas ~110 a 220 dp na tabela de tamanhos do Android. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_description"
-    android:initialLayout="@layout/widget_bedtime"
-    android:minWidth="180dp"
-    android:minHeight="140dp"
-    android:minResizeWidth="150dp"
-    android:minResizeHeight="140dp"
+    android:initialLayout="@layout/widget_bedtime_wide"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
     android:resizeMode="horizontal|vertical"
-    android:targetCellWidth="3"
+    android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
     android:widgetCategory="home_screen" />

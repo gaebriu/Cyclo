@@ -1,6 +1,8 @@
 ﻿package com.gaebriu.cyclo
 
+import android.content.Intent
 import android.os.Bundle
+import com.gaebriu.cyclo.widget.BedtimeWidgets
 import android.view.animation.DecelerateInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -42,10 +44,25 @@ class MainActivity : ComponentActivity() {
                 .start()
         }
 
+        // Aberta pelo lápis do widget: vai direta ao editor da rotina (só na primeira criação, não
+        // ao recriar depois de rodar o ecrã).
+        if (savedInstanceState == null) handleWidgetIntent(intent)
+
         setContent {
             ProvideVisualEffects {
                 CycloApp(viewModel)
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleWidgetIntent(intent)
+    }
+
+    private fun handleWidgetIntent(intent: Intent?) {
+        if (intent?.action != BedtimeWidgets.ActionEdit) return
+        val routineId = intent.getLongExtra(BedtimeWidgets.ExtraRoutineId, -1L)
+        if (routineId >= 0) viewModel.requestEdit(routineId)
     }
 }

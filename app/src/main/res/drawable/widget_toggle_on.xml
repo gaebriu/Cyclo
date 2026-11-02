@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- activate/deactivate-routine-b ligado: círculo #4A3C99 com a borda da mesma cor a 24 %. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#4A3C99" />
+    <stroke android:width="1dp" android:color="#3D4A3C99" />
+</shape>

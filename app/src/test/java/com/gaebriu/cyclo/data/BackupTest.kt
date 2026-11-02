@@ -15,7 +15,15 @@ class BackupTest {
             Routine(1, "Work", 6, 30, RepeatOption.DuringWeek, 0, active = true, anchorMillis = 123L),
             Routine(2, "Gym \"days\"", 8, 0, RepeatOption.SelectedDays, 0b0101010, active = false, anchorMillis = 456L),
         ),
-        dailyLog = DailyLog(LocalDate.of(2026, 10, 30), caffeine = 3, factors = setOf(SleepFactor.LongLateNap), mood = 0.25f),
+        dailyLog = DailyLog(
+            LocalDate.of(2026, 10, 30),
+            caffeine = 3,
+            factors = setOf(SleepFactor.LongLateNap),
+            mood = 0.25f,
+            // Um café sem hora (registo antigo) e dois com hora.
+            caffeineTimes = listOf(1_793_300_000_000L, 1_793_310_000_000L),
+            factorTimes = mapOf(SleepFactor.LongLateNap to 1_793_320_000_000L),
+        ),
         use24Hour = false,
         age = 29,
         chronotype = Chronotype.NightOwl,

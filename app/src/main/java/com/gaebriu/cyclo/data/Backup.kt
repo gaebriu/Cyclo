@@ -21,11 +21,14 @@ import java.time.format.DateTimeParseException
  *   "data": {
  *     "onboarded": true,
  *     "routines": [ { "id", "name", "wakeHour", "wakeMinute", "repeat", "daysMask", "active", "anchor" } ],
- *     "dailyLog": { "date", "caffeine", "factors": [], "mood" } | null,
+ *     "dailyLog": { "date", "caffeine", "factors": [], "mood", "caffeineTimes": [ms], "factorTimes": { nome: ms } } | null,
  *     "settings": { "use24Hour": true | null, "age": 30 | null, "chronotype", "fallAsleep", "bedtimeReminder" }
  *   }
  * }
  * ```
+ * "caffeineTimes" e "factorTimes" (as horas dos registos, para o [BedtimeEngine]) vieram depois e
+ * são opcionais: as versões anteriores ignoram-nos e as cópias sem eles continuam válidas, por isso
+ * a versão do formato não mudou.
  * Os enums vão pelo nome, como no DataStore. Ao mudar o formato, sobe-se [BackupFormatVersion] e
  * [parseBackup] passa a saber ler as versões antigas.
  */
@@ -181,13 +184,16 @@ private fun parseBackupDailyLog(o: JSONObject): DailyLog? {
     val mood = o.optDouble("mood", 0.5)
     if (caffeine !in 0..CycloViewModel.MaxCaffeine || mood.isNaN() || mood !in 0.0..1.0) return null
     val factors = o.optJSONArray("factors")
+    val factorSet = buildSet {
+        if (factors != null) for (i in 0 until factors.length()) enumOrNull<SleepFactor>(factors.optString(i))?.let(::add)
+    }
     return DailyLog(
         date = date,
         caffeine = caffeine,
-        factors = buildSet {
-            if (factors != null) for (i in 0 until factors.length()) enumOrNull<SleepFactor>(factors.optString(i))?.let(::add)
-        },
+        factors = factorSet,
         mood = mood.toFloat(),
+        caffeineTimes = parseCaffeineTimes(o, caffeine),
+        factorTimes = parseFactorTimes(o, factorSet),
     )
 }
 
@@ -214,3 +220,25 @@ internal fun dailyLogToJson(log: DailyLog): JSONObject = JSONObject()
     .put("caffeine", log.caffeine)
     .put("factors", JSONArray(log.factors.map { it.name }))
     .put("mood", log.mood.toDouble())
+    .put("caffeineTimes", JSONArray(log.caffeineTimes))
+    .put("factorTimes", JSONObject().apply { log.factorTimes.forEach { (f, t) -> put(f.name, t) } })
+
+/**
+ * As horas dos cafés (opcionais: registos antigos não as têm). Só as positivas, por ordem, e no
+ * máximo [caffeine] (as mais recentes).
+ */
+internal fun parseCaffeineTimes(o: JSONObject, caffeine: Int): List<Long> {
+    val array = o.optJSONArray("caffeineTimes") ?: return emptyList()
+    return List(array.length()) { array.optLong(it, 0L) }.filter { it > 0L }.sorted().takeLast(caffeine)
+}
+
+/** As horas dos fatores (opcionais). Só as dos fatores marcados e que esta versão conhece. */
+internal fun parseFactorTimes(o: JSONObject, factors: Set<SleepFactor>): Map<SleepFactor, Long> {
+    val times = o.optJSONObject("factorTimes") ?: return emptyMap()
+    return buildMap {
+        for (factor in factors) {
+            val t = times.optLong(factor.name, 0L)
+            if (t > 0L) put(factor, t)
+        }
+    }
+}

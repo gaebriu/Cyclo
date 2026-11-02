@@ -168,6 +168,14 @@ fun CycloApp(viewModel: CycloViewModel) {
     var notificationsAllowed by remember { mutableStateOf(BedtimeReminder.isPermitted(context)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val latestData by rememberUpdatedState(data)
+
+    // O lápis do widget: abre o editor dessa rotina (com o tutorial feito e se ela ainda existir).
+    val editRequest by viewModel.editRequest.collectAsState()
+    LaunchedEffect(editRequest) {
+        val id = editRequest ?: return@LaunchedEffect
+        viewModel.consumeEditRequest()
+        if (latestData.onboarded && overlay != OverlayTutorial && latestData.routines.any { it.id == id }) openEditor(id)
+    }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {

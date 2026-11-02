@@ -6,7 +6,7 @@ import org.junit.Test
 /** O texto da versão nas definições: "Cyclo " + isto. */
 class VersionLabelTest {
     @Test
-    fun alpha() = assertEquals("Alpha 0.7.1", versionLabel("alpha-0.7.1"))
+    fun alpha() = assertEquals("Alpha 0.7.2", versionLabel("alpha-0.7.2"))
 
     @Test
     fun beta() = assertEquals("Beta 1.2.0", versionLabel("beta-1.2.0"))

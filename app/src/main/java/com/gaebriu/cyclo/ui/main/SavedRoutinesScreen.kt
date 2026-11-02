@@ -1,6 +1,24 @@
 ﻿package com.gaebriu.cyclo.ui.main
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -125,16 +143,21 @@ fun SavedRoutinesScreen(
         animationSpec = CycloMotion.SearchSpring,
         label = "search",
     )
-    val visible = remember(routines, query, searchOpen) {
+    val cards = remember { CardListMemory() }
+    // Muda quando um cartão apagado acaba de sair (para o tirar da lista).
+    var settled by remember { mutableIntStateOf(0) }
+    val entries = remember(routines, settled) { cards.entries(routines) }
+    val visible = remember(entries, query, searchOpen) {
         val q = query.trim()
-        if (!searchOpen || q.isEmpty()) routines else routines.filter { it.name.contains(q, ignoreCase = true) }
+        if (!searchOpen || q.isEmpty()) entries else entries.filter { it.routine.name.contains(q, ignoreCase = true) }
     }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .cycloVerticalScroll(rememberScrollState())
-            .padding(top = SavedContentTop, bottom = bottomReserve),
+            // O espaço entre cartões vai dentro de cada um (encolhe com ele ao sair): tira-se o do último.
+            .padding(top = SavedContentTop, bottom = (bottomReserve - CycloDimens.Spacing).coerceAtLeast(0.dp)),
     ) {
         if (searchOpen || search.value > 0f) {
             SearchBox(
@@ -145,24 +168,152 @@ fun SavedRoutinesScreen(
                 progress = { search.value },
             )
         }
-        Column(
-            modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin),
-            verticalArrangement = Arrangement.spacedBy(CycloDimens.Spacing),
-        ) {
-            visible.forEach { routine ->
+        Column(modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin)) {
+            visible.forEach { entry ->
+                val routine = entry.routine
                 key(routine.id) {
-                    RoutineCard(
-                        routine = routine,
-                        onDelete = { onDelete(routine) },
-                        onEdit = { onEdit(routine) },
-                        onToggleActive = { onToggleActive(routine) },
-                        onAddWidget = { onAddWidget(routine) },
-                    )
+                    AnimatedCard(
+                        leaving = entry.leaving,
+                        entering = cards.consumeEntering(routine.id),
+                        onGone = {
+                            if (cards.finishLeaving(routine.id)) settled++
+                        },
+                    ) {
+                        // A sair, a rotina já não existe: os botões não fazem nada (além de não
+                        // receberem toques), para não apagar ou editar uma rotina que já lá não está.
+                        val live = !entry.leaving
+                        RoutineCard(
+                            routine = routine,
+                            onDelete = { if (live) onDelete(routine) },
+                            onEdit = { if (live) onEdit(routine) },
+                            onToggleActive = { if (live) onToggleActive(routine) },
+                            onAddWidget = { if (live) onAddWidget(routine) },
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** Um cartão na lista: a rotina e se está a sair (já foi apagada). */
+@Immutable
+private class CardEntry(val routine: Routine, val leaving: Boolean)
+
+/**
+ * Memória da lista de cartões, para animar quem sai e quem volta. Não é estado do Compose: só muda
+ * quando a lista de rotinas muda (ou quando um cartão acaba de sair), dentro do `remember` que a lê.
+ *
+ * - Uma rotina que desaparece da lista foi apagada: fica no lugar que tinha, a sair (zoom out).
+ * - Uma rotina apagada que volta (o "Undo") entra com zoom in. As rotinas novas e a primeira
+ *   composição não animam.
+ */
+private class CardListMemory {
+    private var previous: List<Routine>? = null
+
+    /** Apagadas e ainda a sair: o lugar que tinham e a rotina. */
+    private val leaving = LinkedHashMap<Long, Pair<Int, Routine>>()
+
+    /** Ids apagados neste ecrã: se voltarem, entram com zoom in. */
+    private val removed = HashSet<Long>()
+
+    /** Ids que voltaram e ainda não começaram a entrar. */
+    private val entering = HashSet<Long>()
+
+    fun entries(routines: List<Routine>): List<CardEntry> {
+        val before = previous
+        if (before != null && before !== routines) {
+            val ids = routines.mapTo(HashSet()) { it.id }
+            val beforeIds = before.mapTo(HashSet()) { it.id }
+            before.forEachIndexed { index, routine ->
+                if (routine.id !in ids) {
+                    leaving[routine.id] = index to routine
+                    removed += routine.id
+                }
+            }
+            routines.forEach { routine ->
+                if (routine.id !in beforeIds && routine.id in removed) {
+                    removed -= routine.id
+                    // Ainda a sair: o mesmo cartão volta a entrar de onde está.
+                    if (leaving.remove(routine.id) == null) entering += routine.id
+                }
+            }
+        }
+        previous = routines
+        val list = routines.mapTo(ArrayList()) { CardEntry(it, leaving = false) }
+        leaving.values.sortedBy { it.first }.forEach { (index, routine) ->
+            list.add(index.coerceAtMost(list.size), CardEntry(routine, leaving = true))
+        }
+        return list
+    }
+
+    /** Se o cartão [id] deve entrar com zoom in (só uma vez). */
+    fun consumeEntering(id: Long): Boolean = entering.remove(id)
+
+    /** O cartão apagado [id] acabou de sair. true se saiu da lista (é preciso recompor). */
+    fun finishLeaving(id: Long): Boolean = leaving.remove(id) != null
+}
+
+/**
+ * Apagar e repor uma rotina: o cartão sai com zoom out (fade e o lugar a fechar) e volta com zoom in,
+ * com as molas dos menus (abre com um ressalto muito leve, fecha mais rápido e sem ressalto).
+ * Sem animações no sistema, só fade. A sair, o cartão já não reage a toques nem ao TalkBack (a
+ * rotina já não existe).
+ */
+@Composable
+private fun AnimatedCard(
+    leaving: Boolean,
+    entering: Boolean,
+    onGone: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val effects = LocalVisualEffects.current
+    val state = remember { MutableTransitionState(!entering) }
+    state.targetState = !leaving
+    val latestOnGone by rememberUpdatedState(onGone)
+    if (leaving && state.isIdle && !state.currentState) {
+        LaunchedEffect(Unit) { latestOnGone() }
+    }
+    val enter = if (effects.animationsEnabled) {
+        scaleIn(CycloMotion.MenuOpenSpring, initialScale = CycloMotion.MenuStartScale) +
+            fadeIn(CycloMotion.MenuOpenSpring) +
+            expandVertically(CardSizeOpenSpring, expandFrom = Alignment.CenterVertically)
+    } else {
+        fadeIn(CycloMotion.FadeSpring)
+    }
+    val exit = if (effects.animationsEnabled) {
+        scaleOut(CycloMotion.MenuCloseSpring, targetScale = CycloMotion.MenuStartScale) +
+            fadeOut(CycloMotion.MenuCloseSpring) +
+            shrinkVertically(CardSizeCloseSpring, shrinkTowards = Alignment.CenterVertically)
+    } else {
+        fadeOut(CycloMotion.FadeSpring)
+    }
+    AnimatedVisibility(visibleState = state, enter = enter, exit = exit) {
+        Column(
+            modifier = if (leaving) {
+                Modifier
+                    .clearAndSetSemantics { }
+                    .pointerInput(Unit) {
+                        // Engole todos os toques antes de chegarem aos botões.
+                        awaitPointerEventScope {
+                            while (true) {
+                                awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+            } else {
+                Modifier
+            },
+        ) {
+            content()
+            Spacer(Modifier.height(CycloDimens.Spacing))
+        }
+    }
+}
+
+/** O lugar do cartão a abrir e a fechar, ao ritmo do zoom ([CycloMotion.MenuOpenSpring] e [CycloMotion.MenuCloseSpring]). */
+private val CardSizeOpenSpring = spring(dampingRatio = 0.78f, stiffness = 520f, visibilityThreshold = IntSize.VisibilityThreshold)
+private val CardSizeCloseSpring = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 700f, visibilityThreshold = IntSize.VisibilityThreshold)
 
 /**
  * search-box: a caixa de escrever/ditar com "What are you looking for?", com o vidro do Figma

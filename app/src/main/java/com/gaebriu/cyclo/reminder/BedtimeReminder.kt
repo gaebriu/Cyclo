@@ -19,6 +19,7 @@ import com.gaebriu.cyclo.data.BedtimePlan
 import com.gaebriu.cyclo.data.CycloData
 import com.gaebriu.cyclo.data.Routine
 import com.gaebriu.cyclo.data.WindDownReason
+import com.gaebriu.cyclo.ui.time.cycloTimeFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -153,12 +154,14 @@ object BedtimeReminder {
                 WindDownReason.Meal -> context.getString(R.string.reminder_tip_meal)
                 WindDownReason.Nap -> context.getString(R.string.reminder_tip_nap)
                 WindDownReason.NightOwl -> context.getString(R.string.reminder_tip_night_owl)
+                WindDownReason.EarlyBird -> context.getString(R.string.reminder_tip_early_bird)
+                WindDownReason.BodyClock -> context.getString(R.string.reminder_tip_body_clock)
                 // Sem nada de especial: uma dica diferente por noite.
                 null -> context.resources.getStringArray(R.array.reminder_tips_default).let { tips ->
                     tips[plan.night.dayOfYear % tips.size]
                 }
             }
-            body = context.getString(R.string.reminder_body, bed, wakeText, tip)
+            body = context.getString(R.string.reminder_body, bed, plan.sleepOnset.format(formatter), wakeText, tip)
         }
 
         ensureChannel(context)
@@ -190,7 +193,7 @@ object BedtimeReminder {
     /** Formato das horas: o escolhido nas definições ou, sem escolha, o do sistema. */
     fun timeFormatter(context: Context, use24Hour: Boolean?): DateTimeFormatter {
         val is24 = use24Hour ?: DateFormat.is24HourFormat(context)
-        return DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h:mm a", java.util.Locale.getDefault())
+        return cycloTimeFormatter(is24)
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(Prefs, Context.MODE_PRIVATE)

@@ -99,7 +99,7 @@
     <string name="settings_data_description">Export your routines and settings as a JSON file, or restore them from one you saved before</string>
     <string name="settings_about">About</string>
     <string name="settings_github">View on GitHub</string>
-    <!-- Ex.: "Cyclo Version Alpha 0.7.1" (a fase e o número; numa versão final, só o número, como o "Cyclo Version 1.0" do Figma) -->
+    <!-- Ex.: "Cyclo Version Alpha 0.7.2" (a fase e o número; numa versão final, só o número, como o "Cyclo Version 1.0" do Figma) -->
     <string name="settings_version">Cyclo Version %1$s</string>
 
     <!-- action-menu-big-open-github -->
@@ -136,8 +136,8 @@
     <string name="reminder_title">Time to wind down</string>
     <string name="reminder_title_early">Time to start winding down</string>
     <string name="reminder_title_now">Time for bed</string>
-    <!-- Ex.: "Aim to be in bed by 22:45 for a full night before 06:00. Dim the lights and put your phone away." -->
-    <string name="reminder_body">Aim to be in bed by %1$s for a full night before %2$s. %3$s</string>
+    <!-- Ex.: "Aim to be in bed by 22:45 and asleep around 23:00, for a full night before 06:30. Dim the lights and put your phone away." -->
+    <string name="reminder_body">Aim to be in bed by %1$s and asleep around %2$s, for a full night before %3$s. %4$s</string>
     <string name="reminder_body_now">Try to sleep soon to get as much rest as you can before %1$s.</string>
     <!-- Dicas de omissão (sem nada de especial hoje): roda uma por noite, para não ser sempre igual. -->
     <string-array name="reminder_tips_default">
@@ -152,6 +152,8 @@
     <string name="reminder_tip_meal">A little extra time lets dinner settle.</string>
     <string name="reminder_tip_nap">After a long nap, sleep may come slower. Keep the lights low.</string>
     <string name="reminder_tip_night_owl">Dimming the lights now helps your body clock.</string>
+    <string name="reminder_tip_early_bird">Your body slows down early. Starting now keeps tonight easy.</string>
+    <string name="reminder_tip_body_clock">Tonight is earlier than your body is used to, so give sleep a little more time. Keep the lights low.</string>
 
     <!-- Widget -->
     <string name="widget_label">Bedtime</string>
@@ -162,6 +164,10 @@
     <!-- Ex.: "Wind down at 22:15" -->
     <string name="widget_wind_down_at">Wind down at %1$s</string>
     <string name="widget_wind_down_now">Start winding down</string>
+    <!-- Por cima da hora grande dos widgets pequeno e grande (ex.: "In bed by" / "22:45"). -->
+    <string name="widget_bed_label">In bed by</string>
+    <!-- Linha da lua do widget pequeno, sem espaço para "Start winding down". -->
+    <string name="widget_wind_down_now_short">Wind down now</string>
     <string name="widget_routine_off">Routine is off</string>
     <string name="widget_no_bedtime">No wake-up coming up</string>
     <string name="widget_no_routine">No routines yet</string>

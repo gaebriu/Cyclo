@@ -1,112 +1,171 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Widget da hora de dormir, feito a partir do cartão de uma rotina das rotinas guardadas
-    (routine 1: #101011, raio 15, margens de 15): o nome em cima (Inter SemiBold 15), 14 dp, e as
-    linhas de 18 dp com o ícone de 15 dp e o valor (Inter Medium 15) a 6 dp, 12 dp entre elas:
-    o sol e a hora de acordar, a estrela e a hora recomendada para ir para a cama (como no Feed),
-    e a lua e a hora de começar a abrandar.
-    As duas últimas estão em ViewFlippers: ao mudar, a nova entra por baixo e a antiga sai por cima.
+    Widget grande (≥ 250 x 176 dp: 4 x 2 alto, 4 x 3 e maiores). Versão compacta do cartão das
+    rotinas guardadas (routine 1, Figma 73:419), com a mesma hierarquia: fundo #101011 opaco, raio 15,
+    margens de 15.
+    - Em cima: o nome (SemiBold 14) e, por baixo, o sol e a hora de acordar; à direita, os botões
+      editar e ligar/desligar (círculos de 34 dp em zonas de toque de 48 dp).
+    - O calendário e a repetição (os dias da rotina a branco, os outros a #A3A2A7 a 39 %).
+    - O espaço que sobra fica no meio; em baixo, a hora de ir para a cama em grande (com "In bed by"
+      por cima) e a lua com a hora de começar a abrandar. As duas horas estão em ViewFlippers: ao
+      mudar, a nova entra por baixo e a antiga sai por cima.
+    - Desligada, o véu "fx upper-shadow" (#101011 a 63 %) por cima do texto e por baixo dos botões.
+    O id @android:id/background deixa o lançador recortar os cantos.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
-    android:orientation="vertical"
-    android:padding="15dp">
-
-    <TextView
-        android:id="@+id/widget_name"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:fontFamily="@font/inter_semibold"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:textColor="#FCFCFE"
-        android:textSize="15sp" />
+    android:background="@drawable/widget_background">
 
     <LinearLayout
+        android:id="@+id/widget_root"
         android:layout_width="match_parent"
-        android:layout_height="18dp"
-        android:layout_marginTop="14dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="15dp">
 
-        <ImageView
-            android:layout_width="15dp"
-            android:layout_height="15dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/widget_ic_sunny" />
-
+        <!-- Nome e hora de acordar, ao lado dos botões (2 x 48 dp, menos a margem de toque). -->
         <TextView
-            android:id="@+id/widget_wake"
-            style="@style/CycloWidgetValue"
-            android:layout_width="wrap_content"
-            android:layout_marginStart="6dp" />
-    </LinearLayout>
+            android:id="@+id/widget_name"
+            style="@style/CycloWidgetName"
+            android:layout_marginEnd="92dp" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="18dp"
-        android:layout_marginTop="12dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        <LinearLayout
+            style="@style/CycloWidgetRow"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="92dp">
 
-        <ImageView
-            android:layout_width="15dp"
-            android:layout_height="15dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/widget_ic_star" />
+            <ImageView
+                style="@style/CycloWidgetIcon"
+                android:src="@drawable/widget_ic_sunny" />
+
+            <TextView
+                android:id="@+id/widget_wake"
+                style="@style/CycloWidgetValue" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/widget_repeat_row"
+            style="@style/CycloWidgetRow"
+            android:layout_marginTop="8dp">
+
+            <ImageView
+                style="@style/CycloWidgetIcon"
+                android:src="@drawable/widget_ic_calendar" />
+
+            <TextView
+                android:id="@+id/widget_repeat"
+                style="@style/CycloWidgetValue" />
+        </LinearLayout>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/widget_bed_label_row"
+            style="@style/CycloWidgetRow">
+
+            <ImageView
+                style="@style/CycloWidgetIcon"
+                android:src="@drawable/widget_ic_star" />
+
+            <TextView
+                android:id="@+id/widget_bed_label"
+                style="@style/CycloWidgetLabel"
+                android:text="@string/widget_bed_label" />
+        </LinearLayout>
 
         <ViewFlipper
             android:id="@+id/widget_bedtime_flipper"
-            android:layout_width="match_parent"
-            android:layout_height="18dp"
-            android:layout_marginStart="6dp"
-            android:inAnimation="@anim/widget_time_in"
-            android:measureAllChildren="true"
-            android:outAnimation="@anim/widget_time_out">
+            style="@style/CycloWidgetFlipper"
+            android:layout_height="36dp"
+            android:layout_marginTop="2dp">
 
             <TextView
                 android:id="@+id/widget_bedtime_a"
-                style="@style/CycloWidgetValue" />
+                style="@style/CycloWidgetHero"
+                android:autoSizeMaxTextSize="32sp" />
 
             <TextView
                 android:id="@+id/widget_bedtime_b"
-                style="@style/CycloWidgetValue" />
+                style="@style/CycloWidgetHero"
+                android:autoSizeMaxTextSize="32sp" />
         </ViewFlipper>
+
+        <LinearLayout
+            style="@style/CycloWidgetRow"
+            android:layout_marginTop="4dp">
+
+            <ImageView
+                style="@style/CycloWidgetIcon"
+                android:src="@drawable/widget_ic_bedtime" />
+
+            <ViewFlipper
+                android:id="@+id/widget_winddown_flipper"
+                style="@style/CycloWidgetFlipper">
+
+                <TextView
+                    android:id="@+id/widget_winddown_a"
+                    style="@style/CycloWidgetValue" />
+
+                <TextView
+                    android:id="@+id/widget_winddown_b"
+                    style="@style/CycloWidgetValue" />
+            </ViewFlipper>
+        </LinearLayout>
     </LinearLayout>
 
-    <LinearLayout
+    <!-- fx upper-shadow (só com a rotina desligada). -->
+    <ImageView
+        android:id="@+id/widget_veil"
         android:layout_width="match_parent"
-        android:layout_height="18dp"
-        android:layout_marginTop="12dp"
-        android:gravity="center_vertical"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_veil"
+        android:visibility="gone" />
+
+    <!-- Os botões: círculos de 34 dp em zonas de toque de 48 dp, encostados em cima à direita (os
+         7 dp de margem de toque mais 8 dp dão os 15 dp até à borda; 14 dp entre os círculos). -->
+    <LinearLayout
+        android:id="@+id/widget_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
         android:orientation="horizontal">
 
-        <ImageView
-            android:layout_width="15dp"
-            android:layout_height="15dp"
-            android:importantForAccessibility="no"
-            android:src="@drawable/widget_ic_bedtime" />
+        <FrameLayout
+            android:id="@+id/widget_edit"
+            android:layout_width="48dp"
+            android:layout_height="48dp">
 
-        <ViewFlipper
-            android:id="@+id/widget_winddown_flipper"
-            android:layout_width="match_parent"
-            android:layout_height="18dp"
-            android:layout_marginStart="6dp"
-            android:inAnimation="@anim/widget_time_in"
-            android:measureAllChildren="true"
-            android:outAnimation="@anim/widget_time_out">
+            <ImageView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="center"
+                android:background="@drawable/widget_button"
+                android:importantForAccessibility="no"
+                android:src="@drawable/widget_ic_edit" />
+        </FrameLayout>
 
-            <TextView
-                android:id="@+id/widget_winddown_a"
-                style="@style/CycloWidgetValue" />
+        <FrameLayout
+            android:id="@+id/widget_toggle"
+            android:layout_width="48dp"
+            android:layout_height="48dp">
 
-            <TextView
-                android:id="@+id/widget_winddown_b"
-                style="@style/CycloWidgetValue" />
-        </ViewFlipper>
+            <ImageView
+                android:id="@+id/widget_toggle_icon"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_gravity="center"
+                android:background="@drawable/widget_toggle_on"
+                android:importantForAccessibility="no"
+                android:src="@drawable/widget_ic_active" />
+        </FrameLayout>
     </LinearLayout>
-</LinearLayout>
+</FrameLayout>

@@ -64,6 +64,10 @@
         <receiver
             android:name=".widget.WidgetPinnedReceiver"
             android:exported="false" />
+        <!-- O visto do widget (liga e desliga a rotina). -->
+        <receiver
+            android:name=".widget.WidgetActionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

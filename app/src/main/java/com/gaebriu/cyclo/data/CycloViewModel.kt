@@ -101,24 +101,49 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         ) { repository.deleteRoutine(routine.id) }
     }
 
-    fun changeCaffeine(delta: Int) = write {
-        repository.updateDailyLog(LocalDate.now()) { it.copy(caffeine = (it.caffeine + delta).coerceIn(0, MaxCaffeine)) }
+    /**
+     * "+" junta um café com a hora de agora (o [BedtimeEngine] usa-a para saber quanto ainda atua à
+     * hora de deitar); "−" tira o mais recente.
+     */
+    fun changeCaffeine(delta: Int) {
+        val now = System.currentTimeMillis()
+        write {
+            repository.updateDailyLog(LocalDate.now()) {
+                val count = (it.caffeine + delta).coerceIn(0, MaxCaffeine)
+                val times = when {
+                    count > it.caffeine -> it.caffeineTimes + List(count - it.caffeine) { now }
+                    count < it.caffeine -> it.caffeineTimes.dropLast(it.caffeine - count)
+                    else -> it.caffeineTimes
+                }
+                it.copy(caffeine = count, caffeineTimes = times.takeLast(count))
+            }
+        }
     }
 
     fun resetCaffeine() {
-        val before = data.value?.dailyLog?.takeIf { it.date == LocalDate.now() }?.caffeine ?: 0
+        val log = data.value?.dailyLog?.takeIf { it.date == LocalDate.now() }
+        val before = log?.caffeine ?: 0
+        val beforeTimes = log?.caffeineTimes.orEmpty()
         write(
             onSuccess = {
                 showMessage(string(R.string.feed_caffeine_reset_done), string(R.string.undo)) {
-                    write { repository.updateDailyLog(LocalDate.now()) { it.copy(caffeine = before) } }
+                    write { repository.updateDailyLog(LocalDate.now()) { it.copy(caffeine = before, caffeineTimes = beforeTimes) } }
                 }
             },
-        ) { repository.updateDailyLog(LocalDate.now()) { it.copy(caffeine = 0) } }
+        ) { repository.updateDailyLog(LocalDate.now()) { it.copy(caffeine = 0, caffeineTimes = emptyList()) } }
     }
 
-    fun toggleFactor(factor: SleepFactor) = write {
-        repository.updateDailyLog(LocalDate.now()) {
-            it.copy(factors = if (factor in it.factors) it.factors - factor else it.factors + factor)
+    /** Marcar um fator guarda também a hora (ver [BedtimeEngine]); desmarcar apaga-a. */
+    fun toggleFactor(factor: SleepFactor) {
+        val now = System.currentTimeMillis()
+        write {
+            repository.updateDailyLog(LocalDate.now()) {
+                if (factor in it.factors) {
+                    it.copy(factors = it.factors - factor, factorTimes = it.factorTimes - factor)
+                } else {
+                    it.copy(factors = it.factors + factor, factorTimes = it.factorTimes + (factor to now))
+                }
+            }
         }
     }
 
@@ -141,6 +166,18 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Autorização de notificações recusada: o interruptor fica desligado. */
     fun notificationsDenied() = showMessage(string(R.string.settings_notifications_denied))
+
+    /** Rotina a abrir no editor, pedida pelo lápis do widget (a [com.gaebriu.cyclo.ui.CycloApp] consome-a). */
+    private val _editRequest = MutableStateFlow<Long?>(null)
+    val editRequest: StateFlow<Long?> = _editRequest.asStateFlow()
+
+    fun requestEdit(routineId: Long) {
+        _editRequest.value = routineId
+    }
+
+    fun consumeEditRequest() {
+        _editRequest.value = null
+    }
 
     /** O lançador não deixa fixar o widget a partir da app. */
     fun widgetPinUnsupported() = showMessage(string(R.string.widget_pin_unsupported))

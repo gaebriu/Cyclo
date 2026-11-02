@@ -12,6 +12,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import com.gaebriu.cyclo.ui.components.RollingNumber
+import com.gaebriu.cyclo.ui.components.RollingText
+import com.gaebriu.cyclo.data.BedtimeEngine
+import com.gaebriu.cyclo.data.Chronotype
+import com.gaebriu.cyclo.data.FallAsleepTime
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
+import kotlinx.coroutines.delay
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.backdropSource
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
@@ -132,6 +139,9 @@ private const val WakeCardShadowAlpha = 0.24f
 /** Quantas posições tem o medidor de emoções (os pontos do Figma). */
 private const val MoodSteps = 5
 
+/** Quanto as horas para dormir esperam, depois do último toque na cafeína, fatores ou emoções. */
+private const val BedtimeSettleMs = 1200L
+
 /** Índices dos blocos da entrada em cascata do Feed (ver [StaggeredReveal]). */
 object FeedRevealItems {
     const val MiniMenu = 0
@@ -152,9 +162,10 @@ object FeedRevealItems {
  * - A rotina mostrada é a primeira que acorda o utilizador nas próximas 24 horas (ligada, e com a
  *   repetição a incluir esse dia, ou "Show just this once" ainda por cumprir). Sem nenhuma, o grupo
  *   "To rise refreshed tomorrow" não aparece.
- * - As horas para adormecer são a hora de acordar menos 6 a 1 ciclos de 90 min e 15 min para
- *   adormecer ([fallAsleepMinutes], o "Time to fall asleep" das definições; ver [bedtimesFor]);
- *   as duas com mais ciclos têm estrela.
+ * - As horas para adormecer são a hora de acordar menos 6 a 1 ciclos de 90 min e o tempo estimado
+ *   para adormecer hoje (o "Time to fall asleep" das definições mais o que a cafeína, os fatores, as
+ *   emoções e o cronótipo pedem; ver [BedtimeEngine] e [bedtimesFor]); as duas com mais ciclos têm
+ *   estrela. Mudam ~1 s depois do último toque, e rolam para a hora nova.
  * - O "..." da hora de acordar abre "Edit" / "Remove"; o da cafeína abre "Reset".
  */
 @Composable
@@ -162,7 +173,9 @@ fun FeedScreen(
     now: LocalDateTime,
     routines: List<Routine>,
     dailyLog: DailyLog?,
-    fallAsleepMinutes: Long,
+    age: Int?,
+    chronotype: Chronotype,
+    fallAsleep: FallAsleepTime,
     reveal: StaggeredReveal,
     bottomReserve: Dp,
     wakeShadow: Color,
@@ -176,12 +189,29 @@ fun FeedScreen(
 ) {
     val today = now.toLocalDate()
     val log = dailyLog?.takeIf { it.date == today } ?: DailyLog(today)
-    val nextRoutine = remember(routines, now) {
+    val next = remember(routines, now) {
         routines
             .mapNotNull { routine -> routine.nextWake(now)?.let { routine to it } }
             .filter { (_, wake) -> Duration.between(now, wake) <= Duration.ofHours(24) }
             .minByOrNull { (_, wake) -> wake }
-            ?.first
+    }
+    val nextRoutine = next?.first
+
+    // O tempo estimado para adormecer hoje (BedtimeEngine): o das definições mais o que a cafeína,
+    // os fatores, as emoções e o cronótipo pedem. As horas para dormir recuam com ele; o sono
+    // planeado nunca encolhe.
+    val targetLatency = remember(next, dailyLog, age, chronotype, fallAsleep, now) {
+        next?.let { (_, wake) ->
+            BedtimeEngine.plan(wake, now, age, chronotype, fallAsleep, dailyLog).fallAsleepMinutes.toLong()
+        } ?: fallAsleep.planMinutes.toLong()
+    }
+    // Só muda depois de os toques assentarem (nada de contas nem saltos a cada toque no "+").
+    var latency by remember { mutableLongStateOf(targetLatency) }
+    LaunchedEffect(targetLatency) {
+        if (targetLatency != latency) {
+            delay(BedtimeSettleMs)
+            latency = targetLatency
+        }
     }
 
     var wakeMenuOpen by remember { mutableStateOf(false) }
@@ -210,7 +240,7 @@ fun FeedScreen(
                     Spacer(Modifier.height(LabelToCard))
                     WakeTimeCard(
                         routine = nextRoutine,
-                        fallAsleepMinutes = fallAsleepMinutes,
+                        fallAsleepMinutes = latency,
                         shadow = wakeShadow,
                         onMoreClick = { wakeMenuOpen = true },
                         onMoreBounds = { wakeMenuAnchor = it },
@@ -455,17 +485,21 @@ private fun BedtimeRow(bedtimes: List<Bedtime>) {
         horizontalArrangement = Arrangement.spacedBy(15.dp, Alignment.CenterHorizontally),
     ) {
         val formatter = LocalTimeFormat.current.formatter
+        val style = CycloType.CardTitle.withFeedShadow()
         bedtimes.forEach { bedtime ->
-            val time = bedtime.time.format(formatter)
-            val description = pluralStringResource(R.plurals.feed_bedtime_description, bedtime.cycles, time, bedtime.cycles)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
-            ) {
-                val (icon, tint) = bedtimeIcon(bedtime.cycles)
-                CycloIcon(path = icon, size = 15.dp, tint = tint, luminosity = false)
-                Spacer(Modifier.height(6.dp))
-                BasicText(text = time, style = CycloType.CardTitle.withFeedShadow())
+            key(bedtime.cycles) {
+                val time = bedtime.time.format(formatter)
+                val description = pluralStringResource(R.plurals.feed_bedtime_description, bedtime.cycles, time, bedtime.cycles)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
+                ) {
+                    val (icon, tint) = bedtimeIcon(bedtime.cycles)
+                    CycloIcon(path = icon, size = 15.dp, tint = tint, luminosity = false)
+                    Spacer(Modifier.height(6.dp))
+                    // Quando o dia pede mais tempo para adormecer, a hora recua: a nova desce de cima.
+                    RollingText(text = time, style = style, direction = -1, description = time)
+                }
             }
         }
     }

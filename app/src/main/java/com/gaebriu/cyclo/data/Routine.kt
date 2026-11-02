@@ -103,6 +103,10 @@ enum class SleepFactor { IntenseExercise, HeavyLateMeal, LongLateNap }
  * Recomeça a cada dia.
  *
  * @property mood de 0 (contente, à esquerda) a 1 (insatisfeito, à direita).
+ * @property caffeineTimes quando foi registado cada café (epoch ms, do mais antigo ao mais recente).
+ *                         Pode ter menos entradas do que [caffeine] (registos de versões antigas,
+ *                         sem hora); nunca mais.
+ * @property factorTimes quando cada fator foi marcado (epoch ms). Só os fatores em [factors].
  */
 @Immutable
 data class DailyLog(
@@ -110,6 +114,8 @@ data class DailyLog(
     val caffeine: Int = 0,
     val factors: Set<SleepFactor> = emptySet(),
     val mood: Float = 0.5f,
+    val caffeineTimes: List<Long> = emptyList(),
+    val factorTimes: Map<SleepFactor, Long> = emptyMap(),
 )
 
 /**

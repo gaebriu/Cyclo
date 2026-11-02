@@ -387,7 +387,7 @@ fun SettingsScreen(
 }
 
 /**
- * A versão instalada como se mostra ao utilizador: "alpha-0.7.1" fica "Alpha 0.7.1", "beta-1.2.0"
+ * A versão instalada como se mostra ao utilizador: "alpha-0.7.2" fica "Alpha 0.7.2", "beta-1.2.0"
  * fica "Beta 1.2.0", e uma versão final ("1.0.0") fica só o número.
  */
 @Composable

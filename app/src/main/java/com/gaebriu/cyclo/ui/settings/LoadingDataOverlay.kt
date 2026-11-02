@@ -93,27 +93,42 @@ fun LoadingDataOverlay(visible: Boolean, modifier: Modifier = Modifier) {
             .graphicsLayer { alpha = fade.value.coerceIn(0f, 1f) }
             // Não deixa os toques passarem para baixo.
             .pointerInput(Unit) { detectTapGestures { } }
-            .backdropSampler(sampler)
-            .drawBehind {
-                val shape = Path().apply { addRect(size.toRect()) }
-                if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
-                drawRect(
-                    color = CycloColors.GlassFill.copy(alpha = if (effects.blurEnabled) VeilAlpha else 0.9f),
-                    blendMode = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver,
-                )
-            }
             .semantics { liveRegion = LiveRegionMode.Polite },
-        contentAlignment = Alignment.Center,
     ) {
-        BlurredRing(
-            reveal = { if (effects.animationsEnabled) ring.value else 1f },
-            modifier = Modifier.size(RingBox),
+        // O véu (desfoque de fundo do ecrã inteiro) vive numa camada sua, sem filhos: o anel e as
+        // letras animam noutra, por isso não voltam a pedir o desfoque (nem a medir a posição do
+        // véu) a cada frame. Antes, cada frame da animação refazia o desfoque do ecrã inteiro.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer()
+                .backdropSampler(sampler)
+                .drawBehind {
+                    val shape = Path().apply { addRect(size.toRect()) }
+                    if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
+                    drawRect(
+                        color = CycloColors.GlassFill.copy(alpha = if (effects.blurEnabled) VeilAlpha else 0.9f),
+                        blendMode = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver,
+                    )
+                },
         )
-        LetterRevealText(
-            state = reveal,
-            style = CycloType.Body,
-            modifier = Modifier.padding(horizontal = 24.dp),
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Cada um na sua camada: a frente do anel e o espaçamento das letras só redesenham o próprio.
+            BlurredRing(
+                reveal = { if (effects.animationsEnabled) ring.value else 1f },
+                modifier = Modifier.size(RingBox).graphicsLayer(),
+            )
+            LetterRevealText(
+                state = reveal,
+                style = CycloType.Body,
+                modifier = Modifier.graphicsLayer().padding(horizontal = 24.dp),
+            )
+        }
     }
     BackHandler(enabled = visible) { }
 }

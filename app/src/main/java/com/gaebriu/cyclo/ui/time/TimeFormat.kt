@@ -8,6 +8,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
+import java.time.temporal.ChronoField
+import java.util.Locale
 
 /**
  * Como se escrevem as horas na app (Feed, rotinas guardadas): "06:00" em 24 h ou "6:00 AM" em 12 h.
@@ -33,8 +36,24 @@ fun ProvideTimeFormat(use24Hour: Boolean?, content: @Composable () -> Unit) {
     val format = remember(is24, locale) {
         CycloTimeFormat(
             use24Hour = is24,
-            formatter = if (is24) DateTimeFormatter.ofPattern("HH:mm", locale) else DateTimeFormatter.ofPattern("h:mm a", locale),
+            formatter = cycloTimeFormatter(is24, locale),
         )
     }
     CompositionLocalProvider(LocalTimeFormat provides format, content = content)
 }
+
+/**
+ * O formatador das horas do Cyclo: "06:00" em 24 h ou "6:00 AM" em 12 h. O "AM"/"PM" vai sempre
+ * assim, em maiúsculas e sem pontos (o padrão "a" depende da língua e em português dá "a.m."/"p.m.").
+ * Usado pela app, pelo widget e pela notificação.
+ */
+fun cycloTimeFormatter(use24Hour: Boolean, locale: Locale = Locale.getDefault()): DateTimeFormatter =
+    if (use24Hour) {
+        DateTimeFormatter.ofPattern("HH:mm", locale)
+    } else {
+        DateTimeFormatterBuilder()
+            .appendPattern("h:mm")
+            .appendLiteral(' ')
+            .appendText(ChronoField.AMPM_OF_DAY, mapOf(0L to "AM", 1L to "PM"))
+            .toFormatter(locale)
+    }

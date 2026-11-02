@@ -199,16 +199,20 @@ private fun DailyLog.toJson(): String = dailyLogToJson(this).toString()
 private fun parseDailyLog(json: String): DailyLog? = runCatching {
     val o = JSONObject(json)
     val factors = o.optJSONArray("factors")
+    val caffeine = o.optInt("caffeine", 0)
+    val factorSet = buildSet {
+        if (factors != null) {
+            for (i in 0 until factors.length()) {
+                runCatching { SleepFactor.valueOf(factors.getString(i)) }.getOrNull()?.let(::add)
+            }
+        }
+    }
     DailyLog(
         date = LocalDate.parse(o.getString("date")),
-        caffeine = o.optInt("caffeine", 0),
-        factors = buildSet {
-            if (factors != null) {
-                for (i in 0 until factors.length()) {
-                    runCatching { SleepFactor.valueOf(factors.getString(i)) }.getOrNull()?.let(::add)
-                }
-            }
-        },
+        caffeine = caffeine,
+        factors = factorSet,
         mood = o.optDouble("mood", 0.5).toFloat(),
+        caffeineTimes = parseCaffeineTimes(o, caffeine),
+        factorTimes = parseFactorTimes(o, factorSet),
     )
 }.getOrNull()
