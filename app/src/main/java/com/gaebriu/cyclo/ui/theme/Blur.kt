@@ -24,9 +24,9 @@ object FigmaBlur {
     const val BackgroundRecede = 9f
 
     /**
-     * Desfoque máximo nas extremidades do texto com scroll ("fx progressive-blur-bottom").
-     * O Figma não exporta o desfoque progressivo (aparece como 0), por isso é uma PROPOSTA:
-     * moderado, e só chega ao máximo na borda, onde o texto já está quase transparente pelo fade.
+     * Desfoque máximo nas extremidades do texto com scroll da introdução. O desfoque progressivo
+     * do Figma é 15 na borda ([EdgeProgressive]); aqui fica mais leve (PROPOSTA), porque o texto
+     * já está quase transparente pelo fade.
      */
     const val ScrollEdge = 9f
 
@@ -42,6 +42,24 @@ object FigmaBlur {
     /** Brilho do topo do Feed e das rotinas guardadas ("fx background blur"): desfoque 267. */
     const val FeedGlow = 267f
 
-    /** Barra de navegação e mini-menu ("background blur" 39 e 63 do Figma, sobre o conteúdo que passa por trás). */
+    /** Barra de navegação (navigation-bar): "background blur" 39 sobre o conteúdo que passa por trás. */
     const val NavigationBar = 39f
+
+    /** Mini-menu (mini-menu-group): "background blur" 63. */
+    const val MiniMenu = 63f
+
+    /** Menus, folhas, barra de baixo e caixa de pesquisa (undo-action, action-menu, search-box): 39. */
+    const val Overlay = 39f
+
+    /**
+     * "fx progressive-blur-top" e "-bottom" do Feed, das rotinas guardadas e das definições:
+     * desfoque progressivo de 15 na borda do ecrã até 0 na borda de dentro (startRadius 15).
+     */
+    const val EdgeProgressive = 15f
+
+    /** Menus (action-menu) a abrir e a fechar: desfoque 6 a 0, como os títulos a aparecer. */
+    const val MenuReveal = 6f
+
+    /** Números do contador da cafeína a rolar: desfoque 6 no início e no fim do movimento. */
+    const val CounterRoll = 6f
 }

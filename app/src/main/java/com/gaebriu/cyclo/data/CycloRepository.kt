@@ -24,6 +24,9 @@ private val OnboardedKey = booleanPreferencesKey("onboarded")
 private val RoutinesKey = stringPreferencesKey("routines")
 private val DailyLogKey = stringPreferencesKey("daily_log")
 
+/** Sem valor guardado, as horas seguem o formato do sistema. */
+private val Use24HourKey = booleanPreferencesKey("use_24_hour")
+
 /**
  * Onde a app guarda os dados (DataStore). As rotinas e o registo do dia vão em JSON; os enums
  * guardam-se pelo nome, para não se baralharem se a ordem mudar.
@@ -41,8 +44,14 @@ class CycloRepository(context: Context) {
                 onboarded = prefs[OnboardedKey] ?: false,
                 routines = prefs[RoutinesKey]?.let(::parseRoutines).orEmpty(),
                 dailyLog = prefs[DailyLogKey]?.let(::parseDailyLog),
+                use24Hour = prefs[Use24HourKey],
             )
         }
+
+    /** Guarda o formato das horas escolhido nas definições (fica até ser mudado outra vez). */
+    suspend fun setUse24Hour(use24Hour: Boolean) {
+        store.edit { prefs -> prefs[Use24HourKey] = use24Hour }
+    }
 
     /** Guarda uma rotina nova e, se for a do tutorial, marca-o como feito na MESMA escrita. */
     suspend fun addRoutine(draft: RoutineDraft, completeOnboarding: Boolean, nowMillis: Long) {

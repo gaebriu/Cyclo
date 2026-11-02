@@ -114,6 +114,8 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         repository.updateDailyLog(LocalDate.now()) { it.copy(mood = mood.coerceIn(0f, 1f)) }
     }
 
+    fun setUse24Hour(use24Hour: Boolean) = write { repository.setUse24Hour(use24Hour) }
+
     companion object {
         const val MaxCaffeine = 99
     }

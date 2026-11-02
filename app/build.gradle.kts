@@ -13,8 +13,8 @@ android {
         applicationId = "com.gaebriu.cyclo"
         minSdk = 33
         targetSdk = 37
-        versionCode = 11
-        versionName = "alpha-0.6.0"
+        versionCode = 12
+        versionName = "alpha-0.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

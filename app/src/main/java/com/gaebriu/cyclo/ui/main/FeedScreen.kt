@@ -3,8 +3,19 @@
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import com.gaebriu.cyclo.ui.components.RollingNumber
+import com.gaebriu.cyclo.ui.effects.LocalBackdrop
+import com.gaebriu.cyclo.ui.effects.backdropSource
+import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
+import com.gaebriu.cyclo.ui.time.LocalTimeFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,7 +35,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -94,12 +104,10 @@ import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle as DateTextStyle
 import kotlin.math.roundToInt
 
@@ -118,8 +126,8 @@ private val MoodSky = Color(0xFF7FC1E8)
 private val MoodMint = Color(0xFF8FD9C4)
 private val StarYellow = Color(0xFFFFC93C)
 
-/** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, #34739A a 24 %. */
-private val WakeCardShadow = Color(0xFF34739A).copy(alpha = 0.24f)
+/** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, a cor da base do brilho (#34739A no Figma) a 24 %. */
+private const val WakeCardShadowAlpha = 0.24f
 
 /** Quantas posições tem o medidor de emoções (os pontos do Figma). */
 private const val MoodSteps = 5
@@ -150,10 +158,12 @@ object FeedRevealItems {
  */
 @Composable
 fun FeedScreen(
+    now: LocalDateTime,
     routines: List<Routine>,
     dailyLog: DailyLog?,
     reveal: StaggeredReveal,
     bottomReserve: Dp,
+    wakeShadow: Color,
     onEditRoutine: (Routine) -> Unit,
     onRemoveRoutine: (Routine) -> Unit,
     onCaffeineChange: (Int) -> Unit,
@@ -162,7 +172,6 @@ fun FeedScreen(
     onMoodChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val now by rememberMinuteClock()
     val today = now.toLocalDate()
     val log = dailyLog?.takeIf { it.date == today } ?: DailyLog(today)
     val nextRoutine = remember(routines, now) {
@@ -177,11 +186,15 @@ fun FeedScreen(
     var wakeMenuAnchor by remember { mutableStateOf(Rect.Zero) }
     var caffeineMenuOpen by remember { mutableStateOf(false) }
     var caffeineMenuAnchor by remember { mutableStateOf(Rect.Zero) }
+    // O conteúdo fica por baixo dos menus do "...": é o que eles desfocam.
+    val content = rememberBackdropLayer()
+    val menuBackdrop = LocalBackdrop.current + content
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .backdropSource(content)
                 .cycloVerticalScroll(rememberScrollState())
                 .padding(horizontal = CycloDimens.ScreenMargin)
                 .padding(top = FeedContentTop, bottom = bottomReserve),
@@ -195,6 +208,7 @@ fun FeedScreen(
                     Spacer(Modifier.height(LabelToCard))
                     WakeTimeCard(
                         routine = nextRoutine,
+                        shadow = wakeShadow,
                         onMoreClick = { wakeMenuOpen = true },
                         onMoreBounds = { wakeMenuAnchor = it },
                     )
@@ -229,6 +243,7 @@ fun FeedScreen(
         }
 
         // Menus do "...": por cima de tudo, ancorados ao botão (a direita do menu na direita do cartão).
+        CompositionLocalProvider(LocalBackdrop provides menuBackdrop) {
         AnchoredMenuHost(
             visible = wakeMenuOpen && nextRoutine != null,
             anchor = { wakeMenuAnchor },
@@ -265,17 +280,7 @@ fun FeedScreen(
                 },
             )
         }
-    }
-}
-
-/** A hora atual, atualizada no início de cada minuto. */
-@Composable
-private fun rememberMinuteClock() = produceState(LocalDateTime.now()) {
-    while (true) {
-        val current = LocalDateTime.now()
-        value = current
-        val untilNextMinute = 60_000L - (current.second * 1000L + current.nano / 1_000_000L)
-        delay(untilNextMinute.coerceAtLeast(250L))
+        }
     }
 }
 
@@ -298,12 +303,13 @@ private fun Greeting(now: LocalDateTime, reveal: StaggeredReveal) {
         },
     )
     val locale = LocalConfiguration.current.locales[0]
+    val timeFormatter = LocalTimeFormat.current.formatter
     val date = stringResource(
         R.string.feed_date,
         now.dayOfWeek.getDisplayName(DateTextStyle.FULL, locale),
         now.month.getDisplayName(DateTextStyle.FULL, locale),
         now.dayOfMonth,
-        now.format(TimeFormatter),
+        now.format(timeFormatter),
     )
     BasicText(
         text = greeting,
@@ -319,8 +325,6 @@ private fun Greeting(now: LocalDateTime, reveal: StaggeredReveal) {
         modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Date),
     )
 }
-
-private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 @Composable
 private fun SectionLabel(text: String) {
@@ -358,17 +362,19 @@ private fun MoreButton(description: String, onClick: () -> Unit, onBounds: (Rect
 /**
  * wake-time-container: o sol e a hora de acordar, o "...", um separador, e as horas para
  * adormecer em duas filas (as duas melhores com estrela, as outras com a cara do medidor).
+ *
+ * @param shadow a cor da base do brilho do topo (muda com a hora); a sombra usa-a a 24 %.
  */
 @Composable
-private fun WakeTimeCard(routine: Routine, onMoreClick: () -> Unit, onMoreBounds: (Rect) -> Unit) {
+private fun WakeTimeCard(routine: Routine, shadow: Color, onMoreClick: () -> Unit, onMoreBounds: (Rect) -> Unit) {
     val bedtimes = remember(routine.wakeHour, routine.wakeMinute) { bedtimesFor(routine.wakeHour, routine.wakeMinute) }
-    val wake = LocalTime.of(routine.wakeHour, routine.wakeMinute).format(TimeFormatter)
+    val wake = LocalTime.of(routine.wakeHour, routine.wakeMinute).format(LocalTimeFormat.current.formatter)
     val outset = (CycloDimens.TouchTarget - 15.dp) / 2
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .cycloCard(shadowColor = WakeCardShadow, shadowBlur = 24.dp)
+            .cycloCard(shadowColor = shadow.copy(alpha = WakeCardShadowAlpha), shadowBlur = 24.dp)
             .padding(CardPadding),
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -437,8 +443,9 @@ private fun BedtimeRow(bedtimes: List<Bedtime>) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(15.dp, Alignment.CenterHorizontally),
     ) {
+        val formatter = LocalTimeFormat.current.formatter
         bedtimes.forEach { bedtime ->
-            val time = bedtime.time.format(TimeFormatter)
+            val time = bedtime.time.format(formatter)
             val description = pluralStringResource(R.plurals.feed_bedtime_description, bedtime.cycles, time, bedtime.cycles)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -498,8 +505,8 @@ private fun CaffeineCard(
             enabled = count > 0,
             onClick = { onChange(-1) },
         )
-        BasicText(
-            text = count.toString(),
+        RollingNumber(
+            value = count,
             style = CycloType.CardTitle,
             modifier = Modifier.padding(horizontal = 15.dp),
         )
@@ -659,6 +666,12 @@ private fun FeelingCard(mood: Float, onMoodChange: (Float) -> Unit) {
     }
 }
 
+/**
+ * O medidor de emoções: a bola segue o dedo (com resistência para lá das pontas) e, ao largar,
+ * escolhe o ponto pela posição e pelo lançamento, e assenta lá com uma mola que parte com a
+ * velocidade do dedo. Cresce um pouco enquanto se segura. Um tique em cada ponto que passa.
+ * Tocar num sítio leva a bola para o ponto mais perto.
+ */
 @Composable
 private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
     val effects = LocalVisualEffects.current
@@ -672,15 +685,24 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
         stringResource(R.string.feed_feeling_level_4),
         stringResource(R.string.feed_feeling_level_5),
     )
-    val stored = (mood * (MoodSteps - 1)).roundToInt().coerceIn(0, MoodSteps - 1)
+    val last = MoodSteps - 1
+    val stored = (mood * last).roundToInt().coerceIn(0, last)
     var step by remember { mutableIntStateOf(stored) }
-    // A posição da bola (0 a 1), que segue o dedo e assenta no ponto com uma mola.
-    val ball = remember { Animatable(stored / (MoodSteps - 1f)) }
+    // A posição da bola (0 a 1; passa um pouco das pontas com a resistência e a mola).
+    val ball = remember { Animatable(stored / last.toFloat()) }
+    // Enquanto o dedo arrasta, a bola está aqui (sem corrotinas a cada movimento).
     var dragging by remember { mutableStateOf(false) }
+    var dragPosition by remember { mutableFloatStateOf(0f) }
+    var held by remember { mutableStateOf(false) }
+    val ballScale by animateFloatAsState(
+        targetValue = if ((held || dragging) && effects.animationsEnabled) CycloMotion.MoodBallHeldScale else 1f,
+        animationSpec = CycloMotion.MoodBallScaleSpring,
+        label = "moodBall",
+    )
     LaunchedEffect(stored) {
-        if (!dragging) {
+        if (!dragging && stored != step) {
             step = stored
-            ball.animateTo(stored / (MoodSteps - 1f), CycloMotion.CardSpring)
+            ball.animateTo(stored / last.toFloat(), CycloMotion.MoodSettleSpring)
         }
     }
 
@@ -691,9 +713,18 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
         }
     }
 
-    fun settle() {
-        scope.launch { ball.animateTo(step / (MoodSteps - 1f), CycloMotion.CardSpring) }
-        onMoodChange(step / (MoodSteps - 1f))
+    /** Leva a bola para o ponto escolhido, a partir de onde está e com [velocity] (fração/s). */
+    fun settle(from: Float, velocity: Float = 0f) {
+        val target = step / last.toFloat()
+        scope.launch {
+            ball.snapTo(from)
+            if (effects.animationsEnabled) {
+                ball.animateTo(target, CycloMotion.MoodSettleSpring, initialVelocity = velocity)
+            } else {
+                ball.snapTo(target)
+            }
+        }
+        onMoodChange(target)
     }
 
     BoxWithConstraints(
@@ -703,10 +734,10 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
             .semantics {
                 contentDescription = description
                 stateDescription = levels[step]
-                progressBarRangeInfo = ProgressBarRangeInfo(step.toFloat(), 0f..(MoodSteps - 1f), MoodSteps - 2)
+                progressBarRangeInfo = ProgressBarRangeInfo(step.toFloat(), 0f..last.toFloat(), MoodSteps - 2)
                 setProgress { target ->
-                    setStep(target.roundToInt().coerceIn(0, MoodSteps - 1), haptic = false)
-                    settle()
+                    setStep(target.roundToInt().coerceIn(0, last), haptic = false)
+                    settle(ball.value)
                     true
                 }
             },
@@ -714,32 +745,54 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
         val widthPx = constraints.maxWidth.toFloat()
         val density = LocalDensity.current
         val ballInset = with(density) { 11.5.dp.toPx() }
-        fun fractionAt(x: Float) = ((x - ballInset) / (widthPx - 2f * ballInset)).coerceIn(0f, 1f)
+        val trackPx = (widthPx - 2f * ballInset).coerceAtLeast(1f)
+        fun rawFractionAt(x: Float) = (x - ballInset) / trackPx
+
+        /** Para lá das pontas, a bola só anda uma parte do que o dedo anda, até um máximo. */
+        fun rubberBand(f: Float): Float = when {
+            f < 0f -> -minOf(-f * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
+            f > 1f -> 1f + minOf((f - 1f) * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
+            else -> f
+        }
 
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        setStep((fractionAt(offset.x) * (MoodSteps - 1)).roundToInt(), haptic = true)
-                        settle()
+                .pointerInput(trackPx) {
+                    detectTapGestures(
+                        onPress = {
+                            held = true
+                            tryAwaitRelease()
+                            held = false
+                        },
+                    ) { offset ->
+                        setStep((rawFractionAt(offset.x).coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                        settle(ball.value)
                     }
                 }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { dragging = true },
-                        onDragEnd = {
-                            dragging = false
-                            settle()
-                        },
-                        onDragCancel = {
-                            dragging = false
-                            settle()
-                        },
-                    ) { change, _ ->
-                        val f = fractionAt(change.position.x)
-                        scope.launch { ball.snapTo(f) }
-                        setStep((f * (MoodSteps - 1)).roundToInt(), haptic = true)
+                .pointerInput(trackPx) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val start = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ ->
+                            change.consume()
+                        } ?: return@awaitEachGesture
+                        val tracker = VelocityTracker()
+                        tracker.addPosition(start.uptimeMillis, start.position)
+                        dragging = true
+                        dragPosition = rubberBand(rawFractionAt(start.position.x))
+                        setStep((dragPosition.coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                        horizontalDrag(start.id) { change ->
+                            change.consume()
+                            tracker.addPosition(change.uptimeMillis, change.position)
+                            dragPosition = rubberBand(rawFractionAt(change.position.x))
+                            setStep((dragPosition.coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                        }
+                        // Velocidade do dedo em fração da pista por segundo.
+                        val velocity = tracker.calculateVelocity().x / trackPx
+                        val projected = (dragPosition + velocity * CycloMotion.MoodFlingProjectionS).coerceIn(0f, 1f)
+                        setStep((projected * last).roundToInt(), haptic = true)
+                        dragging = false
+                        settle(dragPosition, velocity)
                     }
                 },
         ) {
@@ -757,7 +810,7 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
             // Os pontos (9 dp, #A3A2A7 a 15 % em Luminosity), nas cinco posições da bola.
             val y = size.height / 2f
             for (i in 0 until MoodSteps) {
-                val x = lerp(ballInset, size.width - ballInset, i / (MoodSteps - 1f))
+                val x = lerp(ballInset, size.width - ballInset, i / last.toFloat())
                 drawCircle(
                     color = CycloColors.TextSecondary.copy(alpha = 0.15f),
                     radius = 4.5.dp.toPx(),
@@ -765,7 +818,8 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
                     blendMode = blend,
                 )
             }
-            drawCycloBall(Offset(lerp(ballInset, size.width - ballInset, ball.value), y))
+            val position = if (dragging) dragPosition else ball.value
+            drawCycloBall(Offset(lerp(ballInset, size.width - ballInset, position), y), ballScale)
         }
     }
 }

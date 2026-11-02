@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Cyclo is a single-module (`:app`) Android app written in Kotlin with Jetpack Compose (package `com.gaebriu.cyclo`, minSdk 33, target/compileSdk 37, AGP 9.x). It is in alpha: the app has the onboarding tutorial (Introduction 0–6), which builds the user's first routine, and then the Feed and Saved routines screens. The same Introduction 2–5 pages are reused to create and edit routines. The UI is implemented to match a Figma design.
+Cyclo is a single-module (`:app`) Android app written in Kotlin with Jetpack Compose (package `com.gaebriu.cyclo`, minSdk 33, target/compileSdk 37, AGP 9.x). It is in alpha: the app has the onboarding tutorial (Introduction 0–6), which builds the user's first routine, and then the Feed, Saved routines and Settings screens. The same Introduction 2–5 pages are reused to create and edit routines. The UI is implemented to match a Figma design.
 
 ## Referências de design (Figma)
 
@@ -19,6 +19,7 @@ Estas são as referências de design que **devem ser seguidas a todo o custo, a 
 - Introduction 6: https://www.figma.com/design/gttEgaM66gADIZnxBm8iEs/Cyclo?node-id=9-232&t=CsxckgE7KCKq6Yc3-4
 - Feed: https://www.figma.com/design/gttEgaM66gADIZnxBm8iEs/Cyclo?node-id=24-10&t=piNHgRVGQuqYqvhf-4
 - Saved routines: https://www.figma.com/design/gttEgaM66gADIZnxBm8iEs/Cyclo?node-id=72-282&t=piNHgRVGQuqYqvhf-4
+- Settings: https://www.figma.com/design/gttEgaM66gADIZnxBm8iEs/Cyclo?node-id=46-140
 - Componentes 1 (página de referências): https://www.figma.com/design/gttEgaM66gADIZnxBm8iEs/Cyclo?node-id=59-50&t=CsxckgE7KCKq6Yc3-4
 - Componentes 2 (página de referências): https://www.figma.com/design/gttEgaM66gADIZnxBm8iEs/Cyclo?node-id=160-313&t=CsxckgE7KCKq6Yc3-4
 
@@ -51,6 +52,9 @@ Dependency versions are in `gradle/libs.versions.toml`. Releases bump `versionCo
 
   The top button, progress bar and Next button are fixed chrome (`IntroductionChrome.kt`); only the pages slide. On Introduction 6 the top button and Next fade out and are disabled, and back is blocked. Each `IntroductionNPage` is stateless and gets state and callbacks from the flow. Back handling is layered: a `BackHandler` for step 1, a `PredictiveBackHandler` that moves `position` along with the gesture for the later steps, a no-op `BackHandler` on Introduction 6, and a final `BackHandler` that closes open overlays first. Declaration order sets the priority, and the last one declared wins. A page is composed only while it is on screen or animating (`derivedStateOf` gates).
 - **Letter reveal:** `components/LetterReveal.kt` is the "Hello!" animation of Introduction 0 (letters fade in from blur 9 while the letter spacing closes), shared with the Introduction 6 text.
+- **Settings (`ui/settings/SettingsScreen.kt`):** a third overlay on the same `cover` animation (opened by the mini-menu gear, closed by back-b or the back gesture). Only the time format works so far: `use_24_hour` in DataStore (absent = system format), exposed through `ui/time/TimeFormat.kt` (`ProvideTimeFormat` / `LocalTimeFormat`), which every displayed time uses. The Introduction 2 wheel stays 24 h. The other rows are visual only.
+- **Backdrop (`ui/effects/Backdrop.kt`):** glass surfaces draw what is behind them themselves. A zone records its content with `backdropSource`, declares it with `LocalBackdrop`, and each surface (`cycloCard`, `cycloGlassPill`, `cycloOverlaySurface`, the search box) draws it, clipped and optionally blurred (Figma background blur), before its Luminosity fill. This is what keeps Luminosity correct inside animating (offscreen) layers. A surface must never use a source that contains it. `ProgressiveBlur.kt` does the Feed/Saved/Settings top and bottom bands the same way.
+- **Sky colours (`ui/main/TimeOfDay.kt`):** the Feed/Saved top glow and the wake-time card shadow follow the device hour (`skyColorsAt`).
 - **`ui/effects/VisualEffects.kt`:** `LocalVisualEffects` exposes `blurEnabled` and `animationsEnabled`. `animationsEnabled` comes from the system animator duration scale. Every animation and blur must respect these flags: with animations off, movements become fades, and with blur off, blurs and Luminosity blends are dropped. Do **not** use `WindowManager.isCrossWindowBlurEnabled` for this: it returns false on many devices (for example Samsung) and used to hide the effects.
 - **Design tokens (`ui/theme/`):** `CycloColors`, `CycloDimens`, `CycloMotion` (spring and tween specs, which are proposed values to be tuned by eye) and `Type.kt` (bundled Inter fonts). Figma blur values are stored as-is in `FigmaBlur` and must go through `Density.figmaBlurPx()`, because Figma's blur radius is twice Android's sigma.
 - **`ui/routine/RepeatSelection.kt`:** the `RepeatOption` and `Weekday` enums. Selected days are stored as a bitmask (bit 0 = Sunday … bit 6 = Saturday). `rememberRepeatSelection()` also holds the open/close state of the overlays. `IntroductionFlow`, `Introduction4Page` and `RepeatOverlays.kt` read it, and `RepeatOverlays.kt` passes it to the generic `CycloActionMenu` and `CycloDaysSheet` components.

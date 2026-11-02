@@ -118,4 +118,6 @@ data class CycloData(
     val onboarded: Boolean,
     val routines: List<Routine>,
     val dailyLog: DailyLog?,
+    /** Formato das horas escolhido nas definições: true = 24 h, false = 12 h (AM/PM), null = o do sistema. */
+    val use24Hour: Boolean? = null,
 )

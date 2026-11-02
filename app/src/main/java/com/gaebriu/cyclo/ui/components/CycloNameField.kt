@@ -59,8 +59,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
+import androidx.compose.ui.graphics.BlendMode
+import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.backdropSampler
+import com.gaebriu.cyclo.ui.effects.drawBackdrop
 import com.gaebriu.cyclo.ui.effects.drawBlurredPath
+import com.gaebriu.cyclo.ui.effects.rememberBackdropSampler
+import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
@@ -93,6 +99,7 @@ private val ActionTargetEnd = 3.dp
  * @param onSwitchToKeyboard ícone do teclado (só ao ouvir): deixa de ouvir e passa a escrever.
  * @param placeholder o texto da caixa vazia ("Tap to write"; "What are you looking for?" na
  *                    pesquisa, search-box).
+ * @param search o fundo de vidro da caixa de pesquisa (search-box), em vez do da caixa do nome.
  */
 @Composable
 fun CycloNameField(
@@ -107,6 +114,7 @@ fun CycloNameField(
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
     placeholder: String = stringResource(R.string.introduction_3_placeholder),
+    search: Boolean = false,
 ) {
     val listening = animateFloatAsState(
         targetValue = if (isListening) 1f else 0f,
@@ -117,7 +125,7 @@ fun CycloNameField(
     val zoom = rememberCompletionZoom(isListening, completionKey)
 
     Box(modifier = modifier.fillMaxWidth().height(CycloDimens.InputHeight)) {
-        NameFieldFill()
+        NameFieldFill(search)
         ListeningLayer(listening = listening, shimmer = shimmer, zoom = zoom)
         NameFieldInput(
             value = value,
@@ -201,11 +209,43 @@ private fun rememberListeningShimmer(listening: State<Float>): State<Float> {
     }
 }
 
-/** Fundo da caixa (#101011, raio 15). */
+/**
+ * Fundo da caixa (#101011, raio 15).
+ *
+ * Na pesquisa ([search], search-box do Figma) é vidro: #101011 em Luminosity sobre o desfoque de
+ * fundo 39, brilho exterior (0, 0, desfoque 9, #A3A2A7 a 15 %) e borda de 1 dp em gradiente da
+ * esquerda para a direita (#A3A2A7 a 24 %, 9 % a meio, 0 %).
+ */
 @Composable
-private fun BoxScope.NameFieldFill() {
-    Canvas(modifier = Modifier.matchParentSize()) {
-        drawPath(roundedShape(CycloDimens.InputRadius.toPx()), CycloColors.GlassFill)
+private fun BoxScope.NameFieldFill(search: Boolean) {
+    if (!search) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawPath(roundedShape(CycloDimens.InputRadius.toPx()), CycloColors.GlassFill)
+        }
+        return
+    }
+    val effects = LocalVisualEffects.current
+    val backdrop = LocalBackdrop.current
+    val sampler = rememberBackdropSampler()
+    Canvas(modifier = Modifier.matchParentSize().backdropSampler(sampler)) {
+        val radius = CycloDimens.InputRadius.toPx()
+        val shape = roundedShape(radius)
+        val edge = CycloColors.TextSecondary
+        val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+        clipPath(shape, clipOp = ClipOp.Difference) {
+            drawBlurredPath(shape, edge.copy(alpha = 0.15f), 9.dp.toPx())
+        }
+        if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
+        drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+        drawInsideBorder(
+            radius,
+            Brush.horizontalGradient(
+                0f to edge.copy(alpha = 0.24f),
+                0.5f to edge.copy(alpha = 0.09f),
+                1f to edge.copy(alpha = 0f),
+            ),
+            blend,
+        )
     }
 }
 

@@ -39,6 +39,9 @@ class RoutineNameInputState internal constructor(
 
     internal var pendingKeyboard by mutableStateOf(false)
 
+    /** A caixa está a ser usada: a ouvir, ou a passar do ditado para o teclado. */
+    val isBusy: Boolean get() = dictation.isListening || pendingKeyboard
+
     /** Dá o foco à caixa e abre o teclado (ex.: ao abrir a pesquisa). */
     fun openKeyboard() {
         pendingKeyboard = true
@@ -76,6 +79,7 @@ fun RoutineNameInput(
     modifier: Modifier = Modifier,
     placeholder: String? = null,
     lift: Boolean = true,
+    search: Boolean = false,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -112,6 +116,7 @@ fun RoutineNameInput(
             },
             focusRequester = state.focusRequester,
             placeholder = placeholder ?: stringResource(R.string.introduction_3_placeholder),
+            search = search,
         )
     }
     // Sem [lift], a caixa fica onde está (ex.: a pesquisa, já no topo do ecrã).

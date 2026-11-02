@@ -143,4 +143,48 @@ object CycloMotion {
 
     /** Cartões das rotinas a mudar (ligar/desligar, aparecer, desaparecer). */
     val CardSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+
+    /**
+     * Brilho do topo ao mudar entre o Feed e as rotinas guardadas: volta a crescer e a acender, e
+     * passa para o gradiente da outra página. Um pouco mais longo do que a troca do conteúdo. PROPOSTA.
+     */
+    const val GlowTabDurationMs = 900
+
+    /** Cores do brilho a mudar de faixa horária (ex.: às 15 h). Lento, para quase não se notar. PROPOSTA. */
+    const val SkyChangeDurationMs = 2400
+
+    /**
+     * Número da cafeína a rolar: o novo entra por baixo (ou por cima, ao tirar) e o antigo sai,
+     * com fade e desfoque. Mola rápida com um ressalto muito leve. PROPOSTA.
+     */
+    val CounterSpring = spring<Float>(dampingRatio = 0.78f, stiffness = 420f)
+
+    /** Quanto o número da cafeína se desloca a rolar, em fração da sua altura. */
+    const val CounterRollDistance = 0.7f
+
+    /**
+     * Bola do medidor de emoções a assentar num ponto depois de a largar: parte com a velocidade do
+     * dedo e assenta com um ressalto curto. PROPOSTA.
+     */
+    val MoodSettleSpring = spring<Float>(dampingRatio = 0.68f, stiffness = 360f)
+
+    /** A bola do medidor cresce um pouco enquanto se segura (e volta com uma mola). */
+    const val MoodBallHeldScale = 1.2f
+    val MoodBallScaleSpring = spring<Float>(dampingRatio = 0.6f, stiffness = 500f)
+
+    /** Quanto o lançamento conta para escolher o ponto (segundos de movimento projetado). */
+    const val MoodFlingProjectionS = 0.12f
+
+    /** Resistência para lá das pontas do medidor (fração do que o dedo anda) e o máximo que passa. */
+    const val MoodRubberBand = 0.3f
+    const val MoodRubberBandMax = 0.06f
+
+    /** Menus (action-menu) a abrir e a fechar: de 90 % com desfoque a 100 % nítido. */
+    const val MenuStartScale = 0.9f
+
+    /** Menus (action-menu) a abrir: mola com um ressalto muito leve no zoom. PROPOSTA. */
+    val MenuOpenSpring = spring<Float>(dampingRatio = 0.78f, stiffness = 520f)
+
+    /** Menus (action-menu) a fechar: mais rápido e sem ressalto. PROPOSTA. */
+    val MenuCloseSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 700f)
 }

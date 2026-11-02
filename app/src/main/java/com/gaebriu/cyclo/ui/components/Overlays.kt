@@ -30,9 +30,14 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import com.gaebriu.cyclo.ui.theme.FigmaBlur
+import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -60,7 +65,11 @@ fun AnchoredMenuHost(
     val effects = LocalVisualEffects.current
     val progress = remember { Animatable(0f) }
     LaunchedEffect(visible) {
-        progress.animateTo(if (visible) 1f else 0f, CycloMotion.OverlaySpring)
+        // A abrir, uma mola com um ressalto muito leve; a fechar, mais rápida e sem ressalto.
+        progress.animateTo(
+            if (visible) 1f else 0f,
+            if (visible) CycloMotion.MenuOpenSpring else CycloMotion.MenuCloseSpring,
+        )
     }
     // Onde o host está na janela, para passar o [anchor] para as coordenadas dele.
     var hostOrigin by remember { mutableStateOf(Offset.Zero) }
@@ -79,12 +88,24 @@ fun AnchoredMenuHost(
             content = {
                 Box(
                     modifier = Modifier.graphicsLayer {
-                        val p = progress.value.coerceIn(0f, 1f)
-                        val scale = if (effects.animationsEnabled) 0.9f + 0.1f * p else 1f
+                        // A mola pode passar um pouco de 1: o zoom acompanha (ressalto subtil), o
+                        // fade e o desfoque não.
+                        val raw = progress.value
+                        val p = raw.coerceIn(0f, 1f)
                         transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0f)
-                        scaleX = scale
-                        scaleY = scale
                         alpha = p
+                        if (effects.animationsEnabled) {
+                            val scale = lerp(CycloMotion.MenuStartScale, 1f, raw.coerceAtLeast(0f))
+                            scaleX = scale
+                            scaleY = scale
+                            // Ligeiro desfoque a abrir e a fechar (6 a 0), como os textos a aparecer.
+                            val sigma = figmaBlurPx(FigmaBlur.MenuReveal) * (1f - p)
+                            renderEffect = if (effects.blurEnabled && sigma > 0.5f) {
+                                BlurEffect(sigma, sigma, TileMode.Decal)
+                            } else {
+                                null
+                            }
+                        }
                     },
                 ) { content() }
             },

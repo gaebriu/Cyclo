@@ -57,4 +57,37 @@
     <string name="saved_widget">Add %1$s as a widget</string>
     <string name="saved_edit">Edit %1$s</string>
     <string name="saved_toggle">%1$s on the feed</string>
+
+    <!-- Definições -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_sleep_profile">Sleep profile</string>
+    <string name="settings_age">Your age</string>
+    <string name="settings_chronotype">Chronotype</string>
+    <string name="settings_cycle_length">Sleep cycle length</string>
+    <string name="settings_cycle_length_description">The average cycle lasts about 90 minutes, but yours may differ. Adjust it if you know your own rhythm</string>
+    <string name="settings_fall_asleep">Time to fall asleep</string>
+    <!-- Ex.: "90 min" -->
+    <string name="settings_minutes">%1$d min</string>
+    <!-- Valor ainda por escolher (idade, cronótipo) -->
+    <string name="settings_value_unset">—</string>
+    <string name="settings_reminders">Reminders</string>
+    <string name="settings_bedtime_reminder">Bedtime</string>
+    <string name="settings_morning_check_in">Morning check-in</string>
+    <string name="settings_morning_check_in_description">A quick prompt after you wake up, so you can tell us how you slept</string>
+    <string name="settings_format_language">Format &amp; Language</string>
+    <string name="settings_time_format">Time format</string>
+    <string name="settings_12_hour">12-hour</string>
+    <string name="settings_24_hour">24-hour</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_export_data">Export my data</string>
+    <string name="settings_restore_data">Restore my data</string>
+    <string name="settings_data_description">Export your routines and settings as a JSON file, or restore them from one you saved before</string>
+    <string name="settings_about">About</string>
+    <string name="settings_github">View on GitHub</string>
+    <string name="settings_feedback">Send feedback</string>
+    <!-- Ex.: "Cyclo Version alpha-0.7.0" -->
+    <string name="settings_version">Cyclo Version %1$s</string>
 </resources>

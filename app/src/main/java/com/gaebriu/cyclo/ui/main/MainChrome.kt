@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -25,6 +25,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -36,6 +38,7 @@ import com.gaebriu.cyclo.ui.components.CycloIcon
 import com.gaebriu.cyclo.ui.components.cycloGlassPill
 import com.gaebriu.cyclo.ui.components.cycloPressable
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.ProgressiveBlurEdge
 import com.gaebriu.cyclo.ui.effects.drawGaussianGlow
 import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
@@ -70,68 +73,105 @@ private val MiniMenuEdge = 3.dp
 private val TopFadeHeight = 130.dp
 private val BottomFadeHeight = 120.dp
 
-// Brilho do topo ("fx background blur"): elipse de 432 x 267 dp com o topo no topo do ecrã,
-// gradiente vertical #252C80 (metade de cima) a #34739A, 63 % de preenchimento e 63 % de grupo.
+// Brilho do topo ("fx background blur"): elipse de 432 x 267 dp com o topo no topo do ecrã e
+// 63 % de grupo. O gradiente vertical vai da cor de cima (até meio da elipse) à da base.
+// - Feed: preenchimento a 63 % nas três paragens.
+// - Rotinas guardadas: 24 %, 39 % a meio e 24 % (o gradiente complementar, mais leve).
 private val GlowRadiusX = 216.dp
 private val GlowRadiusY = 133.5.dp
-private const val GlowAlpha = 0.63f * 0.63f
+private const val GlowGroupAlpha = 0.63f
+private const val FeedFill = 0.63f
+private const val SavedFillEdge = 0.24f
+private const val SavedFillMiddle = 0.39f
 
-/** Média da cor do gradiente da elipse (3/4 de #252C80 e 1/4 de #34739A). */
-private val GlowColor = Color(0xFF293E86)
+/** O brilho ao mudar de página ("Fade" do Introduction 0, em pequeno): de onde volta a crescer e a acender. */
+private const val GlowPulseShape = 0.86f
+private const val GlowPulseIntensity = 0.55f
 
 /** Os dois separadores principais. */
 enum class MainTab { Feed, Saved }
 
 /**
- * Brilho azul do topo do Feed e das rotinas guardadas, desenhado só com gradientes (ver
- * [drawGaussianGlow]), como o do Introduction 0.
+ * Brilho do topo do Feed e das rotinas guardadas, desenhado só com gradientes (ver
+ * [drawGaussianGlow]), como o do Introduction 0. A mancha desfocada serve de máscara e o gradiente
+ * de cor do Figma pinta-a (camada própria, para a máscara só afetar o brilho).
  *
- * @param growth de 0 a 1: nasce do topo e cresce até à forma do design.
+ * @param growth de 0 a 1: nasce do topo e cresce até à forma do design (entrada do Feed).
+ * @param pulse de 0 a 1: ao mudar de página, o brilho volta a crescer e a acender um pouco.
+ * @param sky as cores da hora atual (ver [skyColorsAt]).
+ * @param saved de 0 (Feed) a 1 (rotinas guardadas): passa de um gradiente para o complementar.
  */
 @Composable
-fun FeedTopGlow(growth: () -> Float, modifier: Modifier = Modifier) {
+fun FeedTopGlow(
+    growth: () -> Float,
+    pulse: () -> Float,
+    sky: () -> SkyColors,
+    saved: () -> Float,
+    modifier: Modifier = Modifier,
+) {
     val effects = LocalVisualEffects.current
-    Canvas(modifier = modifier.fillMaxSize()) {
-        val g = growth().coerceIn(0f, 1f)
-        if (g <= 0f) return@Canvas
-        val shape = if (effects.animationsEnabled) g else 1f
-        val intensity = if (effects.animationsEnabled) 1f else g
-        val sigma = figmaBlurPx(FigmaBlur.FeedGlow)
-        val a = GlowRadiusX.toPx() * shape
-        val b = GlowRadiusY.toPx() * shape
-        val sigmaX = sqrt(sigma * sigma + a * a / 4f)
-        val sigmaY = sqrt(sigma * sigma + b * b / 4f)
-        drawGaussianGlow(
-            color = GlowColor,
-            center = Offset(size.width / 2f, b),
-            sigmaX = sigmaX,
-            sigmaY = sigmaY,
-            peakAlpha = GlowAlpha * a * b / (2f * sigmaX * sigmaY) * intensity,
-        )
-    }
+    Spacer(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawBehind {
+                val g = growth().coerceIn(0f, 1f)
+                if (g <= 0f) return@drawBehind
+                val p = pulse().coerceIn(0f, 1f)
+                val shape = if (effects.animationsEnabled) g * lerp(GlowPulseShape, 1f, p) else 1f
+                val intensity = (if (effects.animationsEnabled) 1f else g) * lerp(GlowPulseIntensity, 1f, p)
+                val sigma = figmaBlurPx(FigmaBlur.FeedGlow)
+                val a = GlowRadiusX.toPx() * shape
+                val b = GlowRadiusY.toPx() * shape
+                val sigmaX = sqrt(sigma * sigma + a * a / 4f)
+                val sigmaY = sqrt(sigma * sigma + b * b / 4f)
+                // Máscara: a mancha desfocada, com a opacidade do grupo.
+                drawGaussianGlow(
+                    color = Color.White,
+                    center = Offset(size.width / 2f, b),
+                    sigmaX = sigmaX,
+                    sigmaY = sigmaY,
+                    peakAlpha = GlowGroupAlpha * a * b / (2f * sigmaX * sigmaY) * intensity,
+                )
+                // Cor: o gradiente vertical da elipse (topo da elipse ao fundo dela).
+                val s = saved().coerceIn(0f, 1f)
+                val c = sky()
+                val edgeFill = lerp(FeedFill, SavedFillEdge, s)
+                val middleFill = lerp(FeedFill, SavedFillMiddle, s)
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0f to c.top.copy(alpha = edgeFill),
+                        0.5f to c.top.copy(alpha = middleFill),
+                        1f to c.base.copy(alpha = edgeFill),
+                        startY = 0f,
+                        endY = b * 2f,
+                    ),
+                    blendMode = BlendMode.SrcIn,
+                )
+            },
+    )
 }
 
 /**
- * "fx progressive-blur-top" e "fx progressive-blur-bottom": o conteúdo escurece ao passar por baixo
- * do mini-menu e da barra de navegação. O desfoque progressivo do Figma não se exporta; fica o gradiente.
+ * "fx progressive-blur-top" e "fx progressive-blur-bottom": o conteúdo desfoca-se (15 na borda do
+ * ecrã até 0) e escurece ao passar por baixo do topo (preto a 15 %) e do fundo (até preto).
+ * Usa o que está por baixo ([com.gaebriu.cyclo.ui.effects.LocalBackdrop]).
  */
 @Composable
 fun MainEdgeFades(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize()) {
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(TopFadeHeight)
-                .drawBehind {
-                    drawRect(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Transparent)))
-                },
+        ProgressiveBlurEdge(
+            top = true,
+            height = TopFadeHeight,
+            figmaBlur = FigmaBlur.EdgeProgressive,
+            shade = Color.Black.copy(alpha = 0.15f),
         )
-        Spacer(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(BottomFadeHeight)
-                .drawBehind { drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black))) },
+        ProgressiveBlurEdge(
+            top = false,
+            height = BottomFadeHeight,
+            figmaBlur = FigmaBlur.EdgeProgressive,
+            shade = Color.Black,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 }
@@ -141,9 +181,11 @@ fun MainEdgeFades(modifier: Modifier = Modifier) {
 class MiniMenuAction(val iconPath: String, val description: String, val onClick: () -> Unit)
 
 /**
- * Mini-menu do canto de cima à direita (mini-menu-group): ícones de 15 dp a 39 dp uns dos outros.
+ * Mini-menu do canto de cima à direita (mini-menu-group): 39 dp de altura, ícones de 15 dp a 15 dp
+ * das pontas e a 39 dp uns dos outros, centrados na altura (a 12 dp do topo).
  * Cada ícone tem uma zona de toque de 48 x 48 dp, centrada nele; como os ícones estão a 39 dp, as
- * zonas das vizinhas sobrepõem-se 9 dp (aí ganha a da direita).
+ * zonas das vizinhas sobrepõem-se 9 dp (aí ganha a da direita). As zonas saem 4,5 dp por cima e
+ * por baixo da pílula, sem a empurrar.
  *
  * @param firstSlot de 0 a 1: quanto do primeiro botão existe. A 0 fica escondido e o menu mais
  *                  curto (a lupa só existe nas rotinas guardadas); pelo meio, alarga e aparece.
@@ -155,12 +197,16 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, first
         modifier = modifier
             .height(MiniMenuHeight)
             .width(MiniMenuEdge * 2 + MiniMenuSlot * (actions.size - 1) + MiniMenuSlot * first)
-            .cycloGlassPill(MiniMenuRadius),
+            .cycloGlassPill(MiniMenuRadius, FigmaBlur.MiniMenu),
+        contentAlignment = Alignment.CenterStart,
     ) {
+        // A fila tem a altura das zonas de toque (48 dp) e fica centrada na pílula de 39 dp. Antes
+        // ficava cortada a 39 dp e deslocada, e os ícones apareciam 4,5 dp acima do centro.
         Row(
             modifier = Modifier
                 .padding(horizontal = MiniMenuEdge)
-                .offset(y = (MiniMenuHeight - CycloDimens.TouchTarget) / 2),
+                .requiredHeight(CycloDimens.TouchTarget),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             actions.forEachIndexed { index, action ->
                 val amount = if (index == 0) first else 1f

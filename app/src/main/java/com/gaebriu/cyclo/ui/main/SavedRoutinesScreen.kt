@@ -70,8 +70,16 @@ import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
+import com.gaebriu.cyclo.ui.time.LocalTimeFormat
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 
 // Medidas do Figma (Saved routines, frame de 393 x 852).
 /** Os cartões começam a 126 dp do topo (39 dp abaixo do mini-menu). */
@@ -86,7 +94,8 @@ private val DayOff = CycloColors.TextSecondary.copy(alpha = 0.39f)
 /** "fx upper-shadow" das rotinas desligadas: #101011 a 63 % em Luminosity, por cima do texto. */
 private val DeactivatedVeil = CycloColors.GlassFill.copy(alpha = 0.63f)
 
-private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+/** Quanto tempo a caixa de pesquisa espera, depois de o teclado e o ditado pararem, para dar a escrita por acabada. */
+private const val SearchFinishDelayMs = 350L
 
 /**
  * Rotinas guardadas: um cartão por rotina com o nome, a hora de acordar e quando aparece, e os
@@ -94,7 +103,8 @@ private val TimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:m
  * aparece e desaparece com uma mola), menos os botões.
  *
  * Com a pesquisa aberta ([searchOpen]), a caixa de pesquisa (search-box) aparece no topo da lista
- * e só ficam os cartões com o texto no nome.
+ * e só ficam os cartões com o texto no nome. [onSearchFinished] avisa quando se acaba de escrever
+ * (quem mostra decide se a caixa fecha).
  */
 @Composable
 fun SavedRoutinesScreen(
@@ -102,6 +112,7 @@ fun SavedRoutinesScreen(
     searchOpen: Boolean,
     query: String,
     onQueryChange: (String) -> Unit,
+    onSearchFinished: () -> Unit,
     bottomReserve: Dp,
     onDelete: (Routine) -> Unit,
     onEdit: (Routine) -> Unit,
@@ -128,6 +139,7 @@ fun SavedRoutinesScreen(
             SearchBox(
                 query = query,
                 onQueryChange = onQueryChange,
+                onFinished = onSearchFinished,
                 open = searchOpen,
                 progress = { search.value },
             )
@@ -150,16 +162,42 @@ fun SavedRoutinesScreen(
     }
 }
 
-/** search-box: a caixa de escrever/ditar com "What are you looking for?"; abre com foco e teclado. */
+/**
+ * search-box: a caixa de escrever/ditar com "What are you looking for?", com o vidro do Figma
+ * (desfoque de fundo, brilho e borda em gradiente). Abre com foco e teclado.
+ *
+ * [onFinished] é chamado quando se acaba de escrever: Enter, teclado fechado (também pelo gesto de
+ * voltar) ou fim do ditado. Espera um instante, para a passagem entre o ditado e o teclado (em que
+ * nenhum dos dois está ativo durante uns frames) não contar.
+ */
 @Composable
 private fun SearchBox(
     query: String,
     onQueryChange: (String) -> Unit,
+    onFinished: () -> Unit,
     open: Boolean,
     progress: () -> Float,
 ) {
     val effects = LocalVisualEffects.current
+    val density = LocalDensity.current
     val input = rememberRoutineNameInput(onQueryChange)
+    val ime = WindowInsets.ime
+    val latestOnFinished by rememberUpdatedState(onFinished)
+    LaunchedEffect(open) {
+        if (!open) return@LaunchedEffect
+        var wasActive = false
+        snapshotFlow { ime.getBottom(density) > 0 || input.isBusy }
+            .distinctUntilChanged()
+            .collectLatest { active ->
+                if (active) {
+                    wasActive = true
+                } else if (wasActive) {
+                    delay(SearchFinishDelayMs)
+                    wasActive = false
+                    latestOnFinished()
+                }
+            }
+    }
     // A caixa ocupa o seu lugar só à medida que abre (a lista desce com ela).
     Box(
         modifier = Modifier
@@ -177,6 +215,7 @@ private fun SearchBox(
                 onValueChange = onQueryChange,
                 placeholder = stringResource(R.string.saved_search_placeholder),
                 lift = false,
+                search = true,
                 modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin),
             )
             Spacer(Modifier.height(CycloDimens.Spacing))
@@ -215,7 +254,7 @@ private fun RoutineCard(
         animationSpec = CycloMotion.CardSpring,
         label = "routineActive",
     )
-    val time = LocalTime.of(routine.wakeHour, routine.wakeMinute).format(TimeFormatter)
+    val time = LocalTime.of(routine.wakeHour, routine.wakeMinute).format(LocalTimeFormat.current.formatter)
     val repeatText = repeatSummary(routine)
     val stateText = stringResource(if (routine.active) R.string.saved_state_on else R.string.saved_state_off)
 

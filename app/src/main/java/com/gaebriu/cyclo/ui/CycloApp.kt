@@ -30,7 +30,14 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.gaebriu.cyclo.data.CycloViewModel
 import com.gaebriu.cyclo.data.RoutineDraft
 import com.gaebriu.cyclo.ui.components.CycloMessageBar
+import androidx.compose.runtime.CompositionLocalProvider
+import com.gaebriu.cyclo.ui.effects.Backdrop
+import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.backdropSource
+import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
+import com.gaebriu.cyclo.ui.settings.SettingsScreen
+import com.gaebriu.cyclo.ui.time.ProvideTimeFormat
 import com.gaebriu.cyclo.ui.effects.StaggeredReveal
 import com.gaebriu.cyclo.ui.main.FeedRevealItems
 import com.gaebriu.cyclo.ui.main.MainActions
@@ -50,16 +57,18 @@ import kotlinx.coroutines.launch
 private const val OverlayNone = 0
 private const val OverlayTutorial = 1
 private const val OverlayEditor = 2
+private const val OverlaySettings = 3
 
 /**
- * A app: o Feed e as rotinas guardadas por baixo e, por cima, o tutorial (só até ser feito) ou o
- * editor de rotinas (Introduction 2 a 5, ao criar ou editar).
+ * A app: o Feed e as rotinas guardadas por baixo e, por cima, o tutorial (só até ser feito), o
+ * editor de rotinas (Introduction 2 a 5, ao criar ou editar) ou as definições.
  *
  * - O que está por cima sobe de baixo e desce para sair, como o Introduction 1 sobre o 0: o Feed
  *   recua por baixo (zoom out, desfoque e véu escuro) e volta a avançar quando ele desce.
  * - No fim do tutorial, o Introduction 6 desce e o Feed aparece com a sua entrada em cascata
  *   (o mesmo acontece ao abrir a app depois do tutorial). Só acontece uma vez por sessão.
- * - No primeiro passo do editor, o gesto de voltar faz o editor descer a seguir ao dedo.
+ * - No primeiro passo do editor, e nas definições, o gesto de voltar faz o ecrã descer a seguir ao dedo.
+ * - As horas seguem o formato escolhido nas definições ou, sem escolha, o do sistema.
  * - Sem animações, os movimentos passam a fades.
  *
  * Só se mostra depois de os dados estarem lidos (o ecrã de abertura espera, ver MainActivity).
@@ -116,6 +125,10 @@ fun CycloApp(viewModel: CycloViewModel) {
             onCaffeineReset = viewModel::resetCaffeine,
             onToggleFactor = viewModel::toggleFactor,
             onMoodChange = viewModel::setMood,
+            onOpenSettings = {
+                overlay = OverlaySettings
+                overlayOpen = true
+            },
         )
     }
 
@@ -125,8 +138,12 @@ fun CycloApp(viewModel: CycloViewModel) {
     )
     // O Feed só precisa de existir quando se vê (durante o tutorial está todo tapado).
     val showMain by remember { derivedStateOf { overlay != OverlayTutorial || cover.value < 1f } }
+    // Tudo o que fica por baixo da barra de baixo (undo-action), que o desfoca.
+    val screens = rememberBackdropLayer()
 
+    ProvideTimeFormat(data.use24Hour) {
     Box(modifier = Modifier.fillMaxSize().background(CycloColors.Background)) {
+        Box(modifier = Modifier.fillMaxSize().backdropSource(screens)) {
         if (showMain) {
             Box(
                 modifier = Modifier
@@ -167,7 +184,7 @@ fun CycloApp(viewModel: CycloViewModel) {
         // Vem DEPOIS do Feed (para ter prioridade sobre o voltar das rotinas guardadas) e ANTES do
         // editor: no primeiro passo, o gesto de voltar faz o editor descer a seguir ao dedo. Os passos
         // seguintes e os menus abertos têm os seus próprios gestos, declarados depois (com prioridade).
-        PredictiveBackHandler(enabled = overlay == OverlayEditor && overlayOpen) { progress ->
+        PredictiveBackHandler(enabled = (overlay == OverlayEditor || overlay == OverlaySettings) && overlayOpen) { progress ->
             try {
                 progress.collect { event -> cover.snapTo(1f - event.progress * BackGestureReach) }
                 overlayOpen = false
@@ -198,6 +215,11 @@ fun CycloApp(viewModel: CycloViewModel) {
                         },
                         onFinished = { overlayOpen = false },
                     )
+                } else if (overlay == OverlaySettings) {
+                    SettingsScreen(
+                        onSetUse24Hour = viewModel::setUse24Hour,
+                        onClose = { overlayOpen = false },
+                    )
                 } else {
                     key(editorKey) {
                         val editing = data.routines.firstOrNull { it.id == editorRoutineId }
@@ -222,14 +244,19 @@ fun CycloApp(viewModel: CycloViewModel) {
             }
         }
 
+        }
+
         // Barra de baixo (undo-action): por cima da barra de navegação, ou do Next/Done quando o
-        // tutorial ou o editor estão por cima.
-        CycloMessageBar(
-            message = message,
-            onDismiss = viewModel::dismissMessage,
-            bottomMargin = bottomInset + CycloDimens.Spacing +
-                if (overlayOpen) CycloDimens.ButtonHeight else NavigationBarHeight,
-        )
+        // tutorial ou o editor estão por cima. Desfoca o que está por trás.
+        CompositionLocalProvider(LocalBackdrop provides Backdrop.of(screens)) {
+            CycloMessageBar(
+                message = message,
+                onDismiss = viewModel::dismissMessage,
+                bottomMargin = bottomInset + CycloDimens.Spacing +
+                    if (overlayOpen) CycloDimens.ButtonHeight else NavigationBarHeight,
+            )
+        }
+    }
     }
 }
 

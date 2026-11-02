@@ -17,29 +17,45 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.backdropSampler
+import com.gaebriu.cyclo.ui.effects.drawBackdrop
 import com.gaebriu.cyclo.ui.effects.drawBlurredPath
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
+import com.gaebriu.cyclo.ui.effects.rememberBackdropSampler
 import com.gaebriu.cyclo.ui.theme.CycloColors
+import com.gaebriu.cyclo.ui.theme.FigmaBlur
 
 /*
- * Fundos de vidro do Feed e das rotinas guardadas, tal como no Figma. O "background blur" do Figma
- * (o desfoque do que passa por trás) não se aplica: o preenchimento #101011 já é opaco.
+ * Fundos de vidro do Feed, das rotinas guardadas e das definições, tal como no Figma. Cada um
+ * desenha por baixo o que está por trás dele (ver effects/Backdrop.kt): desfocado, nos que têm
+ * "background blur" no Figma, e sempre como base da mistura Luminosity, que assim fica certa
+ * também durante as animações. Sem desfoque nas definições, ficam cores sólidas.
  */
 
-private fun roundRectPath(width: Float, height: Float, radius: Float) = Path().apply {
+internal fun roundRectPath(width: Float, height: Float, radius: Float) = Path().apply {
     addRoundRect(RoundRect(0f, 0f, width, height, CornerRadius(radius)))
 }
 
+/** Borda em gradiente vertical do vidro: #313233 a 63 %, 39 % ao meio, 63 %. */
+internal fun glassBorderBrush(): Brush = Brush.verticalGradient(
+    0f to CycloColors.GlassBorder.copy(alpha = 0.63f),
+    0.505f to CycloColors.GlassBorder.copy(alpha = 0.39f),
+    1f to CycloColors.GlassBorder.copy(alpha = 0.63f),
+)
+
 /**
- * Barra de navegação e mini-menu (navigation-bar, mini-menu-group): #101011 em Luminosity, sombra
- * 0, 4, desfoque 39 (preto a 24 %), sombra interior 0, -6, desfoque 15 (preto a 15 %) e borda de
- * 1 dp #313233 a 63 %.
+ * Barra de navegação e mini-menu (navigation-bar, mini-menu-group): #101011 em Luminosity sobre o
+ * desfoque de fundo [figmaBlur] (39 na barra, 63 no mini-menu), sombra 0, 4, desfoque 39 (preto a
+ * 24 %), sombra interior 0, -6, desfoque 15 (preto a 15 %) e borda de 1 dp em gradiente.
  */
 @Composable
-fun Modifier.cycloGlassPill(cornerRadius: Dp): Modifier {
+fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.NavigationBar): Modifier {
     val effects = LocalVisualEffects.current
-    return drawBehind {
+    val backdrop = LocalBackdrop.current
+    val sampler = rememberBackdropSampler()
+    return backdropSampler(sampler).drawBehind {
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
         val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
 
@@ -49,16 +65,16 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp): Modifier {
                 drawBlurredPath(shape, Color.Black.copy(alpha = 0.24f), 39.dp.toPx())
             }
         }
+        if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape, figmaBlur)
         drawPath(shape, CycloColors.GlassFill, blendMode = blend)
         drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx()), 15.dp.toPx())
-        drawInsideBorder(cornerRadius.toPx(), Brush.linearGradient(listOf(BorderColor, BorderColor)), blend)
+        drawInsideBorder(cornerRadius.toPx(), glassBorderBrush(), blend)
     }
 }
 
-private val BorderColor = CycloColors.GlassBorder.copy(alpha = 0.63f)
-
 /**
  * Cartão do Feed e das rotinas guardadas ("background" dos grupos): #101011 em Luminosity, raio 15.
+ * Não tem desfoque de fundo; desenha o que está por trás só para a mistura.
  *
  * @param shadowColor cor da sombra exterior (0, 4, desfoque [shadowBlur]); null = sem sombra.
  */
@@ -69,7 +85,9 @@ fun Modifier.cycloCard(
     cornerRadius: Dp = 15.dp,
 ): Modifier {
     val effects = LocalVisualEffects.current
-    return drawBehind {
+    val backdrop = LocalBackdrop.current
+    val sampler = rememberBackdropSampler()
+    return backdropSampler(sampler).drawBehind {
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
         val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
         if (shadowColor != null) {
@@ -79,6 +97,7 @@ fun Modifier.cycloCard(
                 }
             }
         }
+        if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape)
         drawPath(shape, CycloColors.GlassFill, blendMode = blend)
     }
 }
