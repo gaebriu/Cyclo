@@ -107,4 +107,40 @@ object CycloMotion {
 
     /** A caixa do nome do Introduction 5 a alargar ao escrever (e a voltar): a mesma mola do teclado. */
     val NameFieldExpandSpring = KeyboardSpring
+
+    /** Introduction 6: tempo de espera depois das animações, antes de ir para o Feed. */
+    const val AllSetHoldMs = 1000L
+
+    /** Troca entre o botão Next e o "Done" roxo no último passo da criação de uma rotina. */
+    val ButtonSwapSpring = FadeSpring
+
+    /**
+     * Entrada do Feed (ao abrir a app ou ao acabar o tutorial): cada bloco aparece com fade,
+     * desfoque 6 a 0 e uma subida curta, um a seguir ao outro. PROPOSTAS.
+     */
+    const val FeedRevealStaggerMs = 90
+    const val FeedRevealDurationMs = 900
+    val FeedRevealRise = 24.dp
+
+    /** O brilho do topo do Feed a nascer (como o do Introduction 0). */
+    const val FeedGlowDurationMs = 1600
+
+    /** Troca entre o Feed e as rotinas guardadas: fade cruzado com um ligeiro deslize. */
+    const val TabSwitchDurationMs = 320
+    val TabSwitchShift = 24.dp
+
+    /** A pílula da barra de navegação a deslizar para o botão escolhido. */
+    val NavIndicatorSpring = spring<Float>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+
+    /** Quanto tempo a barra de baixo (undo-action) fica à vista antes de sair sozinha. */
+    const val MessageDurationMs = 4000L
+
+    /** A barra de baixo (undo-action) a entrar e a sair. */
+    val MessageSpring = OverlaySpring
+
+    /** Caixa de pesquisa das rotinas guardadas a abrir e fechar. */
+    val SearchSpring = KeyboardSpring
+
+    /** Cartões das rotinas a mudar (ligar/desligar, aparecer, desaparecer). */
+    val CardSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
 }

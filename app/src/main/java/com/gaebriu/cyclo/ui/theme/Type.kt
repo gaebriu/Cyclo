@@ -100,6 +100,54 @@ object CycloType {
         textAlign = TextAlign.Center,
     )
 
+    /** Botão de texto à direita da barra de baixo ("Undo", undo-b): Inter Medium 15, cinzento. */
+    val MenuAction = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        color = CycloColors.TextSecondary,
+    )
+
+    /** Saudação do Feed ("Good afternoon", header-greetings): Inter Bold 24, branco, à esquerda. */
+    val Greeting = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        color = CycloColors.TextPrimary,
+    )
+
+    /** Data por baixo da saudação: Inter SemiBold 15, cinzento. */
+    val GreetingDate = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
+        color = CycloColors.TextSecondary,
+    )
+
+    /** Título de cada grupo do Feed ("To rise refreshed tomorrow:"): Inter Medium 15, cinzento, à esquerda. */
+    val SectionLabel = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        color = CycloColors.TextSecondary,
+    )
+
+    /** Valores dentro dos cartões ("06:00", "Show just this once"): Inter Medium 15, branco. */
+    val CardValue = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        color = CycloColors.TextPrimary,
+    )
+
+    /** Nomes e números dos cartões ("Routine 1", "08:45", "Intense exercise"): Inter SemiBold 15, branco. */
+    val CardTitle = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 15.sp,
+        color = CycloColors.TextPrimary,
+    )
+
     /** Texto dos botões: Inter SemiBold 15. */
     val Button = TextStyle(
         fontFamily = Inter,

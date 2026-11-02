@@ -74,6 +74,10 @@ class RepeatSelection(option: RepeatOption = RepeatOption.JustOnce, daysMask: In
     }
 }
 
+/** @param option e [daysMask]: a escolha com que começa (ex.: a de uma rotina a editar). */
 @Composable
-fun rememberRepeatSelection(): RepeatSelection =
-    rememberSaveable(saver = RepeatSelection.Saver) { RepeatSelection() }
+fun rememberRepeatSelection(
+    option: RepeatOption = RepeatOption.JustOnce,
+    daysMask: Int = 0,
+): RepeatSelection =
+    rememberSaveable(saver = RepeatSelection.Saver) { RepeatSelection(option, daysMask) }

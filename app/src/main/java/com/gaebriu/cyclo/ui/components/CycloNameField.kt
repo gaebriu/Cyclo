@@ -91,6 +91,8 @@ private val ActionTargetEnd = 3.dp
  * @param micVisible falso quando o ditado não está disponível (ex.: microfone recusado): o botão some.
  * @param completionKey sobe uma unidade de cada vez que o ditado completa com um nome.
  * @param onSwitchToKeyboard ícone do teclado (só ao ouvir): deixa de ouvir e passa a escrever.
+ * @param placeholder o texto da caixa vazia ("Tap to write"; "What are you looking for?" na
+ *                    pesquisa, search-box).
  */
 @Composable
 fun CycloNameField(
@@ -104,6 +106,7 @@ fun CycloNameField(
     onDone: () -> Unit,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
+    placeholder: String = stringResource(R.string.introduction_3_placeholder),
 ) {
     val listening = animateFloatAsState(
         targetValue = if (isListening) 1f else 0f,
@@ -125,6 +128,7 @@ fun CycloNameField(
             zoom = zoom,
             focusRequester = focusRequester,
             onDone = onDone,
+            placeholder = placeholder,
         )
         NameFieldAction(
             isListening = isListening,
@@ -309,8 +313,8 @@ private fun BoxScope.NameFieldInput(
     zoom: CompletionZoom,
     focusRequester: FocusRequester,
     onDone: () -> Unit,
+    placeholder: String,
 ) {
-    val placeholder = stringResource(R.string.introduction_3_placeholder)
 
     CompositionLocalProvider(
         LocalTextSelectionColors provides TextSelectionColors(

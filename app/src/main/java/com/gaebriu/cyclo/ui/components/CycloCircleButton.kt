@@ -39,6 +39,7 @@ fun CycloCircleButton(
     modifier: Modifier = Modifier,
     secondaryIconPath: String? = null,
     secondaryIconAmount: () -> Float = { 0f },
+    enabled: Boolean = true,
 ) {
     val effects = LocalVisualEffects.current
     val icon = remember(iconPath) { PathParser().parsePathString(iconPath).toPath() }
@@ -49,7 +50,7 @@ fun CycloCircleButton(
     Box(
         modifier = modifier
             .size(CycloDimens.TouchTarget)
-            .cycloPressable(onClick = onClick, pressedScale = CycloMotion.IconButtonPressScale)
+            .cycloPressable(onClick = onClick, enabled = enabled, pressedScale = CycloMotion.IconButtonPressScale)
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {

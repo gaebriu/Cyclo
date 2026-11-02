@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
@@ -25,6 +27,8 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
  * @param leadingIsBack se o botão está (ou vai ficar) em modo "voltar", para o TalkBack.
  * @param backAmount de 0 (X) a 1 (seta), segue a posição das páginas.
  * @param progress de 0 a 1.
+ * @param leadingAlpha opacidade do botão (o Introduction 6 fá-lo sair com um fade).
+ * @param leadingEnabled falso: o botão não responde nem aparece ao TalkBack.
  */
 @Composable
 fun IntroTopBar(
@@ -34,6 +38,8 @@ fun IntroTopBar(
     progressDescription: String,
     onLeadingClick: () -> Unit,
     modifier: Modifier = Modifier,
+    leadingAlpha: () -> Float = { 1f },
+    leadingEnabled: Boolean = true,
 ) {
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val closeTop = maxOf(CycloDimens.TopBarTop, statusTop + 24.dp)
@@ -48,7 +54,11 @@ fun IntroTopBar(
             secondaryIconAmount = backAmount,
             contentDescription = stringResource(if (leadingIsBack) R.string.back else R.string.close),
             onClick = onLeadingClick,
-            modifier = Modifier.offset(x = -outset),
+            enabled = leadingEnabled,
+            modifier = Modifier
+                .offset(x = -outset)
+                .graphicsLayer { alpha = leadingAlpha() }
+                .then(if (leadingEnabled) Modifier else Modifier.clearAndSetSemantics { }),
         )
 
         Spacer(Modifier.height(CycloDimens.ScreenMargin - outset))

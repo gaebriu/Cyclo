@@ -25,6 +25,11 @@ object CycloHaptics {
         view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
     }
 
+    /** Algo falhou (ex.: não se conseguiu guardar): REJECT, o efeito do Android para recusa / erro. */
+    fun reject(view: View) {
+        view.performHapticFeedback(HapticFeedbackConstants.REJECT)
+    }
+
     /**
      * Ligar ou desligar uma opção (ex.: um dia da semana). TOGGLE_ON / TOGGLE_OFF a partir do
      * Android 14; antes usa o tique suave dos botões.

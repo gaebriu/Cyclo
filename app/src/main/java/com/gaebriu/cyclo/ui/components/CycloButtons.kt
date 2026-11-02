@@ -36,6 +36,7 @@ fun CycloPrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: CycloButtonSize = CycloButtonSize.Large,
+    enabled: Boolean = true,
 ) {
     val style = when (size) {
         CycloButtonSize.Large -> ButtonStyle(
@@ -55,7 +56,7 @@ fun CycloPrimaryButton(
             innerShadowOffsetY = 6.dp,
         )
     }
-    CycloButtonSurface(text = text, onClick = onClick, style = style, modifier = modifier)
+    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier)
 }
 
 /**
@@ -67,6 +68,7 @@ fun CycloGlassButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val style = ButtonStyle(
         height = CycloDimens.ButtonHeight,
@@ -85,7 +87,7 @@ fun CycloGlassButton(
         },
         innerShadowOffsetY = (-6).dp,
     )
-    CycloButtonSurface(text = text, onClick = onClick, style = style, modifier = modifier)
+    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier)
 }
 
 /** Tudo o que muda de um botão para outro. */
@@ -103,6 +105,7 @@ private fun CycloButtonSurface(
     text: String,
     onClick: () -> Unit,
     style: ButtonStyle,
+    enabled: Boolean,
     modifier: Modifier,
 ) {
     val effects = LocalVisualEffects.current
@@ -112,7 +115,7 @@ private fun CycloButtonSurface(
             .fillMaxWidth()
             .height(style.height)
             // O toque (zoom out + háptico) vem ANTES de desenhar, para o desenho também encolher.
-            .cycloPressable(onClick = onClick)
+            .cycloPressable(onClick = onClick, enabled = enabled)
             .drawBehind {
                 val radius = style.cornerRadius.toPx()
                 val shape = Path().apply {

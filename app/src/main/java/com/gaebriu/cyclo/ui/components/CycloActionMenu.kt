@@ -3,6 +3,7 @@
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
@@ -42,10 +44,13 @@ private val TextEnd = 15.dp
 private val CheckGap = 9.dp
 
 /**
- * Menu de ações (action-menu-when-to-show): as opções em linhas de 42 dp, com um visto na
- * escolhida. É o menu da repetição do Introduction 4.
+ * Menu de ações, em duas formas do Figma:
+ * - action-menu-when-to-show (224 dp de largura): as opções com um visto na escolhida. É o menu da
+ *   repetição do Introduction 4.
+ * - action-menu ("Edit" / "Remove"): sem escolha ([selectedIndex] = -1), com a largura do texto
+ *   mais 24 dp de cada lado.
  *
- * @param selectedIndex a opção com o visto.
+ * @param selectedIndex a opção com o visto; -1 para um menu de ações simples.
  */
 @Composable
 fun CycloActionMenu(
@@ -55,18 +60,21 @@ fun CycloActionMenu(
     modifier: Modifier = Modifier,
 ) {
     val check = remember { PathParser().parsePathString(CycloIconPaths.Check).toPath() }
+    val isChoice = selectedIndex >= 0
 
     Column(
         modifier = modifier
-            .width(MenuWidth)
+            .then(if (isChoice) Modifier.width(MenuWidth) else Modifier.width(IntrinsicSize.Max))
             .cycloOverlaySurface()
-            .padding(top = 12.dp, bottom = 18.dp),
+            .padding(top = 12.dp, bottom = if (isChoice) 18.dp else 12.dp),
     ) {
         items.forEachIndexed { index, item ->
             ActionMenuRow(
                 item = item,
                 isSelected = index == selectedIndex,
                 check = check,
+                textEnd = if (isChoice) TextEnd else TextStart,
+                role = if (isChoice) Role.RadioButton else Role.Button,
                 onClick = { onItemClick(index) },
             )
         }
@@ -78,21 +86,23 @@ private fun ActionMenuRow(
     item: ActionMenuItem,
     isSelected: Boolean,
     check: Path,
+    textEnd: Dp,
+    role: Role,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(if (item.hint != null) RowWithHintHeight else RowHeight)
-            .cycloPressable(onClick = onClick, pressedScale = 0.97f, role = Role.RadioButton)
-            .semantics { selected = isSelected },
+            .cycloPressable(onClick = onClick, pressedScale = 0.97f, role = role)
+            .then(if (role == Role.RadioButton) Modifier.semantics { selected = isSelected } else Modifier),
     ) {
         // O texto e, na opção escolhida, o visto 9 dp a seguir ao fim do texto (como no Figma).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(RowHeight)
-                .padding(start = TextStart, end = TextEnd),
+                .padding(start = TextStart, end = textEnd),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicText(

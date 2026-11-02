@@ -89,14 +89,18 @@ fun CycloProgressBar(
 
         // Bolinha: 15 dp, a 5 dp da ponta. Nasce pequena enquanto a barra ainda é curta.
         val ballScale = (fillWidth / 25.dp.toPx()).coerceAtMost(1f)
-        drawBall(
+        drawCycloBall(
             center = Offset(fillWidth - 12.5.dp.toPx(), height / 2f),
             scale = ballScale,
         )
     }
 }
 
-private fun DrawScope.drawBall(center: Offset, scale: Float) {
+/**
+ * Bolinha branca de 15 dp (ball-b): brilhos por cima e por baixo e sombras interiores. Também é a
+ * bola do medidor de emoções do Feed.
+ */
+fun DrawScope.drawCycloBall(center: Offset, scale: Float = 1f) {
     val radius = 7.5.dp.toPx() * scale
     if (radius <= 0f) return
 

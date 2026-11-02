@@ -13,16 +13,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -37,7 +41,11 @@ import kotlin.math.roundToInt
  * e fade (mola), e sai do mesmo modo. Tocar fora fecha-o ([onDismiss]). Se não couber por baixo,
  * sobe o suficiente para ficar [bottomMargin] acima do fundo do ecrã.
  *
- * Tem de estar num sítio que ocupe o ecrã todo (as coordenadas do [anchor] são as da janela).
+ * Tem de estar num sítio que ocupe o ecrã todo. As coordenadas do [anchor] são as da janela; o
+ * menu desconta onde o próprio host está (ex.: por baixo de uma barra de estado mais alta).
+ *
+ * @param alignEnd o menu alinha pela direita do [anchor] (e cresce a partir do canto de cima à
+ *                 direita), para os botões encostados à direita do ecrã.
  */
 @Composable
 fun AnchoredMenuHost(
@@ -46,6 +54,7 @@ fun AnchoredMenuHost(
     onDismiss: () -> Unit,
     bottomMargin: Dp,
     modifier: Modifier = Modifier,
+    alignEnd: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val effects = LocalVisualEffects.current
@@ -53,10 +62,12 @@ fun AnchoredMenuHost(
     LaunchedEffect(visible) {
         progress.animateTo(if (visible) 1f else 0f, CycloMotion.OverlaySpring)
     }
+    // Onde o host está na janela, para passar o [anchor] para as coordenadas dele.
+    var hostOrigin by remember { mutableStateOf(Offset.Zero) }
     // Já saiu por completo: não existe.
     if (!visible && progress.value <= 0f) return
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().onGloballyPositioned { hostOrigin = it.positionInWindow() }) {
         // Apanha os toques fora do menu.
         Box(
             modifier = Modifier
@@ -70,7 +81,7 @@ fun AnchoredMenuHost(
                     modifier = Modifier.graphicsLayer {
                         val p = progress.value.coerceIn(0f, 1f)
                         val scale = if (effects.animationsEnabled) 0.9f + 0.1f * p else 1f
-                        transformOrigin = TransformOrigin(0f, 0f)
+                        transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0f)
                         scaleX = scale
                         scaleY = scale
                         alpha = p
@@ -80,10 +91,11 @@ fun AnchoredMenuHost(
         ) { measurables, constraints ->
             val placeable = measurables.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
             layout(constraints.maxWidth, constraints.maxHeight) {
-                val rect = anchor()
+                val rect = anchor().translate(-hostOrigin)
                 val lowest = constraints.maxHeight - bottomMargin.roundToPx() - placeable.height
+                val x = if (alignEnd) rect.right.roundToInt() - placeable.width else rect.left.roundToInt()
                 placeable.place(
-                    x = rect.left.roundToInt(),
+                    x = x.coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0)),
                     y = rect.top.roundToInt().coerceAtMost(lowest).coerceAtLeast(0),
                 )
             }

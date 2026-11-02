@@ -1,3 +1,60 @@
 <resources>
     <string name="app_name">Cyclo</string>
+
+    <!-- Comuns -->
+    <string name="undo">Undo</string>
+    <string name="try_again">Try again</string>
+    <string name="error_save_failed">Couldn\'t save your changes</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_remove">Remove</string>
+    <string name="routine_removed">Routine removed</string>
+
+    <!-- Editor de rotinas (Introduction 2 a 5) -->
+    <string name="editor_done">Done</string>
+
+    <!-- Barra de navegação e mini-menu -->
+    <string name="main_tab_feed">Feed</string>
+    <string name="main_tab_saved">Saved routines</string>
+    <string name="main_search">Search routines</string>
+    <string name="main_add_routine">Add routine</string>
+    <string name="main_settings">Settings</string>
+
+    <!-- Feed -->
+    <string name="feed_greeting_morning">Good morning</string>
+    <string name="feed_greeting_afternoon">Good afternoon</string>
+    <string name="feed_greeting_evening">Good evening</string>
+    <!-- Ex.: "Friday, October 31 - 12:08" (dia da semana, mês, dia, hora) -->
+    <string name="feed_date">%1$s, %2$s %3$d - %4$s</string>
+    <string name="feed_wake_title">To rise refreshed tomorrow:</string>
+    <string name="feed_wake_more">Wake time actions</string>
+    <plurals name="feed_bedtime_description">
+        <item quantity="one">Fall asleep at %1$s, %2$d sleep cycle</item>
+        <item quantity="other">Fall asleep at %1$s, %2$d sleep cycles</item>
+    </plurals>
+    <string name="feed_caffeine_title">How much caffeine have you had today?</string>
+    <string name="feed_caffeine_less">Remove one</string>
+    <string name="feed_caffeine_more">Add one</string>
+    <string name="feed_caffeine_more_actions">Caffeine actions</string>
+    <string name="feed_caffeine_reset">Reset</string>
+    <string name="feed_caffeine_reset_done">Caffeine reset</string>
+    <string name="feed_sleep_title">Anything today that might affect your sleep?</string>
+    <string name="feed_factor_exercise">Intense exercise</string>
+    <string name="feed_factor_meal">Heavy late meal</string>
+    <string name="feed_factor_nap">Long or late nap</string>
+    <string name="feed_feeling_title">How are you feeling tonight?</string>
+    <string name="feed_feeling_meter">How you\'re feeling</string>
+    <string name="feed_feeling_level_1">Great</string>
+    <string name="feed_feeling_level_2">Good</string>
+    <string name="feed_feeling_level_3">Okay</string>
+    <string name="feed_feeling_level_4">Not great</string>
+    <string name="feed_feeling_level_5">Bad</string>
+
+    <!-- Rotinas guardadas -->
+    <string name="saved_search_placeholder">What are you looking for?</string>
+    <string name="saved_state_on">On</string>
+    <string name="saved_state_off">Off</string>
+    <string name="saved_delete">Delete %1$s</string>
+    <string name="saved_widget">Add %1$s as a widget</string>
+    <string name="saved_edit">Edit %1$s</string>
+    <string name="saved_toggle">%1$s on the feed</string>
 </resources>

@@ -11,7 +11,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.gaebriu.cyclo.R
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -35,6 +38,11 @@ class RoutineNameInputState internal constructor(
     val isDictating: Boolean get() = dictation.isListening
 
     internal var pendingKeyboard by mutableStateOf(false)
+
+    /** Dá o foco à caixa e abre o teclado (ex.: ao abrir a pesquisa). */
+    fun openKeyboard() {
+        pendingKeyboard = true
+    }
 }
 
 /**
@@ -66,6 +74,8 @@ fun RoutineNameInput(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    placeholder: String? = null,
+    lift: Boolean = true,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -81,7 +91,7 @@ fun RoutineNameInput(
         }
     }
 
-    KeyboardLift(modifier = modifier) {
+    val field: @Composable () -> Unit = {
         CycloNameField(
             value = value,
             onValueChange = onValueChange,
@@ -101,6 +111,9 @@ fun RoutineNameInput(
                 keyboard?.hide()
             },
             focusRequester = state.focusRequester,
+            placeholder = placeholder ?: stringResource(R.string.introduction_3_placeholder),
         )
     }
+    // Sem [lift], a caixa fica onde está (ex.: a pesquisa, já no topo do ecrã).
+    if (lift) KeyboardLift(modifier = modifier) { field() } else Box(modifier = modifier) { field() }
 }

@@ -6,12 +6,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import com.gaebriu.cyclo.data.CycloViewModel
+import com.gaebriu.cyclo.ui.CycloApp
 import com.gaebriu.cyclo.ui.effects.ProvideVisualEffects
-import com.gaebriu.cyclo.ui.screens.IntroductionFlow
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 
-/** Exemplo mínimo para ver o Introduction 0 e 1. Substitui a MainActivity do template. */
+/**
+ * A única Activity: mostra a [CycloApp]. Enquanto os dados se leem (milissegundos), só se vê o fundo
+ * #010101, igual ao do ecrã de abertura: a app abre logo no sítio certo (o tutorial ou o Feed),
+ * sem nada a carregar.
+ *
+ * NÃO segurar o primeiro desenho com um OnPreDrawListener: com o fade de saída do ecrã de abertura,
+ * a app ficava preta até ao primeiro toque.
+ */
 class MainActivity : ComponentActivity() {
+    private val viewModel: CycloViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -33,7 +44,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ProvideVisualEffects {
-                IntroductionFlow()
+                CycloApp(viewModel)
             }
         }
     }

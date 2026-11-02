@@ -29,4 +29,19 @@ object FigmaBlur {
      * moderado, e só chega ao máximo na borda, onde o texto já está quase transparente pelo fade.
      */
     const val ScrollEdge = 9f
+
+    /** Anel do Introduction 6 ("fx circle-with-blur"): desfoque 39. */
+    const val Circle = 39f
+
+    /**
+     * Desfoque do anel do Introduction 6 no início da animação (muito desfocado). PROPOSTA:
+     * o triplo do final, para a revelação da esquerda para a direita se notar bem.
+     */
+    const val CircleRevealStart = 117f
+
+    /** Brilho do topo do Feed e das rotinas guardadas ("fx background blur"): desfoque 267. */
+    const val FeedGlow = 267f
+
+    /** Barra de navegação e mini-menu ("background blur" 39 e 63 do Figma, sobre o conteúdo que passa por trás). */
+    const val NavigationBar = 39f
 }
