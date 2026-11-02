@@ -64,6 +64,8 @@ class MainActions(
     val onEditRoutine: (Routine) -> Unit,
     val onDeleteRoutine: (Routine) -> Unit,
     val onToggleRoutine: (Routine) -> Unit,
+    /** "Add as a widget" de uma rotina guardada: pede ao ecrã principal para fixar o widget dela. */
+    val onAddWidget: (Routine) -> Unit,
     val onCaffeineChange: (Int) -> Unit,
     val onCaffeineReset: () -> Unit,
     val onToggleFactor: (SleepFactor) -> Unit,
@@ -224,6 +226,7 @@ fun MainScreen(
                         now = now,
                         routines = data.routines,
                         dailyLog = data.dailyLog,
+                        fallAsleepMinutes = data.fallAsleep.planMinutes.toLong(),
                         reveal = reveal,
                         bottomReserve = bottomReserve,
                         wakeShadow = skyBase,
@@ -249,13 +252,14 @@ fun MainScreen(
                         onDelete = actions.onDeleteRoutine,
                         onEdit = actions.onEditRoutine,
                         onToggleActive = actions.onToggleRoutine,
+                        onAddWidget = actions.onAddWidget,
                     )
                 }
             }
         }
 
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(background, pages)) {
-            MainEdgeFades()
+            MainEdgeFades(topExtra = topExtra)
 
             MiniMenu(
                 actions = listOf(

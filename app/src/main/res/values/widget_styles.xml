@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Valores do widget (como o CardValue dos cartões): Inter Medium 15, #FCFCFE, 18 dp de altura. -->
+    <style name="CycloWidgetValue">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">18dp</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFamily">@font/inter_medium</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">#FCFCFE</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+</resources>

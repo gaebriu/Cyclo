@@ -1,17 +1,29 @@
 ﻿package com.gaebriu.cyclo.data
 
 import android.app.Application
+import android.content.Context
+import android.net.Uri
+import android.os.SystemClock
+import android.provider.DocumentsContract
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaebriu.cyclo.R
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 
 /**
@@ -116,7 +128,159 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setUse24Hour(use24Hour: Boolean) = write { repository.setUse24Hour(use24Hour) }
 
+    fun setAge(age: Int) {
+        if (age in AgeRange) write { repository.setAge(age) }
+    }
+
+    fun setChronotype(chronotype: Chronotype) = write { repository.setChronotype(chronotype) }
+
+    fun setFallAsleep(time: FallAsleepTime) = write { repository.setFallAsleep(time) }
+
+    /** O interruptor "Bedtime". Ligar só chega aqui com a autorização de notificações dada. */
+    fun setBedtimeReminder(on: Boolean) = write { repository.setBedtimeReminder(on) }
+
+    /** Autorização de notificações recusada: o interruptor fica desligado. */
+    fun notificationsDenied() = showMessage(string(R.string.settings_notifications_denied))
+
+    /** O lançador não deixa fixar o widget a partir da app. */
+    fun widgetPinUnsupported() = showMessage(string(R.string.widget_pin_unsupported))
+
+    /** Não há nada para abrir a página do GitHub. */
+    fun gitHubOpenFailed() = showMessage(string(R.string.github_open_failed), isError = true)
+
+    // --- Exportar e repor -------------------------------------------------------------------
+
+    /** Pedidos para abrir o seletor de ficheiros do sistema (o "Try again" das mensagens). */
+    private val _pickerRequests = MutableSharedFlow<FilePicker>(extraBufferCapacity = 1)
+    val pickerRequests: SharedFlow<FilePicker> = _pickerRequests.asSharedFlow()
+
+    /** Uma cópia lida e válida, à espera da confirmação (action-menu-big). */
+    private val _pendingRestore = MutableStateFlow<BackupContents?>(null)
+    val pendingRestore: StateFlow<BackupContents?> = _pendingRestore.asStateFlow()
+
+    /** A reposição está a decorrer (loading-data). */
+    private val _restoring = MutableStateFlow(false)
+    val restoring: StateFlow<Boolean> = _restoring.asStateFlow()
+
+    private fun retry(picker: FilePicker): () -> Unit = { _pickerRequests.tryEmit(picker) }
+
+    /** Nome sugerido para a cópia: cyclo-backup-AAAA-MM-DD.json. */
+    fun backupFileName(): String = "cyclo-backup-${LocalDate.now()}.json"
+
+    /**
+     * Escreve a cópia no ficheiro escolhido no seletor ([uri] null = cancelado). Só diz que correu
+     * bem depois de o ficheiro estar escrito e fechado.
+     */
+    fun exportTo(uri: Uri?) {
+        if (uri == null) {
+            showMessage(string(R.string.export_cancelled), string(R.string.try_again), isError = true, action = retry(FilePicker.Export))
+            return
+        }
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val current = repository.data.first()
+                    val json = buildBackupJson(current, Instant.now(), appVersionName(app))
+                    // "wt": apaga o que lá estivesse (com "w" alguns fornecedores não cortam o ficheiro).
+                    val stream = app.contentResolver.openOutputStream(uri, "wt") ?: return@withContext false
+                    stream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+                    true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Não deixa um ficheiro vazio ou a meio para trás.
+                    runCatching { DocumentsContract.deleteDocument(app.contentResolver, uri) }
+                    false
+                }
+            }
+            if (ok) {
+                showMessage(string(R.string.export_done))
+            } else {
+                showMessage(string(R.string.export_failed), string(R.string.try_again), isError = true, action = retry(FilePicker.Export))
+            }
+        }
+    }
+
+    /**
+     * Lê e valida a cópia escolhida ([uri] null = nada escolhido). Se for válida, fica à espera da
+     * confirmação ([pendingRestore]); nada muda nos dados até lá.
+     */
+    fun readBackup(uri: Uri?) {
+        if (uri == null) {
+            showMessage(string(R.string.restore_no_file), string(R.string.try_again), isError = true, action = retry(FilePicker.Restore))
+            return
+        }
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val text = withContext(Dispatchers.IO) {
+                try {
+                    app.contentResolver.openInputStream(uri)?.use { input ->
+                        val bytes = input.readNBytes(MaxBackupBytes + 1)
+                        if (bytes.size > MaxBackupBytes) null else String(bytes, Charsets.UTF_8)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (text == null) {
+                showMessage(string(R.string.restore_unreadable), string(R.string.try_again), isError = true, action = retry(FilePicker.Restore))
+                return@launch
+            }
+            when (val result = withContext(Dispatchers.Default) { parseBackup(text.removePrefix("﻿")) }) {
+                is BackupParseResult.Valid -> _pendingRestore.value = result.contents
+                is BackupParseResult.Rejected -> showMessage(
+                    string(if (result.problem == BackupProblem.TooNew) R.string.restore_too_new else R.string.restore_invalid),
+                    string(R.string.try_again),
+                    isError = true,
+                    action = retry(FilePicker.Restore),
+                )
+            }
+        }
+    }
+
+    fun cancelRestore() {
+        _pendingRestore.value = null
+    }
+
+    /** Confirmado: repõe tudo numa só escrita, com o loading-data à vista pelo menos [MinRestoreMs]. */
+    fun confirmRestore() {
+        val contents = _pendingRestore.value ?: return
+        _pendingRestore.value = null
+        _restoring.value = true
+        viewModelScope.launch {
+            val started = SystemClock.elapsedRealtime()
+            val ok = try {
+                repository.restore(contents)
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                false
+            }
+            val left = MinRestoreMs - (SystemClock.elapsedRealtime() - started)
+            if (left > 0) delay(left)
+            _restoring.value = false
+            if (ok) {
+                showMessage(string(R.string.restore_done))
+            } else {
+                showMessage(string(R.string.restore_failed), string(R.string.try_again), isError = true, action = retry(FilePicker.Restore))
+            }
+        }
+    }
+
     companion object {
         const val MaxCaffeine = 99
+
+        /** O loading-data fica à vista o tempo da animação das letras (não pisca). */
+        const val MinRestoreMs = 2600L
     }
 }
+
+/** Que seletor de ficheiros abrir. */
+enum class FilePicker { Export, Restore }
+
+private fun appVersionName(context: Context): String =
+    runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Widget da hora de dormir, feito a partir do cartão de uma rotina das rotinas guardadas
+    (routine 1: #101011, raio 15, margens de 15): o nome em cima (Inter SemiBold 15), 14 dp, e as
+    linhas de 18 dp com o ícone de 15 dp e o valor (Inter Medium 15) a 6 dp, 12 dp entre elas:
+    o sol e a hora de acordar, a estrela e a hora recomendada para ir para a cama (como no Feed),
+    e a lua e a hora de começar a abrandar.
+    As duas últimas estão em ViewFlippers: ao mudar, a nova entra por baixo e a antiga sai por cima.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="15dp">
+
+    <TextView
+        android:id="@+id/widget_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="@font/inter_semibold"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:textColor="#FCFCFE"
+        android:textSize="15sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="18dp"
+        android:layout_marginTop="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_ic_sunny" />
+
+        <TextView
+            android:id="@+id/widget_wake"
+            style="@style/CycloWidgetValue"
+            android:layout_width="wrap_content"
+            android:layout_marginStart="6dp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="18dp"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_ic_star" />
+
+        <ViewFlipper
+            android:id="@+id/widget_bedtime_flipper"
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:layout_marginStart="6dp"
+            android:inAnimation="@anim/widget_time_in"
+            android:measureAllChildren="true"
+            android:outAnimation="@anim/widget_time_out">
+
+            <TextView
+                android:id="@+id/widget_bedtime_a"
+                style="@style/CycloWidgetValue" />
+
+            <TextView
+                android:id="@+id/widget_bedtime_b"
+                style="@style/CycloWidgetValue" />
+        </ViewFlipper>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="18dp"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_ic_bedtime" />
+
+        <ViewFlipper
+            android:id="@+id/widget_winddown_flipper"
+            android:layout_width="match_parent"
+            android:layout_height="18dp"
+            android:layout_marginStart="6dp"
+            android:inAnimation="@anim/widget_time_in"
+            android:measureAllChildren="true"
+            android:outAnimation="@anim/widget_time_out">
+
+            <TextView
+                android:id="@+id/widget_winddown_a"
+                style="@style/CycloWidgetValue" />
+
+            <TextView
+                android:id="@+id/widget_winddown_b"
+                style="@style/CycloWidgetValue" />
+        </ViewFlipper>
+    </LinearLayout>
+</LinearLayout>

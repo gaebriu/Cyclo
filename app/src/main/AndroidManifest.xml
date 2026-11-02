@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Lembrete "Bedtime" (pede-se ao ligar o interruptor nas definições). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Voltar a agendar o lembrete depois de o telemóvel reiniciar. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <intent>
@@ -11,6 +15,7 @@
     </queries>
 
     <application
+        android:name=".CycloApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -31,6 +36,34 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Lembrete "Bedtime": o alarme (inexato) e os eventos que o desfazem ou mudam as horas. -->
+        <receiver
+            android:name=".reminder.BedtimeAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Widget da hora de dormir de uma rotina. -->
+        <receiver
+            android:name=".widget.BedtimeWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_bedtime_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.WidgetPinnedReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

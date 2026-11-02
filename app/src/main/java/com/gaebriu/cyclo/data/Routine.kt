@@ -112,6 +112,25 @@ data class DailyLog(
     val mood: Float = 0.5f,
 )
 
+/**
+ * Cronótipo escolhido nas definições (action-menu-chronotype, Componentes 3), pela ordem do menu.
+ * Hummingbird é o tipo intermédio e o valor de omissão do Figma.
+ */
+enum class Chronotype { Hummingbird, EarlyBird, NightOwl }
+
+/**
+ * Quanto tempo se demora a adormecer (action-menu-time-to-fall-asleep, Componentes 3).
+ *
+ * @property planMinutes os minutos usados nas contas: "Under 5 minutes" conta como 5 e
+ *                       "30 minutes or more" como 30 (o valor mais baixo da opção, para nunca
+ *                       encurtar o tempo na cama por causa disto; ver BedtimeEngine).
+ */
+enum class FallAsleepTime(val planMinutes: Int) {
+    UnderFive(5),
+    Fifteen(15),
+    ThirtyOrMore(30),
+}
+
 /** Tudo o que a app guarda. */
 @Immutable
 data class CycloData(
@@ -120,4 +139,16 @@ data class CycloData(
     val dailyLog: DailyLog?,
     /** Formato das horas escolhido nas definições: true = 24 h, false = 12 h (AM/PM), null = o do sistema. */
     val use24Hour: Boolean? = null,
+    /** Idade (5 a 100); null = ainda por escrever ("Tap to write"). */
+    val age: Int? = null,
+    val chronotype: Chronotype = Chronotype.Hummingbird,
+    val fallAsleep: FallAsleepTime = FallAsleepTime.Fifteen,
+    /**
+     * O interruptor "Bedtime" (lembrete) como o utilizador o deixou. Ligado de omissão, como no
+     * Figma; só vale de facto com a autorização de notificações (ver BedtimeReminder).
+     */
+    val bedtimeReminder: Boolean = true,
 )
+
+/** Idades aceites na caixa da idade. */
+val AgeRange = 5..100

@@ -1,6 +1,14 @@
 ﻿package com.gaebriu.cyclo.ui.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -20,15 +28,24 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -36,25 +53,44 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.lerp as lerpFloat
 import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.data.AgeRange
+import com.gaebriu.cyclo.data.Chronotype
+import com.gaebriu.cyclo.data.CycloData
+import com.gaebriu.cyclo.data.FallAsleepTime
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
+import com.gaebriu.cyclo.ui.components.BottomSheetHost
 import com.gaebriu.cyclo.ui.components.CycloActionMenu
+import com.gaebriu.cyclo.ui.components.CycloBigSheet
 import com.gaebriu.cyclo.ui.components.CycloCircleButton
 import com.gaebriu.cyclo.ui.components.CycloIcon
 import com.gaebriu.cyclo.ui.components.cycloCard
@@ -64,13 +100,16 @@ import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSource
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
+import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.main.MainEdgeFades
 import com.gaebriu.cyclo.ui.scroll.cycloVerticalScroll
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
+import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
 import com.gaebriu.cyclo.ui.time.LocalTimeFormat
+import kotlinx.coroutines.launch
 
 // Medidas do Figma (Settings, frame de 393 x 852).
 /** O título "Settings" começa a 111 dp do topo; a primeira secção a 179 dp. */
@@ -78,30 +117,51 @@ private val TitleTop = 111.dp
 private val TitleToContent = 39.dp
 private val LabelToRow = 15.dp
 private val RowGap = 15.dp
-private val RowToDescription = 9.dp
-private val SectionGap = 15.dp
+
+/** Da última linha de uma secção ao título da seguinte (ex.: "Time to fall asleep" a "Reminders"). */
+private val SectionGap = 24.dp
+
+/** Da linha ao texto de ajuda por baixo, e do texto de ajuda ao título seguinte. */
+private val RowToDescription = 15.dp
+private val DescriptionToSection = 15.dp
 private val RowInset = 15.dp
+
+/** Scroll em que a faixa de baixo some, ao chegar ao fim da página. */
+private val BottomFadeRamp = 48.dp
 
 /** Onde o valor acaba quando há seta (a seta de 24 dp fica a 15 dp da direita, 9 dp depois do valor). */
 private val ValueEndWithArrow = 48.dp
 
+/** Os menus das definições (só um aberto de cada vez). */
+private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat }
+
 /**
- * Definições: o perfil de sono, os lembretes, o formato das horas e a língua, os dados e "About".
+ * Definições: o perfil de sono (idade, cronótipo, tempo a adormecer), o lembrete da hora de dormir,
+ * o formato das horas e a língua, exportar e repor os dados, e "About".
  *
- * Por agora só o formato das horas funciona (12 h com AM/PM ou 24 h; sem escolha, segue o do
- * sistema operativo, e a escolha fica guardada). As outras linhas mostram-se como no Figma mas
- * ainda não fazem nada: a língua aparece sem menu, e os lembretes desligados.
+ * - A idade escreve-se na própria linha (tap-to-write-box-age): o visto guarda; fora de 5–100 a
+ *   caixa abana com um háptico de erro e o valor não entra.
+ * - Cronótipo, tempo a adormecer e formato das horas abrem os action-menu do Componentes 3.
+ * - "Bedtime" liga o lembrete (pede a autorização de notificações; ver [onToggleReminder]).
+ * - "Export my data" e "Restore my data" abrem o seletor de ficheiros do sistema.
+ * - "View on GitHub" mostra primeiro o action-menu-big-open-github.
+ * - A língua mostra-se como no Figma, sem menu.
+ * - Voltar (botão, gesto) fecha primeiro o menu, a folha ou a caixa da idade, se estiverem abertos.
  *
- * - O botão de voltar (back-b) fica fixo no topo; o título e as secções têm scroll, com o
- *   desfoque progressivo no topo e no fundo, como no Feed.
- * - Voltar (botão, gesto) fecha primeiro o menu do formato, se estiver aberto.
- *
- * @param onSetUse24Hour guarda o formato escolhido.
- * @param onClose fecha as definições.
+ * @param reminderOn o interruptor como se vê: ligado nas definições e com autorização.
  */
 @Composable
 fun SettingsScreen(
+    data: CycloData,
+    reminderOn: Boolean,
     onSetUse24Hour: (Boolean) -> Unit,
+    onSetAge: (Int) -> Unit,
+    onSetChronotype: (Chronotype) -> Unit,
+    onSetFallAsleep: (FallAsleepTime) -> Unit,
+    onToggleReminder: () -> Unit,
+    onExport: () -> Unit,
+    onRestore: () -> Unit,
+    onOpenGitHub: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -113,11 +173,34 @@ fun SettingsScreen(
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
     )
     val use24Hour = LocalTimeFormat.current.use24Hour
-    var formatMenuOpen by remember { mutableStateOf(false) }
-    var formatAnchor by remember { mutableStateOf(Rect.Zero) }
+    var menu by remember { mutableStateOf(SettingsMenu.None) }
+    var menuAnchor by remember { mutableStateOf(Rect.Zero) }
+    var githubOpen by remember { mutableStateOf(false) }
+    var ageEditing by remember { mutableStateOf(false) }
     val content = rememberBackdropLayer()
+    val scroll = rememberScrollState()
+    // No fim da página a faixa de baixo some (nos últimos 48 dp de scroll), para não tapar a versão.
+    val rampPx = with(density) { BottomFadeRamp.toPx() }
+    val bottomAmount by remember(scroll, rampPx) {
+        derivedStateOf {
+            if (scroll.maxValue == Int.MAX_VALUE) 1f else ((scroll.maxValue - scroll.value) / rampPx).coerceIn(0f, 1f)
+        }
+    }
     val textShadow = remember(density) { Shadow(Color.Black.copy(alpha = 0.24f), Offset.Zero, with(density) { 15.dp.toPx() }) }
     val labelStyle = remember(textShadow) { CycloType.SectionLabel.copy(shadow = textShadow) }
+
+    val chronotypeLabels = listOf(
+        stringResource(R.string.settings_chronotype_hummingbird),
+        stringResource(R.string.settings_chronotype_early_bird),
+        stringResource(R.string.settings_chronotype_night_owl),
+    )
+    val fallAsleepShort = listOf(
+        stringResource(R.string.settings_fall_asleep_under_5_short),
+        stringResource(R.string.settings_fall_asleep_15_short),
+        stringResource(R.string.settings_fall_asleep_30_short),
+    )
+
+    fun openMenu(which: SettingsMenu): (Rect) -> Unit = { menuAnchor = it; menu = which }
 
     Box(
         modifier = modifier
@@ -131,7 +214,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .backdropSource(content)
                 .background(CycloColors.Background)
-                .cycloVerticalScroll(rememberScrollState())
+                .cycloVerticalScroll(scroll)
                 .padding(horizontal = CycloDimens.ScreenMargin)
                 .padding(top = TitleTop + topExtra, bottom = bottomInset + CycloDimens.ScreenMargin),
         ) {
@@ -144,22 +227,39 @@ fun SettingsScreen(
 
             // Perfil de sono.
             SectionLabel(stringResource(R.string.settings_sleep_profile), labelStyle)
-            SettingsRow(stringResource(R.string.settings_age), value = stringResource(R.string.settings_value_unset))
+            AgeRow(
+                age = data.age,
+                editing = ageEditing,
+                onEdit = { ageEditing = true },
+                onDone = { value ->
+                    onSetAge(value)
+                    ageEditing = false
+                },
+                onCancel = { ageEditing = false },
+            )
             Spacer(Modifier.height(RowGap))
-            SettingsRow(stringResource(R.string.settings_chronotype), value = stringResource(R.string.settings_value_unset), arrow = true)
+            SettingsRow(
+                label = stringResource(R.string.settings_chronotype),
+                value = chronotypeLabels[data.chronotype.ordinal],
+                arrow = true,
+                onClickAt = openMenu(SettingsMenu.Chronotype),
+            )
             Spacer(Modifier.height(RowGap))
-            SettingsRow(stringResource(R.string.settings_cycle_length), value = stringResource(R.string.settings_minutes, 90), arrow = true)
-            Description(stringResource(R.string.settings_cycle_length_description), labelStyle)
-            Spacer(Modifier.height(RowGap))
-            SettingsRow(stringResource(R.string.settings_fall_asleep), value = stringResource(R.string.settings_minutes, 15), arrow = true)
+            SettingsRow(
+                label = stringResource(R.string.settings_fall_asleep),
+                value = fallAsleepShort[data.fallAsleep.ordinal],
+                arrow = true,
+                onClickAt = openMenu(SettingsMenu.FallAsleep),
+            )
             Spacer(Modifier.height(SectionGap))
 
             // Lembretes.
             SectionLabel(stringResource(R.string.settings_reminders), labelStyle)
-            SettingsRow(stringResource(R.string.settings_bedtime_reminder), switch = false)
-            Spacer(Modifier.height(RowGap))
-            SettingsRow(stringResource(R.string.settings_morning_check_in), switch = false)
-            Description(stringResource(R.string.settings_morning_check_in_description), labelStyle)
+            SwitchRow(
+                label = stringResource(R.string.settings_bedtime_reminder),
+                on = reminderOn,
+                onToggle = onToggleReminder,
+            )
             Spacer(Modifier.height(SectionGap))
 
             // Formato e língua.
@@ -168,32 +268,29 @@ fun SettingsScreen(
                 label = stringResource(R.string.settings_time_format),
                 value = stringResource(if (use24Hour) R.string.settings_24_hour else R.string.settings_12_hour),
                 arrow = true,
-                onClick = { formatMenuOpen = true },
-                onBounds = { formatAnchor = it },
+                onClickAt = openMenu(SettingsMenu.TimeFormat),
             )
             Spacer(Modifier.height(RowGap))
-            // Só visual por agora: a escolha da língua ainda não existe.
-            SettingsRow(stringResource(R.string.settings_language), value = stringResource(R.string.settings_language_english), arrow = true)
+            // Como no Figma: a língua mostra-se, sem menu.
+            SettingsRow(stringResource(R.string.settings_language), value = stringResource(R.string.settings_language_english))
             Spacer(Modifier.height(SectionGap))
 
             // Dados.
             SectionLabel(stringResource(R.string.settings_data), labelStyle)
-            SettingsButton(stringResource(R.string.settings_export_data))
+            SettingsButton(stringResource(R.string.settings_export_data), onClick = onExport)
             Spacer(Modifier.height(RowGap))
-            SettingsButton(stringResource(R.string.settings_restore_data))
+            SettingsButton(stringResource(R.string.settings_restore_data), onClick = onRestore)
             Description(stringResource(R.string.settings_data_description), labelStyle)
-            Spacer(Modifier.height(SectionGap))
+            Spacer(Modifier.height(DescriptionToSection))
 
             // Sobre.
             SectionLabel(stringResource(R.string.settings_about), labelStyle)
-            SettingsButton(stringResource(R.string.settings_github))
-            Spacer(Modifier.height(RowGap))
-            SettingsButton(stringResource(R.string.settings_feedback))
-            Description(stringResource(R.string.settings_version, rememberVersionName()), labelStyle, top = RowGap)
+            SettingsButton(stringResource(R.string.settings_github), onClick = { githubOpen = true })
+            Description(stringResource(R.string.settings_version, rememberVersionLabel()), labelStyle)
         }
 
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(content)) {
-            MainEdgeFades()
+            MainEdgeFades(topExtra = topExtra, bottomAmount = { bottomAmount })
 
             // back-b: fixo, a 48 dp do topo e 24 dp da esquerda (a zona de toque sai 4,5 dp).
             CycloCircleButton(
@@ -205,39 +302,111 @@ fun SettingsScreen(
                     .offset(x = -(CycloDimens.TouchTarget - CycloDimens.CircleButtonSize) / 2, y = -(CycloDimens.TouchTarget - CycloDimens.CircleButtonSize) / 2),
             )
 
+            // Os menus nascem do canto de cima à direita da linha.
             AnchoredMenuHost(
-                visible = formatMenuOpen,
-                anchor = { formatAnchor },
-                onDismiss = { formatMenuOpen = false },
+                visible = menu != SettingsMenu.None,
+                anchor = { menuAnchor },
+                onDismiss = { menu = SettingsMenu.None },
                 bottomMargin = bottomInset,
                 alignEnd = true,
             ) {
-                CycloActionMenu(
-                    items = listOf(
-                        ActionMenuItem(stringResource(R.string.settings_12_hour)),
-                        ActionMenuItem(stringResource(R.string.settings_24_hour)),
+                // Durante a saída o menu continua a mostrar o que tinha.
+                var shown by remember { mutableStateOf(menu) }
+                if (menu != SettingsMenu.None) shown = menu
+                when (shown) {
+                    SettingsMenu.Chronotype -> CycloActionMenu(
+                        items = chronotypeLabels.map(::ActionMenuItem),
+                        selectedIndex = data.chronotype.ordinal,
+                        compact = true,
+                        onItemClick = { index ->
+                            menu = SettingsMenu.None
+                            val chosen = Chronotype.entries[index]
+                            if (chosen != data.chronotype) onSetChronotype(chosen)
+                        },
+                    )
+                    SettingsMenu.FallAsleep -> CycloActionMenu(
+                        items = listOf(
+                            ActionMenuItem(stringResource(R.string.settings_fall_asleep_under_5)),
+                            ActionMenuItem(stringResource(R.string.settings_fall_asleep_15)),
+                            ActionMenuItem(stringResource(R.string.settings_fall_asleep_30)),
+                        ),
+                        selectedIndex = data.fallAsleep.ordinal,
+                        compact = true,
+                        onItemClick = { index ->
+                            menu = SettingsMenu.None
+                            val chosen = FallAsleepTime.entries[index]
+                            if (chosen != data.fallAsleep) onSetFallAsleep(chosen)
+                        },
+                    )
+                    // Como no Componentes 3: "24-hour" primeiro.
+                    SettingsMenu.TimeFormat, SettingsMenu.None -> CycloActionMenu(
+                        items = listOf(
+                            ActionMenuItem(stringResource(R.string.settings_24_hour)),
+                            ActionMenuItem(stringResource(R.string.settings_12_hour)),
+                        ),
+                        selectedIndex = if (use24Hour) 0 else 1,
+                        compact = true,
+                        onItemClick = { index ->
+                            menu = SettingsMenu.None
+                            val chosen = index == 0
+                            if (chosen != use24Hour) onSetUse24Hour(chosen)
+                        },
+                    )
+                }
+            }
+
+            BottomSheetHost(
+                visible = githubOpen,
+                onDismiss = { githubOpen = false },
+                bottomMargin = bottomInset,
+            ) {
+                CycloBigSheet(
+                    title = stringResource(R.string.github_sheet_title),
+                    texts = listOf(
+                        stringResource(R.string.github_sheet_text_1),
+                        stringResource(R.string.github_sheet_text_2),
                     ),
-                    selectedIndex = if (use24Hour) 1 else 0,
-                    onItemClick = { index ->
-                        formatMenuOpen = false
-                        val chosen = index == 1
-                        if (chosen != use24Hour) onSetUse24Hour(chosen)
+                    buttonText = stringResource(R.string.github_sheet_open),
+                    onButtonClick = {
+                        githubOpen = false
+                        onOpenGitHub()
                     },
                 )
             }
         }
     }
 
-    // Vem depois do voltar de quem mostra as definições: fecha primeiro o menu.
-    BackHandler(enabled = formatMenuOpen) { formatMenuOpen = false }
+    // Vem depois do voltar de quem mostra as definições: fecha primeiro o que estiver aberto.
+    BackHandler(enabled = menu != SettingsMenu.None || githubOpen || ageEditing) {
+        when {
+            menu != SettingsMenu.None -> menu = SettingsMenu.None
+            githubOpen -> githubOpen = false
+            else -> ageEditing = false
+        }
+    }
 }
 
-/** O nome da versão instalada (ex.: "alpha-0.7.0"). */
+/**
+ * A versão instalada como se mostra ao utilizador: "alpha-0.7.1" fica "Alpha 0.7.1", "beta-1.2.0"
+ * fica "Beta 1.2.0", e uma versão final ("1.0.0") fica só o número.
+ */
 @Composable
-private fun rememberVersionName(): String {
+private fun rememberVersionLabel(): String {
     val context = LocalContext.current
     return remember(context) {
-        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+        val name = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull().orEmpty()
+        versionLabel(name)
+    }
+}
+
+internal fun versionLabel(versionName: String): String {
+    val stage = versionName.substringBefore('-', missingDelimiterValue = "")
+    val number = versionName.substringAfter('-')
+    return when (stage.lowercase()) {
+        "alpha" -> "Alpha $number"
+        "beta" -> "Beta $number"
+        else -> versionName
     }
 }
 
@@ -256,36 +425,34 @@ private fun Description(text: String, style: TextStyle, top: Dp = RowToDescripti
 
 /**
  * Uma linha das definições (age, chronotype, time-format...): 345 x 48 dp, raio 15, #101011 em
- * Luminosity. O nome à esquerda; à direita o valor (#A3A2A7), a seta, ou o interruptor (y/n).
- * Sem [onClick], não responde ao toque (ainda não tem função).
+ * Luminosity. O nome à esquerda; à direita o valor (#A3A2A7) e, nas que abrem um menu, a seta.
+ * Sem [onClickAt], não responde ao toque. [onClickAt] recebe onde a linha está (para o menu).
  */
 @Composable
 private fun SettingsRow(
     label: String,
     value: String? = null,
     arrow: Boolean = false,
-    switch: Boolean? = null,
+    onClickAt: ((Rect) -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    onBounds: (Rect) -> Unit = {},
 ) {
     val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val click: (() -> Unit)? = when {
+        onClickAt != null -> {
+            {
+                // O menu nasce do canto de cima à direita da linha.
+                coordinates[0]?.takeIf { it.isAttached }?.let { onClickAt(it.boundsInWindow()) }
+            }
+        }
+        else -> onClick
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(CycloDimens.InputHeight)
             // A posição mede-se antes do zoom do toque, para o menu não "tremer".
             .onGloballyPositioned { coordinates[0] = it }
-            .then(
-                if (onClick != null) {
-                    Modifier.cycloPressable(onClick = {
-                        // O menu nasce do canto de cima à direita da linha.
-                        coordinates[0]?.takeIf { it.isAttached }?.let { onBounds(it.boundsInWindow()) }
-                        onClick()
-                    })
-                } else {
-                    Modifier
-                },
-            )
+            .then(if (click != null) Modifier.cycloPressable(onClick = click) else Modifier)
             .semantics(mergeDescendants = true) {
                 contentDescription = label
                 if (value != null) stateDescription = value
@@ -303,8 +470,38 @@ private fun SettingsRow(
                 if (arrow) Spacer(Modifier.width(ValueEndWithArrow - RowInset - 24.dp))
             }
             if (arrow) CycloIcon(path = CycloIconPaths.DropDown, size = 24.dp, tint = CycloColors.TextPrimary, luminosity = false)
-            if (switch != null) SettingsSwitch(on = switch)
         }
+    }
+}
+
+/** A linha "Bedtime" com o interruptor (y/n). Toda a linha liga e desliga. */
+@Composable
+private fun SwitchRow(label: String, on: Boolean, onToggle: () -> Unit) {
+    val view = LocalView.current
+    val stateText = stringResource(if (on) R.string.saved_state_on else R.string.saved_state_off)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(CycloDimens.InputHeight)
+            .cycloPressable(
+                onClick = {
+                    CycloHaptics.toggle(view, !on)
+                    onToggle()
+                },
+                haptic = false,
+                role = Role.Switch,
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = label
+                stateDescription = stateText
+                toggleableState = ToggleableState(on)
+                role = Role.Switch
+            }
+            .cycloCard(shadowColor = null),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicText(text = label, style = CycloType.CardTitle, modifier = Modifier.padding(start = RowInset))
+        CycloSwitch(on = on, modifier = Modifier.align(Alignment.CenterEnd).padding(end = RowInset))
     }
 }
 
@@ -312,23 +509,36 @@ private fun SettingsRow(
  * Interruptor (y/n): 42 x 23 dp, raio 15. Ligado: #4A3C99 com a bola à direita; desligado:
  * #A3A2A7 a 15 % com a bola à esquerda a 63 %. A bola tem 15 dp, a 4 dp das pontas, com
  * gradiente #FCFCFE a #9F9FA0 em Luminosity.
+ *
+ * A mudança é uma mola com um ressalto muito leve: a bola desliza e, a meio do caminho, estica um
+ * pouco no sentido do movimento (e volta a ser redonda ao chegar); a cor do fundo e a opacidade da
+ * bola acompanham. Igual a ligar e a desligar. Sem animações, muda logo.
  */
 @Composable
-private fun SettingsSwitch(on: Boolean) {
+private fun CycloSwitch(on: Boolean, modifier: Modifier = Modifier) {
     val effects = LocalVisualEffects.current
+    val progress by animateFloatAsState(
+        targetValue = if (on) 1f else 0f,
+        animationSpec = if (effects.animationsEnabled) SwitchSpring else snap(),
+        label = "switch",
+    )
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(width = 42.dp, height = 23.dp)
             .drawBehind {
+                val p = progress
                 val radius = CornerRadius(15.dp.toPx())
                 drawRoundRect(
-                    color = if (on) CycloColors.Accent else CycloColors.TextSecondary.copy(alpha = 0.15f),
+                    color = lerp(CycloColors.TextSecondary.copy(alpha = 0.15f), CycloColors.Accent, p.coerceIn(0f, 1f)),
                     cornerRadius = radius,
                 )
                 val knob = 15.dp.toPx()
                 val inset = 4.dp.toPx()
-                val x = if (on) size.width - inset - knob else inset
-                val alpha = if (on) 1f else 0.63f
+                // Esticão: 0 nas pontas, até 5 dp a meio do caminho.
+                val stretch = 5.dp.toPx() * (1f - kotlin.math.abs(p.coerceIn(0f, 1f) * 2f - 1f))
+                val travel = size.width - inset * 2f - knob
+                val x = inset + travel * p - stretch * p
+                val alpha = lerpFloat(0.63f, 1f, p.coerceIn(0f, 1f))
                 drawRoundRect(
                     brush = Brush.verticalGradient(
                         listOf(CycloColors.TextPrimary.copy(alpha = alpha), Color(0xFF9F9FA0).copy(alpha = alpha)),
@@ -336,7 +546,7 @@ private fun SettingsSwitch(on: Boolean) {
                         endY = inset + knob,
                     ),
                     topLeft = Offset(x, inset),
-                    size = androidx.compose.ui.geometry.Size(knob, knob),
+                    size = androidx.compose.ui.geometry.Size(knob + stretch, knob),
                     cornerRadius = radius,
                     blendMode = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver,
                 )
@@ -344,13 +554,152 @@ private fun SettingsSwitch(on: Boolean) {
     )
 }
 
-/** Botão de largura inteira com o texto ao centro (export-data-b, git...): 345 x 48 dp, raio 15. Ainda sem função. */
+/** Mola do interruptor: rápida, com um ressalto quase impercetível. PROPOSTA. */
+private val SwitchSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 520f)
+
+/**
+ * A idade. Sem estar a escrever, é uma linha como as outras ("Your age", e o valor ou
+ * "Tap to write"). Ao tocar, passa à caixa de escrever da idade (tap-to-write-box-age, Componentes 3):
+ * "Tap to write" à esquerda, o visto de 24 dp à direita e o teclado numérico.
+ */
 @Composable
-private fun SettingsButton(text: String) {
+private fun AgeRow(
+    age: Int?,
+    editing: Boolean,
+    onEdit: () -> Unit,
+    onDone: (Int) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val effects = LocalVisualEffects.current
+    Crossfade(
+        targetState = editing,
+        animationSpec = tween(if (effects.animationsEnabled) 220 else 0),
+        label = "age",
+    ) { isEditing ->
+        if (isEditing) {
+            AgeInputBox(initial = age, onDone = onDone, onCancel = onCancel)
+        } else {
+            SettingsRow(
+                label = stringResource(R.string.settings_age),
+                value = if (age != null) pluralStringResource(R.plurals.settings_age_value, age, age) else stringResource(R.string.settings_age_unset),
+                onClick = onEdit,
+            )
+        }
+    }
+}
+
+/**
+ * tap-to-write-box-age: 345 x 48, raio 15, #101011 com desfoque de fundo; o texto a 15 dp da
+ * esquerda e o visto (24 dp, #A3A2A7) a 15 dp da direita, com zona de toque de 48 dp.
+ * Um valor fora de 5–100 faz a caixa abanar com o háptico de erro, e fica por guardar.
+ */
+@Composable
+private fun AgeInputBox(initial: Int?, onDone: (Int) -> Unit, onCancel: () -> Unit) {
+    val view = LocalView.current
+    val effects = LocalVisualEffects.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val scope = rememberCoroutineScope()
+    val focus = remember { FocusRequester() }
+    var text by remember { mutableStateOf(initial?.toString().orEmpty()) }
+    var hadFocus by remember { mutableStateOf(false) }
+    val shake = remember { Animatable(0f) }
+    val ageLabel = stringResource(R.string.settings_age)
+    val saveLabel = stringResource(R.string.settings_age_done)
+    val invalidText = stringResource(R.string.settings_age_invalid)
+
+    fun submit() {
+        val value = text.toIntOrNull()
+        if (value != null && value in AgeRange) {
+            CycloHaptics.confirm(view)
+            keyboard?.hide()
+            onDone(value)
+        } else {
+            CycloHaptics.reject(view)
+            // Para o TalkBack, o porquê (a caixa só abana).
+            view.announceForAccessibility(invalidText)
+            if (effects.animationsEnabled) {
+                scope.launch {
+                    shake.snapTo(0f)
+                    shake.animateTo(0f, keyframes {
+                        durationMillis = ShakeDurationMs
+                        -8f at 50
+                        7f at 110
+                        -5f at 170
+                        4f at 230
+                        -2f at 290
+                        0f at ShakeDurationMs
+                    })
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching { focus.requestFocus() }
+        keyboard?.show()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(CycloDimens.InputHeight)
+            .graphicsLayer { translationX = shake.value.dp.toPx() }
+            .cycloCard(shadowColor = null),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicTextField(
+            value = text,
+            onValueChange = { new -> text = new.filter(Char::isDigit).take(3) },
+            singleLine = true,
+            textStyle = CycloType.Input,
+            cursorBrush = SolidColor(CycloColors.TextPrimary),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = RowInset, end = RowInset + CycloDimens.TouchTarget)
+                .focusRequester(focus)
+                .onFocusChanged { state ->
+                    // Sair da caixa sem guardar (tocar fora, fechar o teclado com voltar) cancela.
+                    if (state.isFocused) hadFocus = true else if (hadFocus) onCancel()
+                }
+                .semantics { contentDescription = ageLabel },
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (text.isEmpty()) BasicText(stringResource(R.string.settings_age_unset), style = CycloType.InputHint)
+                    inner()
+                }
+            },
+        )
+        // O visto (no Figma a camada chama-se voice-input-b): 24 dp a 15 dp da direita.
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = RowInset - (CycloDimens.TouchTarget - 24.dp) / 2)
+                .size(CycloDimens.TouchTarget)
+                .cycloPressable(onClick = ::submit, haptic = false, pressedScale = CycloMotion.IconButtonPressScale)
+                .semantics { contentDescription = saveLabel },
+            contentAlignment = Alignment.Center,
+        ) {
+            CycloIcon(path = AgeCheckPath, size = 24.dp, tint = CycloColors.TextSecondary)
+        }
+    }
+}
+
+private const val ShakeDurationMs = 360
+
+/** O visto da caixa da idade (check, 24 x 24), do SVG do Componentes 3. */
+private const val AgeCheckPath =
+    "M9.55 14.6695L17.7708 6.449C18.0366 6.183 18.3499 6.05 18.7108 6.05C19.0718 6.05 19.3852 6.183 19.651 6.449C19.917 6.71483 20.05 7.03 20.05 7.3945C20.05 7.759 19.917 8.07425 19.651 8.34025L10.4902 17.512C10.2242 17.778 9.91083 17.911 9.55 17.911C9.18917 17.911 8.87575 17.778 8.60975 17.512L4.338 13.2402C4.072 12.9742 3.94083 12.659 3.9445 12.2945C3.94817 11.93 4.083 11.6148 4.349 11.349C4.61483 11.083 4.93 10.95 5.2945 10.95C5.659 10.95 5.97425 11.083 6.24025 11.349L9.55 14.6695Z"
+
+/** Botão de largura inteira com o texto ao centro (export-data-b, git...): 345 x 48 dp, raio 15. */
+@Composable
+private fun SettingsButton(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(CycloDimens.InputHeight)
+            .cycloPressable(onClick = onClick)
             .cycloCard(shadowColor = null),
         contentAlignment = Alignment.Center,
     ) {

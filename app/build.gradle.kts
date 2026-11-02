@@ -13,8 +13,8 @@ android {
         applicationId = "com.gaebriu.cyclo"
         minSdk = 33
         targetSdk = 37
-        versionCode = 12
-        versionName = "alpha-0.7.0"
+        versionCode = 13
+        versionName = "alpha-0.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -49,6 +49,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
+    // O org.json do Android é só um esboço nos testes locais (lança exceção): usa-se o verdadeiro.
+    testImplementation(libs.json)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

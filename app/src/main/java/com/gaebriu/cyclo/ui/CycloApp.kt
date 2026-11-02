@@ -1,6 +1,33 @@
 ﻿package com.gaebriu.cyclo.ui
 
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.data.FilePicker
+import com.gaebriu.cyclo.reminder.BedtimeReminder
+import com.gaebriu.cyclo.reminder.CycloSync
+import com.gaebriu.cyclo.ui.components.BottomSheetHost
+import com.gaebriu.cyclo.ui.components.CycloBigSheet
+import com.gaebriu.cyclo.ui.settings.LoadingDataOverlay
+import com.gaebriu.cyclo.widget.BedtimeWidgets
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -115,12 +142,77 @@ fun CycloApp(viewModel: CycloViewModel) {
         overlayOpen = true
     }
 
+    // Seletores de ficheiros do sistema e a autorização de notificações. Ficam aqui (e não nas
+    // definições) porque o "Try again" da barra de baixo pode abri-los depois de as fechar.
+    val context = LocalContext.current
+    val exportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+        viewModel::exportTo,
+    )
+    // Muitos gestores de ficheiros marcam o .json como octet-stream: aceitam-se os dois.
+    val restorePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument(), viewModel::readBackup)
+    fun openPicker(picker: FilePicker) {
+        try {
+            when (picker) {
+                FilePicker.Export -> exportPicker.launch(viewModel.backupFileName())
+                FilePicker.Restore -> restorePicker.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
+            }
+        } catch (e: ActivityNotFoundException) {
+            if (picker == FilePicker.Export) viewModel.exportTo(null) else viewModel.readBackup(null)
+        }
+    }
+    LaunchedEffect(viewModel) { viewModel.pickerRequests.collect { openPicker(it) } }
+
+    // O interruptor "Bedtime" mostra-se ligado só com a autorização dada; volta a ver-se ao regressar
+    // à app (pode ter sido tirada nas definições do sistema).
+    var notificationsAllowed by remember { mutableStateOf(BedtimeReminder.isPermitted(context)) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val latestData by rememberUpdatedState(data)
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val allowed = BedtimeReminder.isPermitted(context)
+                if (allowed != notificationsAllowed) {
+                    notificationsAllowed = allowed
+                    CycloSync.apply(context, latestData, animateWidgets = false)
+                }
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsAllowed = BedtimeReminder.isPermitted(context)
+        if (granted && notificationsAllowed) viewModel.setBedtimeReminder(true) else viewModel.notificationsDenied()
+    }
+    val reminderOn = data.bedtimeReminder && notificationsAllowed
+    fun toggleReminder() {
+        when {
+            reminderOn -> viewModel.setBedtimeReminder(false)
+            notificationsAllowed -> viewModel.setBedtimeReminder(true)
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
+                permissionRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
+            // Autorizado, mas as notificações da app estão desligadas no sistema.
+            else -> viewModel.notificationsDenied()
+        }
+    }
+
+    /** "Add as a widget": pede ao lançador para fixar o widget da rotina [routineId]. */
+    fun pinWidget(routineId: Long) {
+        if (!BedtimeWidgets.requestPin(context, routineId)) viewModel.widgetPinUnsupported()
+    }
+
+    val gitHubUrl = stringResource(R.string.github_url)
+    val pendingRestore by viewModel.pendingRestore.collectAsState()
+    val restoring by viewModel.restoring.collectAsState()
+
     val actions = remember(viewModel) {
         MainActions(
             onCreateRoutine = { openEditor(-1L) },
             onEditRoutine = { openEditor(it.id) },
             onDeleteRoutine = viewModel::deleteRoutine,
             onToggleRoutine = { viewModel.setRoutineActive(it.id, !it.active) },
+            onAddWidget = { routine -> pinWidget(routine.id) },
             onCaffeineChange = viewModel::changeCaffeine,
             onCaffeineReset = viewModel::resetCaffeine,
             onToggleFactor = viewModel::toggleFactor,
@@ -149,6 +241,10 @@ fun CycloApp(viewModel: CycloViewModel) {
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
+                        // Todo tapado (editor ou definições abertos): não se desenha, mas fica composto
+                        // (mantém a página e o scroll). Antes continuava a desenhar-se por baixo, com o
+                        // desfoque do ecrã inteiro, e pesava em cada frame das definições.
+                        alpha = if (cover.value >= 1f) 0f else 1f
                         if (effects.animationsEnabled) {
                             val c = cover.value
                             val s = 1f - (1f - CycloMotion.BackgroundScale) * c
@@ -214,10 +310,29 @@ fun CycloApp(viewModel: CycloViewModel) {
                             viewModel.addRoutine(draft, completeOnboarding = true, onSaved = onSaved, onFailed = onFailed)
                         },
                         onFinished = { overlayOpen = false },
+                        onAddWidget = { pinWidget(nextRoutineId(data)) },
                     )
                 } else if (overlay == OverlaySettings) {
                     SettingsScreen(
+                        data = data,
+                        reminderOn = reminderOn,
                         onSetUse24Hour = viewModel::setUse24Hour,
+                        onSetAge = viewModel::setAge,
+                        onSetChronotype = viewModel::setChronotype,
+                        onSetFallAsleep = viewModel::setFallAsleep,
+                        onToggleReminder = ::toggleReminder,
+                        onExport = { openPicker(FilePicker.Export) },
+                        onRestore = { openPicker(FilePicker.Restore) },
+                        onOpenGitHub = {
+                            try {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(gitHubUrl))
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            } catch (e: ActivityNotFoundException) {
+                                viewModel.gitHubOpenFailed()
+                            }
+                        },
                         onClose = { overlayOpen = false },
                     )
                 } else {
@@ -238,6 +353,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                             },
                             onFinished = { overlayOpen = false },
                             onClose = { overlayOpen = false },
+                            onAddWidget = { pinWidget(editing?.id ?: nextRoutineId(data)) },
                         )
                     }
                 }
@@ -249,6 +365,33 @@ fun CycloApp(viewModel: CycloViewModel) {
         // Barra de baixo (undo-action): por cima da barra de navegação, ou do Next/Done quando o
         // tutorial ou o editor estão por cima. Desfoca o que está por trás.
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(screens)) {
+            // "Restore my data": a cópia é válida; só se repõe depois de confirmar (action-menu-big).
+            // Fechar a folha (arrastar, tocar fora, voltar) desiste sem mudar nada.
+            var shownRestore by remember { mutableStateOf(pendingRestore) }
+            if (pendingRestore != null) shownRestore = pendingRestore
+            BottomSheetHost(
+                visible = pendingRestore != null,
+                onDismiss = viewModel::cancelRestore,
+                bottomMargin = bottomInset,
+            ) {
+                val savedOn = shownRestore?.exportedAt?.let { instant ->
+                    DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
+                        .format(instant.atZone(ZoneId.systemDefault()).toLocalDate())
+                }
+                CycloBigSheet(
+                    title = stringResource(R.string.restore_sheet_title),
+                    texts = listOf(
+                        stringResource(R.string.restore_sheet_text_1),
+                        if (savedOn != null) stringResource(R.string.restore_sheet_text_date, savedOn) else stringResource(R.string.restore_sheet_text_no_date),
+                    ),
+                    buttonText = stringResource(R.string.restore_sheet_confirm),
+                    onButtonClick = viewModel::confirmRestore,
+                )
+            }
+            BackHandler(enabled = pendingRestore != null) { viewModel.cancelRestore() }
+
+            LoadingDataOverlay(visible = restoring)
+
             CycloMessageBar(
                 message = message,
                 onDismiss = viewModel::dismissMessage,
@@ -259,6 +402,13 @@ fun CycloApp(viewModel: CycloViewModel) {
     }
     }
 }
+
+/**
+ * O id que a próxima rotina nova vai ter (o repositório dá o maior + 1). O "Add as a widget" do
+ * Introduction 5 fixa o widget antes de a rotina ser guardada; se ela não chegar a ser guardada,
+ * o widget mostra a próxima rotina a acordar.
+ */
+private fun nextRoutineId(data: com.gaebriu.cyclo.data.CycloData): Long = (data.routines.maxOfOrNull { it.id } ?: 0L) + 1L
 
 /** Quanto o editor desce com o gesto de voltar completo (o resto faz a mola ao largar). */
 private const val BackGestureReach = 0.4f

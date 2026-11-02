@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.gaebriu.cyclo.ui.routine.RepeatOption
@@ -27,6 +28,15 @@ private val DailyLogKey = stringPreferencesKey("daily_log")
 /** Sem valor guardado, as horas seguem o formato do sistema. */
 private val Use24HourKey = booleanPreferencesKey("use_24_hour")
 
+// Perfil de sono e lembretes (definições). Sem valor guardado, valem os de omissão do Figma.
+private val AgeKey = intPreferencesKey("age")
+private val ChronotypeKey = stringPreferencesKey("chronotype")
+private val FallAsleepKey = stringPreferencesKey("fall_asleep")
+private val BedtimeReminderKey = booleanPreferencesKey("bedtime_reminder")
+
+/** O DataStore da app (um só por processo: o lembrete e o widget também o leem). */
+internal val Context.cycloStore: DataStore<Preferences> get() = applicationContext.cycloDataStore
+
 /**
  * Onde a app guarda os dados (DataStore). As rotinas e o registo do dia vão em JSON; os enums
  * guardam-se pelo nome, para não se baralharem se a ordem mudar.
@@ -45,12 +55,56 @@ class CycloRepository(context: Context) {
                 routines = prefs[RoutinesKey]?.let(::parseRoutines).orEmpty(),
                 dailyLog = prefs[DailyLogKey]?.let(::parseDailyLog),
                 use24Hour = prefs[Use24HourKey],
+                age = prefs[AgeKey]?.takeIf { it in AgeRange },
+                chronotype = prefs[ChronotypeKey]
+                    ?.let { name -> Chronotype.entries.firstOrNull { it.name == name } }
+                    ?: Chronotype.Hummingbird,
+                fallAsleep = prefs[FallAsleepKey]
+                    ?.let { name -> FallAsleepTime.entries.firstOrNull { it.name == name } }
+                    ?: FallAsleepTime.Fifteen,
+                bedtimeReminder = prefs[BedtimeReminderKey] ?: true,
             )
         }
 
     /** Guarda o formato das horas escolhido nas definições (fica até ser mudado outra vez). */
     suspend fun setUse24Hour(use24Hour: Boolean) {
         store.edit { prefs -> prefs[Use24HourKey] = use24Hour }
+    }
+
+    suspend fun setAge(age: Int) {
+        require(age in AgeRange)
+        store.edit { prefs -> prefs[AgeKey] = age }
+    }
+
+    suspend fun setChronotype(chronotype: Chronotype) {
+        store.edit { prefs -> prefs[ChronotypeKey] = chronotype.name }
+    }
+
+    suspend fun setFallAsleep(time: FallAsleepTime) {
+        store.edit { prefs -> prefs[FallAsleepKey] = time.name }
+    }
+
+    suspend fun setBedtimeReminder(on: Boolean) {
+        store.edit { prefs -> prefs[BedtimeReminderKey] = on }
+    }
+
+    /**
+     * Repõe uma cópia já validada ([parseBackup]), numa só escrita: ou entra tudo, ou nada.
+     * Substitui as rotinas e o registo do dia; as definições que a cópia não traz ficam como estão.
+     * O tutorial fica dado como feito (quem repõe já está dentro da app).
+     */
+    suspend fun restore(contents: BackupContents) {
+        store.edit { prefs ->
+            prefs[OnboardedKey] = true
+            prefs.setRoutines(contents.routines)
+            val log = contents.dailyLog
+            if (log != null) prefs[DailyLogKey] = log.toJson() else prefs.remove(DailyLogKey)
+            contents.use24Hour?.let { prefs[Use24HourKey] = it }
+            contents.age?.let { prefs[AgeKey] = it }
+            contents.chronotype?.let { prefs[ChronotypeKey] = it.name }
+            contents.fallAsleep?.let { prefs[FallAsleepKey] = it.name }
+            contents.bedtimeReminder?.let { prefs[BedtimeReminderKey] = it }
+        }
     }
 
     /** Guarda uma rotina nova e, se for a do tutorial, marca-o como feito na MESMA escrita. */
@@ -120,21 +174,7 @@ private fun RoutineDraft.toRoutine(id: Long, nowMillis: Long) = Routine(
 private fun Preferences.routines(): List<Routine> = this[RoutinesKey]?.let(::parseRoutines).orEmpty()
 
 private fun MutablePreferences.setRoutines(routines: List<Routine>) {
-    val array = JSONArray()
-    routines.forEach { r ->
-        array.put(
-            JSONObject()
-                .put("id", r.id)
-                .put("name", r.name)
-                .put("wakeHour", r.wakeHour)
-                .put("wakeMinute", r.wakeMinute)
-                .put("repeat", r.repeat.name)
-                .put("daysMask", r.daysMask)
-                .put("active", r.active)
-                .put("anchor", r.anchorMillis),
-        )
-    }
-    this[RoutinesKey] = array.toString()
+    this[RoutinesKey] = routinesToJson(routines).toString()
 }
 
 private fun parseRoutines(json: String): List<Routine> = runCatching {
@@ -154,12 +194,7 @@ private fun parseRoutines(json: String): List<Routine> = runCatching {
     }
 }.getOrDefault(emptyList())
 
-private fun DailyLog.toJson(): String = JSONObject()
-    .put("date", date.toString())
-    .put("caffeine", caffeine)
-    .put("factors", JSONArray(factors.map { it.name }))
-    .put("mood", mood.toDouble())
-    .toString()
+private fun DailyLog.toJson(): String = dailyLogToJson(this).toString()
 
 private fun parseDailyLog(json: String): DailyLog? = runCatching {
     val o = JSONObject(json)

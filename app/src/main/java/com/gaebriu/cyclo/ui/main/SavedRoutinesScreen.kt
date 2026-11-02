@@ -117,6 +117,7 @@ fun SavedRoutinesScreen(
     onDelete: (Routine) -> Unit,
     onEdit: (Routine) -> Unit,
     onToggleActive: (Routine) -> Unit,
+    onAddWidget: (Routine) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val search = animateFloatAsState(
@@ -155,6 +156,7 @@ fun SavedRoutinesScreen(
                         onDelete = { onDelete(routine) },
                         onEdit = { onEdit(routine) },
                         onToggleActive = { onToggleActive(routine) },
+                        onAddWidget = { onAddWidget(routine) },
                     )
                 }
             }
@@ -247,6 +249,7 @@ private fun RoutineCard(
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onToggleActive: () -> Unit,
+    onAddWidget: () -> Unit,
 ) {
     val effects = LocalVisualEffects.current
     val active by animateFloatAsState(
@@ -313,11 +316,11 @@ private fun RoutineCard(
                 description = stringResource(R.string.saved_delete, routine.name),
                 onClick = onDelete,
             )
-            // Só visual por agora, como o "Add as a widget" do Introduction 5.
+            // Fixa no ecrã principal o widget desta rotina (com a hora recomendada para dormir).
             RoundActionButton(
                 iconPath = CycloAppIconPaths.RoutineWidget,
                 description = stringResource(R.string.saved_widget, routine.name),
-                onClick = {},
+                onClick = onAddWidget,
             )
             RoundActionButton(
                 iconPath = CycloAppIconPaths.RoutineEdit,

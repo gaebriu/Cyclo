@@ -63,18 +63,30 @@
     <string name="settings_back">Back</string>
     <string name="settings_sleep_profile">Sleep profile</string>
     <string name="settings_age">Your age</string>
+    <!-- Idade ainda por escrever (o valor da linha e o texto da caixa) -->
+    <string name="settings_age_unset">Tap to write</string>
+    <string name="settings_age_done">Save age</string>
+    <!-- Ex.: "29 years" -->
+    <plurals name="settings_age_value">
+        <item quantity="one">%1$d year</item>
+        <item quantity="other">%1$d years</item>
+    </plurals>
+    <string name="settings_age_invalid">Enter an age between 5 and 100</string>
     <string name="settings_chronotype">Chronotype</string>
-    <string name="settings_cycle_length">Sleep cycle length</string>
-    <string name="settings_cycle_length_description">The average cycle lasts about 90 minutes, but yours may differ. Adjust it if you know your own rhythm</string>
+    <string name="settings_chronotype_hummingbird">Hummingbird</string>
+    <string name="settings_chronotype_early_bird">Early bird</string>
+    <string name="settings_chronotype_night_owl">Night owl</string>
     <string name="settings_fall_asleep">Time to fall asleep</string>
-    <!-- Ex.: "90 min" -->
-    <string name="settings_minutes">%1$d min</string>
-    <!-- Valor ainda por escolher (idade, cronótipo) -->
-    <string name="settings_value_unset">—</string>
+    <!-- Valor na linha (curto) e opções do menu (action-menu-time-to-fall-asleep) -->
+    <string name="settings_fall_asleep_under_5_short">Under 5 min</string>
+    <string name="settings_fall_asleep_15_short">15 min</string>
+    <string name="settings_fall_asleep_30_short">30+ min</string>
+    <string name="settings_fall_asleep_under_5">Under 5 minutes</string>
+    <string name="settings_fall_asleep_15">15 minutes</string>
+    <string name="settings_fall_asleep_30">30 minutes or more</string>
     <string name="settings_reminders">Reminders</string>
     <string name="settings_bedtime_reminder">Bedtime</string>
-    <string name="settings_morning_check_in">Morning check-in</string>
-    <string name="settings_morning_check_in_description">A quick prompt after you wake up, so you can tell us how you slept</string>
+    <string name="settings_notifications_denied">Allow notifications to turn this on.</string>
     <string name="settings_format_language">Format &amp; Language</string>
     <string name="settings_time_format">Time format</string>
     <string name="settings_12_hour">12-hour</string>
@@ -87,7 +99,73 @@
     <string name="settings_data_description">Export your routines and settings as a JSON file, or restore them from one you saved before</string>
     <string name="settings_about">About</string>
     <string name="settings_github">View on GitHub</string>
-    <string name="settings_feedback">Send feedback</string>
-    <!-- Ex.: "Cyclo Version alpha-0.7.0" -->
+    <!-- Ex.: "Cyclo Version Alpha 0.7.1" (a fase e o número; numa versão final, só o número, como o "Cyclo Version 1.0" do Figma) -->
     <string name="settings_version">Cyclo Version %1$s</string>
+
+    <!-- action-menu-big-open-github -->
+    <string name="github_sheet_title">Cyclo is open source</string>
+    <string name="github_sheet_text_1">Anyone can see how Cyclo is made</string>
+    <string name="github_sheet_text_2">You can take a look, report a bug, or suggest an idea</string>
+    <string name="github_sheet_open">Open GitHub</string>
+    <string name="github_url" translatable="false">https://github.com/gaebriu/Cyclo</string>
+    <string name="github_open_failed">Couldn\'t open GitHub</string>
+
+    <!-- Exportar e repor os dados -->
+    <string name="export_done">Data exported</string>
+    <string name="export_cancelled">Your data wasn\'t exported</string>
+    <string name="export_failed">Couldn\'t export your data</string>
+    <string name="restore_no_file">No file was chosen</string>
+    <string name="restore_unreadable">Couldn\'t read this file</string>
+    <string name="restore_invalid">This file isn\'t a Cyclo backup</string>
+    <string name="restore_too_new">This backup needs a newer Cyclo</string>
+    <string name="restore_done">Your data is back</string>
+    <string name="restore_failed">Couldn\'t restore your data</string>
+    <!-- action-menu-big de confirmação -->
+    <string name="restore_sheet_title">Restore this backup?</string>
+    <string name="restore_sheet_text_1">Your routines and settings will be replaced with the ones in this file</string>
+    <!-- Ex.: "Saved on November 2, 2026" -->
+    <string name="restore_sheet_text_date">Saved on %1$s</string>
+    <string name="restore_sheet_text_no_date">This can\'t be undone</string>
+    <string name="restore_sheet_confirm">Restore</string>
+    <!-- loading-data -->
+    <string name="restore_loading">Bringing your data back...</string>
+
+    <!-- Lembrete da hora de dormir (notificação) -->
+    <string name="reminder_channel_name">Bedtime</string>
+    <string name="reminder_channel_description">A reminder to start winding down before bed</string>
+    <string name="reminder_title">Time to wind down</string>
+    <string name="reminder_title_early">Time to start winding down</string>
+    <string name="reminder_title_now">Time for bed</string>
+    <!-- Ex.: "Aim to be in bed by 22:45 for a full night before 06:00. Dim the lights and put your phone away." -->
+    <string name="reminder_body">Aim to be in bed by %1$s for a full night before %2$s. %3$s</string>
+    <string name="reminder_body_now">Try to sleep soon to get as much rest as you can before %1$s.</string>
+    <!-- Dicas de omissão (sem nada de especial hoje): roda uma por noite, para não ser sempre igual. -->
+    <string-array name="reminder_tips_default">
+        <item>Dim the lights and put your phone away.</item>
+        <item>Something calm and screen-free is a good way to start.</item>
+        <item>A warm shower or a few pages of a book can help you slow down.</item>
+        <item>Keep the room cool, dark and quiet.</item>
+    </string-array>
+    <string name="reminder_tip_stress">A calm, screen-free start can help you settle.</string>
+    <string name="reminder_tip_caffeine">Caffeine can linger for hours, so a slower start helps.</string>
+    <string name="reminder_tip_exercise">Give your body time to cool down after training.</string>
+    <string name="reminder_tip_meal">A little extra time lets dinner settle.</string>
+    <string name="reminder_tip_nap">After a long nap, sleep may come slower. Keep the lights low.</string>
+    <string name="reminder_tip_night_owl">Dimming the lights now helps your body clock.</string>
+
+    <!-- Widget -->
+    <string name="widget_label">Bedtime</string>
+    <string name="widget_description">Your routine and when to go to bed</string>
+    <!-- Ex.: "In bed by 22:45" -->
+    <string name="widget_bed_at">In bed by %1$s</string>
+    <string name="widget_bed_now">Time for bed</string>
+    <!-- Ex.: "Wind down at 22:15" -->
+    <string name="widget_wind_down_at">Wind down at %1$s</string>
+    <string name="widget_wind_down_now">Start winding down</string>
+    <string name="widget_routine_off">Routine is off</string>
+    <string name="widget_no_bedtime">No wake-up coming up</string>
+    <string name="widget_no_routine">No routines yet</string>
+    <!-- Ex.: "Work, wake up at 06:00, In bed by 22:45" -->
+    <string name="widget_content_description">%1$s, wake up at %2$s, %3$s</string>
+    <string name="widget_pin_unsupported">Your home screen can\'t add widgets from here</string>
 </resources>

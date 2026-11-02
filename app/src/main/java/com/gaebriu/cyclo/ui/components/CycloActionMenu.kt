@@ -44,11 +44,14 @@ private val TextEnd = 15.dp
 private val CheckGap = 9.dp
 
 /**
- * Menu de ações, em duas formas do Figma:
+ * Menu de ações, em três formas do Figma:
  * - action-menu-when-to-show (224 dp de largura): as opções com um visto na escolhida. É o menu da
  *   repetição do Introduction 4.
  * - action-menu ("Edit" / "Remove"): sem escolha ([selectedIndex] = -1), com a largura do texto
  *   mais 24 dp de cada lado.
+ * - Com [compact] (action-menu-chronotype, -time-format, -time-to-fall-asleep, Componentes 3):
+ *   escolha com a largura da opção mais comprida, 24 dp à esquerda, o lugar do visto (9 + 15 dp)
+ *   em todas as linhas e 24 dp à direita; 12 dp em cima e em baixo. Ex.: o do formato tem 132 x 108.
  *
  * @param selectedIndex a opção com o visto; -1 para um menu de ações simples.
  */
@@ -58,9 +61,29 @@ fun CycloActionMenu(
     selectedIndex: Int,
     onItemClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     val check = remember { PathParser().parsePathString(CycloIconPaths.Check).toPath() }
     val isChoice = selectedIndex >= 0
+
+    if (compact) {
+        Column(
+            modifier = modifier
+                .width(IntrinsicSize.Max)
+                .cycloOverlaySurface()
+                .padding(vertical = 12.dp),
+        ) {
+            items.forEachIndexed { index, item ->
+                CompactChoiceRow(
+                    label = item.label,
+                    isSelected = index == selectedIndex,
+                    check = check,
+                    onClick = { onItemClick(index) },
+                )
+            }
+        }
+        return
+    }
 
     Column(
         modifier = modifier
@@ -77,6 +100,30 @@ fun CycloActionMenu(
                 role = if (isChoice) Role.RadioButton else Role.Button,
                 onClick = { onItemClick(index) },
             )
+        }
+    }
+}
+
+/** Uma opção do menu compacto: texto, 9 dp, o visto de 15 dp (ou o lugar dele) e 24 dp até à borda. */
+@Composable
+private fun CompactChoiceRow(label: String, isSelected: Boolean, check: Path, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(RowHeight)
+            .cycloPressable(onClick = onClick, pressedScale = 0.97f, role = Role.RadioButton)
+            .semantics { selected = isSelected }
+            .padding(start = TextStart, end = TextStart),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText(text = label, style = CycloType.MenuItem, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+        Spacer(Modifier.width(CheckGap))
+        Canvas(modifier = Modifier.size(15.dp)) {
+            if (!isSelected) return@Canvas
+            val pxPerDp = density
+            withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
+                drawPath(path = check, color = CycloColors.TextPrimary)
+            }
         }
     }
 }

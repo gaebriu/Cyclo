@@ -103,6 +103,7 @@ fun IntroductionFlow(
     initial: RoutineDraft? = null,
     nextRoutineNumber: Int = 1,
     onClose: () -> Unit = {},
+    onAddWidget: () -> Unit = {},
 ) {
     val effects = LocalVisualEffects.current
     val scope = rememberCoroutineScope()
@@ -382,6 +383,7 @@ fun IntroductionFlow(
                                         routineName = it
                                     },
                                     repeat = repeat,
+                                    onAddWidget = onAddWidget,
                                 )
                             }
                         }

@@ -156,13 +156,21 @@ fun FeedTopGlow(
  * "fx progressive-blur-top" e "fx progressive-blur-bottom": o conteúdo desfoca-se (15 na borda do
  * ecrã até 0) e escurece ao passar por baixo do topo (preto a 15 %) e do fundo (até preto).
  * Usa o que está por baixo ([com.gaebriu.cyclo.ui.effects.LocalBackdrop]).
+ *
+ * @param topExtra quanto a barra de estado do aparelho é mais alta do que os 24 dp do Figma: a
+ *                 faixa de cima cresce o mesmo, para acabar no mesmo sítio em relação ao conteúdo.
+ * @param bottomAmount de 0 a 1: quanto se vê da faixa de baixo (ex.: some no fim do scroll).
  */
 @Composable
-fun MainEdgeFades(modifier: Modifier = Modifier) {
+fun MainEdgeFades(
+    modifier: Modifier = Modifier,
+    topExtra: Dp = 0.dp,
+    bottomAmount: () -> Float = { 1f },
+) {
     Box(modifier = modifier.fillMaxSize()) {
         ProgressiveBlurEdge(
             top = true,
-            height = TopFadeHeight,
+            height = TopFadeHeight + topExtra,
             figmaBlur = FigmaBlur.EdgeProgressive,
             shade = Color.Black.copy(alpha = 0.15f),
         )
@@ -172,6 +180,7 @@ fun MainEdgeFades(modifier: Modifier = Modifier) {
             figmaBlur = FigmaBlur.EdgeProgressive,
             shade = Color.Black,
             modifier = Modifier.align(Alignment.BottomCenter),
+            amount = bottomAmount,
         )
     }
 }

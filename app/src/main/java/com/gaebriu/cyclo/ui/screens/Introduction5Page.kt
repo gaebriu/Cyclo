@@ -42,6 +42,7 @@ import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.components.CycloDropdownField
 import com.gaebriu.cyclo.ui.components.IntroIconHeader
+import com.gaebriu.cyclo.ui.components.cycloPressable
 import com.gaebriu.cyclo.ui.components.RoutineNameInput
 import com.gaebriu.cyclo.ui.components.rememberRoutineNameInput
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
@@ -74,7 +75,7 @@ private val WidgetLabelWidth = 94.dp
  *   linha, e o subtítulo (o "text" do text-group), o campo da repetição e o botão "Add as a widget"
  *   desvanecem-se com o mesmo fade do Introduction 3 e 4; tudo volta quando o teclado fecha.
  *   Durante o ditado nada se esconde e a caixa não alarga.
- * - O botão "Add as a widget" ainda não faz nada.
+ * - O botão "Add as a widget" pede ao ecrã principal para fixar o widget desta rotina ([onAddWidget]).
  */
 @Composable
 fun Introduction5Page(
@@ -82,6 +83,7 @@ fun Introduction5Page(
     onNameChange: (String) -> Unit,
     repeat: RepeatSelection,
     modifier: Modifier = Modifier,
+    onAddWidget: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
     val nameInput = rememberRoutineNameInput(onNameChange)
@@ -155,7 +157,11 @@ fun Introduction5Page(
                         }
                     }
                     Spacer(Modifier.width(CycloDimens.Spacing))
-                    AddWidgetButton(modifier = Modifier.graphicsLayer { alpha = fade.value })
+                    AddWidgetButton(
+                        onClick = onAddWidget,
+                        enabled = dropdownInteractive,
+                        modifier = Modifier.graphicsLayer { alpha = fade.value },
+                    )
                 }
 
                 // A caixa do nome por cima de tudo: alarga do lugar dela até à linha inteira.
@@ -181,16 +187,17 @@ fun Introduction5Page(
 /**
  * Botão "Add as a widget" (add-routine-widget-b): 115 x 115 dp, raio 24, #101011 sem mistura,
  * sombra interior 0, -6, desfoque 15 (preto a 15 %) e sem borda. Ícone de 24 dp a 23 dp do topo
- * e texto a 56 dp do topo, ambos ao centro. Só visual por agora.
+ * e texto a 56 dp do topo, ambos ao centro.
  */
 @Composable
-private fun AddWidgetButton(modifier: Modifier = Modifier) {
+private fun AddWidgetButton(onClick: () -> Unit, enabled: Boolean, modifier: Modifier = Modifier) {
     val effects = LocalVisualEffects.current
     val icon = remember { PathParser().parsePathString(CycloIconPaths.AddWidget).toPath() }
 
     Box(
         modifier = modifier
             .size(WidgetButtonSize)
+            .cycloPressable(onClick = onClick, enabled = enabled)
             .drawBehind {
                 val radius = CycloDimens.CornerRadius.toPx()
                 val shape = Path().apply {

@@ -153,7 +153,8 @@ object FeedRevealItems {
  *   repetição a incluir esse dia, ou "Show just this once" ainda por cumprir). Sem nenhuma, o grupo
  *   "To rise refreshed tomorrow" não aparece.
  * - As horas para adormecer são a hora de acordar menos 6 a 1 ciclos de 90 min e 15 min para
- *   adormecer (ver [bedtimesFor]); as duas com mais ciclos têm estrela.
+ *   adormecer ([fallAsleepMinutes], o "Time to fall asleep" das definições; ver [bedtimesFor]);
+ *   as duas com mais ciclos têm estrela.
  * - O "..." da hora de acordar abre "Edit" / "Remove"; o da cafeína abre "Reset".
  */
 @Composable
@@ -161,6 +162,7 @@ fun FeedScreen(
     now: LocalDateTime,
     routines: List<Routine>,
     dailyLog: DailyLog?,
+    fallAsleepMinutes: Long,
     reveal: StaggeredReveal,
     bottomReserve: Dp,
     wakeShadow: Color,
@@ -208,6 +210,7 @@ fun FeedScreen(
                     Spacer(Modifier.height(LabelToCard))
                     WakeTimeCard(
                         routine = nextRoutine,
+                        fallAsleepMinutes = fallAsleepMinutes,
                         shadow = wakeShadow,
                         onMoreClick = { wakeMenuOpen = true },
                         onMoreBounds = { wakeMenuAnchor = it },
@@ -366,8 +369,16 @@ private fun MoreButton(description: String, onClick: () -> Unit, onBounds: (Rect
  * @param shadow a cor da base do brilho do topo (muda com a hora); a sombra usa-a a 24 %.
  */
 @Composable
-private fun WakeTimeCard(routine: Routine, shadow: Color, onMoreClick: () -> Unit, onMoreBounds: (Rect) -> Unit) {
-    val bedtimes = remember(routine.wakeHour, routine.wakeMinute) { bedtimesFor(routine.wakeHour, routine.wakeMinute) }
+private fun WakeTimeCard(
+    routine: Routine,
+    fallAsleepMinutes: Long,
+    shadow: Color,
+    onMoreClick: () -> Unit,
+    onMoreBounds: (Rect) -> Unit,
+) {
+    val bedtimes = remember(routine.wakeHour, routine.wakeMinute, fallAsleepMinutes) {
+        bedtimesFor(routine.wakeHour, routine.wakeMinute, fallAsleepMinutes)
+    }
     val wake = LocalTime.of(routine.wakeHour, routine.wakeMinute).format(LocalTimeFormat.current.formatter)
     val outset = (CycloDimens.TouchTarget - 15.dp) / 2
 
