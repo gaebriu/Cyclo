@@ -24,7 +24,9 @@ import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.icons.HeaderIcon
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 // Onde fica a imagem do fx spotlight em relação ao canto de cima à esquerda do círculo de 63 dp.
 // Têm de coincidir com LEFT, TOP, WIDTH e HEIGHT de tools/bake_spotlight.py.
@@ -32,6 +34,19 @@ private val SpotlightLeft = (-152).dp
 private val SpotlightTop = (-20).dp
 private val SpotlightWidth = 367.dp
 private val SpotlightHeight = 235.dp
+
+/** Centro da caixa de 63 x 63 do ícone, nas unidades do SVG (o sol fica centrado aqui). */
+private const val IconCenter = 31.5f
+
+/** Este ponto rodado [degrees] graus (sentido horário no ecrã) à volta de [pivot]. */
+private fun Offset.rotateAround(pivot: Offset, degrees: Float): Offset {
+    val radians = Math.toRadians(degrees.toDouble())
+    val c = cos(radians).toFloat()
+    val s = sin(radians).toFloat()
+    val dx = x - pivot.x
+    val dy = y - pivot.y
+    return Offset(pivot.x + dx * c - dy * s, pivot.y + dx * s + dy * c)
+}
 
 /**
  * Ícone com o holofote roxo por trás (sleep-icon, sun-icon...), 63 x 95 dp.
@@ -42,9 +57,16 @@ private val SpotlightHeight = 235.dp
  * imagem `fx_spotlight` (ver tools/bake_spotlight.py). Desenhar uma imagem funciona em qualquer
  * aparelho, sem RenderEffect.
  * O ícone leva gradiente vertical #FCFCFE a #9F9FA0 e mistura Luminosity, como no design.
+ *
+ * @param rotation rotação do ícone em graus (sentido horário), à volta do centro da caixa de 63 dp.
+ *        É lida só ao desenhar, por isso animá-la não recompõe nada. O holofote não roda.
  */
 @Composable
-fun IntroIconHeader(icon: HeaderIcon, modifier: Modifier = Modifier) {
+fun IntroIconHeader(
+    icon: HeaderIcon,
+    modifier: Modifier = Modifier,
+    rotation: () -> Float = { 0f },
+) {
     val effects = LocalVisualEffects.current
     val shape = remember(icon) { PathParser().parsePathString(icon.path).toPath() }
     val spotlight: ImageBitmap = ImageBitmap.imageResource(R.drawable.fx_spotlight)
@@ -70,17 +92,24 @@ fun IntroIconHeader(icon: HeaderIcon, modifier: Modifier = Modifier) {
                 .drawBehind {
                     val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
                     val pxPerDp = density
+                    val degrees = rotation()
+                    val pivot = Offset(IconCenter, IconCenter) +
+                        Offset(CycloIconPaths.BedOriginX, CycloIconPaths.BedOriginY)
                     withTransform({
                         scale(pxPerDp, pxPerDp, Offset.Zero)
                         translate(-CycloIconPaths.BedOriginX, -CycloIconPaths.BedOriginY)
+                        if (degrees != 0f) rotate(degrees, pivot)
                     }) {
+                        // O gradiente roda ao contrário, para a luz continuar a vir de cima.
+                        val start = Offset(pivot.x, icon.gradientTop).rotateAround(pivot, -degrees)
+                        val end = Offset(pivot.x, icon.gradientBottom).rotateAround(pivot, -degrees)
                         drawPath(
                             path = shape,
-                            brush = Brush.verticalGradient(
+                            brush = Brush.linearGradient(
                                 0f to Color(0xFFFCFCFE),
                                 1f to Color(0xFF9F9FA0),
-                                startY = icon.gradientTop,
-                                endY = icon.gradientBottom,
+                                start = start,
+                                end = end,
                             ),
                             blendMode = blend,
                         )

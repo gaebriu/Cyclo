@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Cyclo" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Ecrã de abertura: totalmente #010101, sem o ícone da app (o ícone é um vetor transparente).
+        O fundo da janela também é #010101, para não aparecer branco entre a abertura e o primeiro ecrã.
+    -->
+    <style name="Theme.Cyclo" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/cyclo_background</item>
+        <item name="android:windowSplashScreenBackground">@color/cyclo_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_empty</item>
+    </style>
 </resources>

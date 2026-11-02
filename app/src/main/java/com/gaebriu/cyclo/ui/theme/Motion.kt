@@ -73,6 +73,28 @@ object CycloMotion {
     /** Menus e folhas que aparecem por cima do ecrã (entrada e saída). */
     val OverlaySpring = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
 
-    /** Crescimento da barra de progresso. */
-    val ProgressSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 130f)
+    /**
+     * Crescimento da barra de progresso. O limiar de visibilidade é fino: com o de omissão (0,01)
+     * a mola parava ~3,5 dp antes do fim e a barra saltava esse bocado no último frame.
+     */
+    val ProgressSpring = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = 130f,
+        visibilityThreshold = 0.0005f,
+    )
+
+    /**
+     * Fade do ecrã de abertura (#010101) para o primeiro ecrã. Curto, porque a entrada do
+     * Introduction 0 já começa por trás da abertura.
+     */
+    const val SplashFadeDurationMs = 250L
+
+    /**
+     * Rotação do sol do Introduction 2 por cada valor que muda: uma volta inteira por volta do
+     * seletor (360 / 24 = 15° por hora, 360 / 60 = 6° por minuto). Sempre no sentido horário.
+     */
+    const val SunDegreesPerTurn = 360f
+
+    /** Mola da rotação do sol: sem ressalto e suave, para acompanhar mudanças rápidas sem saltos. */
+    val SunRotationSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 90f)
 }

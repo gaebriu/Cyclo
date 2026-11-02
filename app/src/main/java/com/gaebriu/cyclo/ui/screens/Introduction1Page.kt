@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.components.IntroIconHeader
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.scrollEdgeFade
 import com.gaebriu.cyclo.ui.icons.CycloHeaderIcons
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloType
@@ -54,10 +55,14 @@ fun Introduction1Page(
         // 7 dp de espaço + 8 dp de folga dentro da área com scroll = 15 dp até ao título.
         // A folga deixa o desfoque do título sair do texto sem ser cortado.
         Spacer(Modifier.height(7.dp))
+        // O texto continua com scroll, mas sem corte a direito: as extremidades esbatem-se
+        // (fade e desfoque progressivo) quando há texto escondido desse lado.
+        val scroll = rememberScrollState()
         Column(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState()),
+                .scrollEdgeFade(scroll, CycloDimens.ScrollEdgeFade, FigmaBlur.ScrollEdge)
+                .verticalScroll(scroll),
         ) {
             Spacer(Modifier.height(8.dp))
 

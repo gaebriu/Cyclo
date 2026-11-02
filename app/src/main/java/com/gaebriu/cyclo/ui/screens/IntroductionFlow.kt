@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
 private const val StepCount = 6
 
 /**
- * Fluxo dos ecrãs de introdução. Por agora: Introduction 0, 1, 2, 3 e 4.
+ * Fluxo dos ecrãs de introdução. Por agora: Introduction 0, 1, 2, 3, 4 e 5 (o 5 só com a estrutura).
  *
  * - O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto,
  *   enquanto o 0 recua (zoom out, desfoque, véu escuro, e o brilho roxo some de cima para baixo).
@@ -66,14 +66,14 @@ private const val StepCount = 6
  *   segundo plano, sem o mostrar na caixa do Introduction 3. O Introduction 4 já mostra o nome guardado.
  *
  * @param nextRoutineNumber o número que a próxima rotina vai ter (as já guardadas + 1).
- * @param onIntroduction4Next ação do Next do Introduction 4, com o nome final e a repetição escolhida
- *        (o Introduction 5 ainda não existe).
+ * @param onIntroduction5Next ação do Next do Introduction 5, com o nome final e a repetição escolhida
+ *        (o Introduction 6 ainda não existe).
  */
 @Composable
 fun IntroductionFlow(
     modifier: Modifier = Modifier,
     nextRoutineNumber: Int = 1,
-    onIntroduction4Next: (routineName: String, repeat: RepeatOption, daysMask: Int) -> Unit = { _, _, _ -> },
+    onIntroduction5Next: (routineName: String, repeat: RepeatOption, daysMask: Int) -> Unit = { _, _, _ -> },
 ) {
     val effects = LocalVisualEffects.current
     val scope = rememberCoroutineScope()
@@ -148,6 +148,7 @@ fun IntroductionFlow(
     val showIntroduction2 by remember { derivedStateOf { step >= 2 || position.value > 1.001f } }
     val showIntroduction3 by remember { derivedStateOf { step >= 3 || position.value > 2.001f } }
     val showIntroduction4 by remember { derivedStateOf { step >= 4 || position.value > 3.001f } }
+    val showIntroduction5 by remember { derivedStateOf { step >= 5 || position.value > 4.001f } }
 
     // O frame do Figma tem 48 dp de barra de navegação; reservamos pelo menos isso.
     val bottomInset = maxOf(
@@ -264,7 +265,7 @@ fun IntroductionFlow(
                         }
 
                         if (showIntroduction4) {
-                            IntroPage(4, { position.value }, effects.animationsEnabled, covered = false) {
+                            IntroPage(4, { position.value }, effects.animationsEnabled, covered = step >= 5) {
                                 Introduction4Page(
                                     name = savedRoutineName,
                                     // O que se muda aqui passa também para a caixa do Introduction 3.
@@ -273,6 +274,15 @@ fun IntroductionFlow(
                                         routineName = it
                                     },
                                     repeat = repeat,
+                                )
+                            }
+                        }
+
+                        if (showIntroduction5) {
+                            IntroPage(5, { position.value }, effects.animationsEnabled, covered = false) {
+                                Introduction5Page(
+                                    routineName = savedRoutineName,
+                                    repeatLabel = stringResource(repeat.option.label),
                                 )
                             }
                         }
@@ -292,10 +302,11 @@ fun IntroductionFlow(
                                     commitRoutineName(routineName)
                                     step = 4
                                 }
-                                else -> {
+                                4 -> {
                                     commitRoutineName(savedRoutineName)
-                                    onIntroduction4Next(savedRoutineName, repeat.option, repeat.daysMask)
+                                    step = 5
                                 }
+                                else -> onIntroduction5Next(savedRoutineName, repeat.option, repeat.daysMask)
                             }
                         },
                         modifier = Modifier

@@ -22,4 +22,11 @@ object FigmaBlur {
 
     /** Ecrã que recua por baixo de outro (Introduction 0 enquanto o 1 sobe). */
     const val BackgroundRecede = 9f
+
+    /**
+     * Desfoque máximo nas extremidades do texto com scroll ("fx progressive-blur-bottom").
+     * O Figma não exporta o desfoque progressivo (aparece como 0), por isso é uma PROPOSTA:
+     * moderado, e só chega ao máximo na borda, onde o texto já está quase transparente pelo fade.
+     */
+    const val ScrollEdge = 9f
 }

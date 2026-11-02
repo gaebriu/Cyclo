@@ -23,4 +23,7 @@ object CycloDimens {
 
     /** Distância do topo do ecrã ao botão X / seta no frame do Figma. */
     val TopBarTop = 48.dp
+
+    /** Altura do fade nas extremidades do texto com scroll ("fx progressive-blur-bottom", 120 dp). */
+    val ScrollEdgeFade = 120.dp
 }

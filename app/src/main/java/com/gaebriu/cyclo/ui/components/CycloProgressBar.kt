@@ -51,16 +51,27 @@ fun CycloProgressBar(
         val fillWidth = width * p
         val corner = CornerRadius(height / 2f)
 
-        // Parte vazia, à direita da preenchida.
-        val trackLeft = fillWidth + 6.dp.toPx()
-        if (width - trackLeft > 0f) {
-            drawRoundRect(
-                color = CycloColors.GlassFill,
-                topLeft = Offset(trackLeft, 0f),
-                size = Size(width - trackLeft, height),
-                cornerRadius = corner,
-                blendMode = blend,
-            )
+        // Parte vazia, à direita da preenchida, separada por 6 dp.
+        // Perto dos 100 %, quando já não cabe uma pílula inteira (6 dp + a altura da barra), a parte
+        // vazia passa a um círculo que encolhe e desvanece, e o espaço de 6 dp fecha na mesma
+        // proporção: tudo chega a zero ao mesmo tempo que a barra enche, sem cortes nem saltos.
+        val gap = 6.dp.toPx()
+        val remaining = width - fillWidth
+        if (remaining > 0f) {
+            val shrink = (remaining / (gap + height)).coerceIn(0f, 1f)
+            val trackLeft = fillWidth + gap * shrink
+            val trackWidth = width - trackLeft
+            val trackHeight = height * shrink
+            if (trackWidth > 0f && trackHeight > 0f) {
+                drawRoundRect(
+                    color = CycloColors.GlassFill,
+                    topLeft = Offset(trackLeft, (height - trackHeight) / 2f),
+                    size = Size(trackWidth, trackHeight),
+                    cornerRadius = CornerRadius(trackHeight / 2f),
+                    alpha = shrink,
+                    blendMode = blend,
+                )
+            }
         }
 
         if (fillWidth <= 0f) return@Canvas

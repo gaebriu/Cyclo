@@ -7,4 +7,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Fundo da app (CycloColors.Background): ecrã de abertura e fundo da janela. -->
+    <color name="cyclo_background">#FF010101</color>
 </resources>
