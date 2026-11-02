@@ -91,10 +91,20 @@ object CycloMotion {
 
     /**
      * Rotação do sol do Introduction 2 por cada valor que muda: uma volta inteira por volta do
-     * seletor (360 / 24 = 15° por hora, 360 / 60 = 6° por minuto). Sempre no sentido horário.
+     * seletor (360 / 24 = 15° por hora, 360 / 60 = 6° por minuto). Sentido horário ao aumentar,
+     * anti-horário ao diminuir.
      */
     const val SunDegreesPerTurn = 360f
 
     /** Mola da rotação do sol: sem ressalto e suave, para acompanhar mudanças rápidas sem saltos. */
     val SunRotationSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 90f)
+
+    /**
+     * Regresso do scroll à ponta depois de esticar (rubber band) e o bounce de um lançamento que
+     * bate na ponta, como no iOS: mola criticamente amortecida, sem oscilar.
+     */
+    val ScrollBounceSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 200f)
+
+    /** A caixa do nome do Introduction 5 a alargar ao escrever (e a voltar): a mesma mola do teclado. */
+    val NameFieldExpandSpring = KeyboardSpring
 }

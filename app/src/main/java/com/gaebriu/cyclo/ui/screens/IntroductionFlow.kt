@@ -281,8 +281,14 @@ fun IntroductionFlow(
                         if (showIntroduction5) {
                             IntroPage(5, { position.value }, effects.animationsEnabled, covered = false) {
                                 Introduction5Page(
-                                    routineName = savedRoutineName,
-                                    repeatLabel = stringResource(repeat.option.label),
+                                    name = savedRoutineName,
+                                    // Como no Introduction 4: o que se muda aqui passa também para a
+                                    // caixa do Introduction 3 (e para a do 4).
+                                    onNameChange = {
+                                        savedRoutineName = it
+                                        routineName = it
+                                    },
+                                    repeat = repeat,
                                 )
                             }
                         }
@@ -306,7 +312,11 @@ fun IntroductionFlow(
                                     commitRoutineName(savedRoutineName)
                                     step = 5
                                 }
-                                else -> onIntroduction5Next(savedRoutineName, repeat.option, repeat.daysMask)
+                                else -> {
+                                    // Nome apagado no Introduction 5: volta ao que estava guardado.
+                                    commitRoutineName(savedRoutineName)
+                                    onIntroduction5Next(savedRoutineName, repeat.option, repeat.daysMask)
+                                }
                             }
                         },
                         modifier = Modifier

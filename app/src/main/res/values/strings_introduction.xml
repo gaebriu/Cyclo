@@ -38,8 +38,6 @@
     <string name="introduction_5_title">Want to add it as a widget to your home screen?</string>
     <string name="introduction_5_subtitle">If you\'d rather not, skip this part</string>
     <string name="introduction_5_add_widget">Add as a widget</string>
-    <string name="introduction_5_routine_name">“%1$s”</string>
-
     <!-- Introduction 4 -->
     <string name="introduction_4_title">When should it appear on your feed?</string>
     <string name="introduction_4_subtitle">If it\'s just for one time use, skip this part</string>

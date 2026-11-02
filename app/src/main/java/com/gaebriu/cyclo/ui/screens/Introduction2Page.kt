@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -31,6 +30,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.ui.scroll.cycloVerticalScroll
 import com.gaebriu.cyclo.ui.components.CycloTimeUnitPicker
 import com.gaebriu.cyclo.ui.components.IntroIconHeader
 import com.gaebriu.cyclo.ui.components.PickerHeight
@@ -70,8 +70,9 @@ fun Introduction2Page(
         label = "hint",
     )
 
-    // Rotação do sol: cada valor que muda na hora ou nos minutos roda-o no sentido horário, em
-    // proporção (uma volta inteira do seletor = uma volta do sol). A mola sem ressalto segue o
+    // Rotação do sol: cada valor que muda na hora ou nos minutos roda-o em proporção (uma volta
+    // inteira do seletor = uma volta do sol): no sentido horário quando o valor aumenta e no
+    // sentido anti-horário quando diminui. A mola sem ressalto segue o
     // alvo à medida que ele avança, por isso deslizar depressa dá uma rotação contínua, sem saltos.
     val effects = LocalVisualEffects.current
     val scope = rememberCoroutineScope()
@@ -105,7 +106,7 @@ fun Introduction2Page(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState()),
+                .cycloVerticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             BasicText(
@@ -186,10 +187,10 @@ fun Introduction2Page(
 }
 
 /**
- * Quantos valores separam [from] de [to] num seletor que dá a volta, pelo caminho mais curto
- * (23 para 00 é 1 passo, não 23).
+ * Quantos valores separam [from] de [to] num seletor que dá a volta, pelo caminho mais curto e
+ * com sinal: positivo se o valor aumentou, negativo se diminuiu (23 para 00 é +1, 00 para 23 é -1).
  */
 private fun circularSteps(from: Int, to: Int, valueCount: Int): Int {
     val forward = ((to - from) % valueCount + valueCount) % valueCount
-    return minOf(forward, valueCount - forward)
+    return if (forward <= valueCount / 2) forward else forward - valueCount
 }

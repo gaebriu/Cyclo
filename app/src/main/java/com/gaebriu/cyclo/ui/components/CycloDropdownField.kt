@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.contentDescription
@@ -33,7 +34,10 @@ import com.gaebriu.cyclo.ui.theme.CycloType
  * texto a 15 dp da esquerda e seta de 24 dp a 15 dp da direita.
  *
  * @param description o que o campo faz, para o TalkBack (a opção escolhida vai como estado).
- * @param onBoundsInRoot avisa onde o campo está, para o menu aparecer ancorado a ele.
+ * @param onBoundsInRoot avisa onde o campo está, para o menu aparecer ancorado a ele. É chamado
+ *        no momento do toque, logo antes de [onClick], com a posição atual no ecrã. Assim só o
+ *        campo tocado define a âncora, mesmo havendo outro campo igual numa página por baixo
+ *        (o do Introduction 4 continua composto, deslocado, enquanto se vê o Introduction 5).
  */
 @Composable
 fun CycloDropdownField(
@@ -45,14 +49,21 @@ fun CycloDropdownField(
     onBoundsInRoot: (Rect) -> Unit = {},
 ) {
     val arrow = remember { PathParser().parsePathString(CycloIconPaths.DropDown).toPath() }
+    val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(CycloDimens.InputHeight)
             // A posição mede-se ANTES do zoom do toque, para o menu não "tremer" ao carregar.
-            .onGloballyPositioned { onBoundsInRoot(it.boundsInRoot()) }
-            .cycloPressable(onClick = onClick, enabled = enabled)
+            .onGloballyPositioned { coordinates[0] = it }
+            .cycloPressable(
+                onClick = {
+                    coordinates[0]?.takeIf { it.isAttached }?.let { onBoundsInRoot(it.boundsInRoot()) }
+                    onClick()
+                },
+                enabled = enabled,
+            )
             .semantics {
                 contentDescription = description
                 stateDescription = text

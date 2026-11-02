@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +20,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.ui.scroll.cycloVerticalScroll
 import com.gaebriu.cyclo.ui.components.IntroIconHeader
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.scrollEdgeFade
@@ -62,7 +62,7 @@ fun Introduction1Page(
             modifier = Modifier
                 .weight(1f)
                 .scrollEdgeFade(scroll, CycloDimens.ScrollEdgeFade, FigmaBlur.ScrollEdge)
-                .verticalScroll(scroll),
+                .cycloVerticalScroll(scroll),
         ) {
             Spacer(Modifier.height(8.dp))
 
