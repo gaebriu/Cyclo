@@ -495,7 +495,9 @@ fun CycloApp(viewModel: CycloViewModel) {
                         if (savedOn != null) stringResource(R.string.restore_sheet_text_date, savedOn) else stringResource(R.string.restore_sheet_text_no_date),
                     ),
                     buttonText = stringResource(R.string.restore_sheet_confirm),
-                    onButtonClick = viewModel::confirmRestore,
+                    onButtonClick = {
+                        viewModel.confirmRestore(com.gaebriu.cyclo.ui.settings.loadingDataMinMs(context.getString(R.string.restore_loading)))
+                    },
                 )
             }
             BackHandler(enabled = pendingRestore != null) { viewModel.cancelRestore() }

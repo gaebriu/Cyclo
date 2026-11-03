@@ -54,6 +54,19 @@ android {
     }
 }
 
+// O ficheiro do APK chama-se sempre "<applicationId>.apk" (com.gaebriu.cyclo.apk), em debug e em
+// release; é este o ficheiro que vai para as releases do GitHub. (O AGP não tem API pública para
+// o nome: VariantOutputImpl.outputFileName é a forma suportada na prática; rever ao subir o AGP.)
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            (output as? com.android.build.api.variant.impl.VariantOutputImpl)
+                ?.outputFileName
+                ?.set(variant.applicationId.map { "$it.apk" })
+        }
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

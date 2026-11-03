@@ -305,8 +305,11 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         _pendingRestore.value = null
     }
 
-    /** Confirmado: repõe tudo numa só escrita, com o loading-data à vista pelo menos [MinRestoreMs]. */
-    fun confirmRestore() {
+    /**
+     * Confirmado: repõe tudo numa só escrita, com o loading-data à vista pelo menos [minShownMs]
+     * (a animação inteira dele, que depende do texto; ver ui/settings/LoadingDataOverlay.kt).
+     */
+    fun confirmRestore(minShownMs: Long = MinRestoreMs) {
         val contents = _pendingRestore.value ?: return
         _pendingRestore.value = null
         _restoring.value = true
@@ -320,7 +323,7 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 false
             }
-            val left = MinRestoreMs - (SystemClock.elapsedRealtime() - started)
+            val left = minShownMs - (SystemClock.elapsedRealtime() - started)
             if (left > 0) delay(left)
             _restoring.value = false
             if (ok) {
@@ -334,10 +337,7 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val MaxCaffeine = 99
 
-        /**
-         * O loading-data fica à vista a animação inteira do Introduction 6 (o véu, as letras e o
-         * anel, e uma pausa curta): o mesmo que `LoadingDataMinMs` em ui/settings/LoadingDataOverlay.kt.
-         */
+        /** Mínimo de reserva para o loading-data (a app passa o tempo real da animação). */
         const val MinRestoreMs = 3020L
     }
 }

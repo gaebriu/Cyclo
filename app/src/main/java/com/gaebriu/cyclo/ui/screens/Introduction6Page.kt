@@ -48,19 +48,18 @@ private val TextTop = 265.dp
 private const val RingRadius = 129f
 private const val RingStroke = 9f
 
-/** Largura da frente do desfoque progressivo do círculo, em fração da largura da caixa. */
-private const val RevealFeather = 0.6f
 
 /**
  * Introduction 6: "You’re all set!" (o botão de cima e o Next já saíram).
  *
  * Quando a página assenta ([active]):
- * - o texto aparece letra a letra, com a mesma animação do "Hello!" do Introduction 0;
- * - o círculo (fx circle-with-blur) fica parado e o desfoque vai-se revelando da esquerda para a
- *   direita: começa muito desfocado e acaba no desfoque do Figma. Começa e acaba com o texto;
+ * - o texto aparece letra a letra, com a animação do "Hello!" do Introduction 0 (o mesmo ritmo e o
+ *   mesmo desfoque, à escala do texto);
+ * - o círculo (fx circle-with-blur) aparece como uma letra do "Hello!": com fade, de muito
+ *   desfocado ao desfoque do Figma, com a curva e a duração de uma letra, a começar com o texto;
  * - no fim, espera 1 s e chama [onFinished] (vai para o Feed).
  *
- * Sem animações no sistema, o texto só aparece com fade e o círculo já está no desfoque final.
+ * Sem animações no sistema, o texto só aparece com fade e o círculo também.
  */
 @Composable
 fun Introduction6Page(
@@ -81,9 +80,9 @@ fun Introduction6Page(
             launch {
                 if (effects.animationsEnabled) {
                     delay(CycloMotion.LettersStartDelayMs.toLong())
-                    circle.animateTo(1f, tween(CycloMotion.HelloDurationMs, easing = CycloMotion.Decelerate))
+                    circle.animateTo(1f, tween(LetterRevealState.LetterDurationMs, easing = CycloMotion.Decelerate))
                 } else {
-                    circle.snapTo(1f)
+                    circle.animateTo(1f, tween(CycloMotion.HintFadeDurationMs))
                 }
             }
         }
@@ -93,7 +92,8 @@ fun Introduction6Page(
 
     Box(modifier = modifier.fillMaxSize()) {
         BlurredRing(
-            reveal = { if (effects.animationsEnabled) circle.value else 1f },
+            reveal = { circle.value },
+            sharpOnly = !effects.animationsEnabled,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = CircleTop)
@@ -122,30 +122,33 @@ private const val RingRasterScale = 0.25f
  * O anel desfocado. O desfoque é feito com BlurMaskFilter (não RenderEffect), por isso aparece igual
  * em qualquer aparelho. Não corta: o desfoque passa para fora da caixa de 267 dp, como no Figma.
  *
- * Os dois anéis (muito desfocado e no desfoque do Figma) não mudam: desenham-se UMA vez, em imagens
- * de baixa resolução, e cada frame só desloca a máscara da frente. Antes os dois desfoques largos
- * (e duas camadas do tamanho do ecrã) refaziam-se a cada frame, o que fazia a animação perder frames.
+ * Aparece como uma letra do "Hello!": a opacidade sobe com [reveal] e o desfoque passa de muito
+ * desfocado (CircleRevealStart) ao do Figma (Circle). Os dois anéis desenham-se UMA vez, em imagens
+ * de baixa resolução, e cada frame só os mistura (um desaparece enquanto o outro aparece): nenhum
+ * desfoque é refeito durante a animação.
  *
- * @param reveal de 0 (todo muito desfocado) a 1 (todo no desfoque do Figma); a frente entre os dois
- *               anda da esquerda para a direita.
+ * @param reveal de 0 (invisível e muito desfocado) a 1 (opaco, no desfoque do Figma).
+ * @param sharpOnly sem animações no sistema: só o fade, já no desfoque final.
  */
 @Composable
-internal fun BlurredRing(reveal: () -> Float, modifier: Modifier = Modifier) {
+internal fun BlurredRing(reveal: () -> Float, modifier: Modifier = Modifier, sharpOnly: Boolean = false) {
     Spacer(
         modifier = modifier.drawWithCache {
-            // Cada imagem cobre também o desfoque que sai da caixa: 3 sigmas do seu próprio desfoque
-            // (o anel final, menos desfocado, precisa de uma margem três vezes mais pequena).
+            // Cada imagem cobre também o desfoque que sai da caixa: 3 sigmas do seu próprio desfoque.
             fun bleedOf(figmaBlur: Float) = figmaBlur.dp.toPx() / 2f * 3f
             val start = RingLayer(this, FigmaBlur.CircleRevealStart, bleedOf(FigmaBlur.CircleRevealStart))
             val end = RingLayer(this, FigmaBlur.Circle, bleedOf(FigmaBlur.Circle))
-            val feather = size.width * RevealFeather
             onDrawBehind {
                 val p = reveal().coerceIn(0f, 1f)
-                // A frente sai de fora à esquerda e acaba fora à direita.
-                val front = -feather + p * (size.width + 2f * feather)
+                if (p <= 0f) return@onDrawBehind
                 drawIntoCanvas { canvas ->
-                    if (p < 1f) start.draw(canvas.nativeCanvas, front, feather, keepLeft = false)
-                    if (p > 0f) end.draw(canvas.nativeCanvas, front, feather, keepLeft = true)
+                    // Opacidade total = p (como a letra); o peso passa do anel desfocado para o final.
+                    if (sharpOnly) {
+                        end.draw(canvas.nativeCanvas, p)
+                    } else {
+                        if (p < 1f) start.draw(canvas.nativeCanvas, p * (1f - p))
+                        end.draw(canvas.nativeCanvas, p * p)
+                    }
                 }
             }
         },
@@ -178,40 +181,27 @@ private fun rasterRing(scope: CacheDrawScope, bleed: Float, figmaBlur: Float): a
     bitmap
 }
 
-/**
- * Uma das imagens do anel, desenhada com a máscara da frente (sem camadas à parte). Só se pinta o
- * lado da frente onde a imagem se vê: cada frame pinta pouco mais do que a área do anel uma vez.
- */
+/** Uma das imagens do anel (desenhada uma vez), pintada com a opacidade de cada frame. */
 private class RingLayer(scope: CacheDrawScope, figmaBlur: Float, bleed: Float) {
     private val bounds = Rect(-bleed, -bleed, scope.size.width + bleed, scope.size.height + bleed)
-    private val image = android.graphics.BitmapShader(
-        rasterRing(scope, bleed, figmaBlur),
-        android.graphics.Shader.TileMode.CLAMP,
-        android.graphics.Shader.TileMode.CLAMP,
-    ).apply {
-        setLocalMatrix(
-            android.graphics.Matrix().apply {
-                setScale(1f / RingRasterScale, 1f / RingRasterScale)
-                postTranslate(-bleed, -bleed)
-            },
-        )
-    }
-    private val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-
-    fun draw(canvas: android.graphics.Canvas, front: Float, feather: Float, keepLeft: Boolean) {
-        // Fora da faixa da frente a máscara é 0 deste lado: não vale a pena pintar.
-        val left = if (keepLeft) bounds.left else maxOf(bounds.left, front - feather / 2f)
-        val right = if (keepLeft) minOf(bounds.right, front + feather / 2f) else bounds.right
-        if (right <= left) return
-        val visible = android.graphics.Color.BLACK
-        val hidden = android.graphics.Color.TRANSPARENT
-        val mask = android.graphics.LinearGradient(
-            front - feather / 2f, 0f, front + feather / 2f, 0f,
-            if (keepLeft) visible else hidden,
-            if (keepLeft) hidden else visible,
+    private val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+        shader = android.graphics.BitmapShader(
+            rasterRing(scope, bleed, figmaBlur),
             android.graphics.Shader.TileMode.CLAMP,
-        )
-        paint.shader = android.graphics.ComposeShader(image, mask, android.graphics.PorterDuff.Mode.DST_IN)
-        canvas.drawRect(left, bounds.top, right, bounds.bottom, paint)
+            android.graphics.Shader.TileMode.CLAMP,
+        ).apply {
+            setLocalMatrix(
+                android.graphics.Matrix().apply {
+                    setScale(1f / RingRasterScale, 1f / RingRasterScale)
+                    postTranslate(-bleed, -bleed)
+                },
+            )
+        }
+    }
+
+    fun draw(canvas: android.graphics.Canvas, alpha: Float) {
+        if (alpha <= 0.002f) return
+        paint.alpha = (alpha.coerceIn(0f, 1f) * 255).toInt()
+        canvas.drawRect(bounds.left, bounds.top, bounds.right, bounds.bottom, paint)
     }
 }

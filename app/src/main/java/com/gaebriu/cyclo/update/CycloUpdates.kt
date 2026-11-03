@@ -340,7 +340,7 @@ object CycloUpdates {
             if (version.isPrerelease && !acceptPrereleases) continue
             if (best != null && version <= best.version) continue
             val assets = release.optJSONArray("assets") ?: JSONArray()
-            // O .apk da release: de preferência o que tem a tag no nome (cyclo-beta-1.0.0.apk).
+            // O .apk da release (com.gaebriu.cyclo.apk; havendo mais do que um, o que tem a tag no nome).
             var apk: JSONObject? = null
             for (j in 0 until assets.length()) {
                 val asset = assets.optJSONObject(j) ?: continue

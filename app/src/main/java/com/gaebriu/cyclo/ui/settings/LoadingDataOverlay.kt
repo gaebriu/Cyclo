@@ -72,20 +72,23 @@ private val TextAboveRingCenter = 4.5.dp
 /** Duração das entradas e saídas do véu (o tempo de o Introduction 6 assentar no ecrã). */
 private const val VeilFadeMs = 320
 
+/** A pausa no fim, com o texto todo à vista, antes de o loading-data sair. */
+private const val ReadHoldMs = 450L
+
 /**
- * Quanto tempo o loading-data fica à vista, no mínimo: o véu a entrar, a animação inteira do
- * Introduction 6 (o atraso das letras e o "Hello!") e uma pausa curta para se ler. O ViewModel
- * espera isto antes de dizer que acabou ([com.gaebriu.cyclo.data.CycloViewModel.MinRestoreMs]).
+ * Quanto tempo o loading-data fica à vista, no mínimo, com o texto [text]: o véu a entrar, as
+ * letras com o ritmo do "Hello!" (mais letras, mais tempo) e uma pausa curta para se ler. O
+ * ViewModel espera isto antes de dar a mensagem de fim ([com.gaebriu.cyclo.data.CycloViewModel.confirmRestore]).
  */
-const val LoadingDataMinMs: Long = VeilFadeMs + CycloMotion.LettersStartDelayMs + CycloMotion.HelloDurationMs + 450L
+fun loadingDataMinMs(text: String): Long = VeilFadeMs + LetterRevealState(text).durationMs + ReadHoldMs
 
 /**
  * loading-data (Componentes, 80:726): enquanto os dados são repostos, tapa o ecrã com um véu
  * desfocado, o anel desfocado do Introduction 6 e "Bringing your data back…".
  *
- * A animação é a do Introduction 6, pela mesma ordem: primeiro o véu entra (como a página a
- * assentar); depois, com os mesmos tempos e curvas, as letras aparecem uma a uma ([LetterRevealText])
- * e o desfoque do anel revela-se da esquerda para a direita ([BlurredRing]). Só sai depois de a
+ * A animação é a do "Hello!" do Introduction 0, como no Introduction 6: primeiro o véu entra
+ * (como a página a assentar); depois as letras aparecem uma a uma com o ritmo e o desfoque do
+ * "Hello!" ([LetterRevealText]) e o anel aparece como uma letra ([BlurredRing]). Só sai depois de a
  * animação acabar (mesmo que os dados fiquem prontos antes): o texto, o anel e o véu desaparecem
  * juntos, devagar.
  *
@@ -126,9 +129,9 @@ fun LoadingDataOverlay(visible: Boolean, modifier: Modifier = Modifier) {
             launch {
                 if (effects.animationsEnabled) {
                     delay(CycloMotion.LettersStartDelayMs.toLong())
-                    ring.animateTo(1f, tween(CycloMotion.HelloDurationMs, easing = CycloMotion.Decelerate))
+                    ring.animateTo(1f, tween(LetterRevealState.LetterDurationMs, easing = CycloMotion.Decelerate))
                 } else {
-                    ring.snapTo(1f)
+                    ring.animateTo(1f, tween(CycloMotion.HintFadeDurationMs))
                 }
             }
         }
@@ -152,7 +155,8 @@ fun LoadingDataOverlay(visible: Boolean, modifier: Modifier = Modifier) {
         ) {
             // Cada um na sua camada: a frente do anel e o espaçamento das letras só redesenham o próprio.
             BlurredRing(
-                reveal = { if (effects.animationsEnabled) ring.value else 1f },
+                reveal = { ring.value },
+                sharpOnly = !effects.animationsEnabled,
                 modifier = Modifier.size(RingBox).graphicsLayer(),
             )
             LetterRevealText(

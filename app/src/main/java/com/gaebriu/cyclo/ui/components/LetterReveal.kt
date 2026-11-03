@@ -32,24 +32,34 @@ import kotlin.math.roundToInt
 /**
  * Estado da animação letra a letra do "header-big" do Introduction 0 ("Hello!"): cada letra
  * aparece com fade e desfoque 9 a 0, com um pequeno intervalo entre letras, enquanto o espaçamento
- * fecha de 15 % até zero. Também é usada no texto do Introduction 6.
+ * fecha de 15 % até zero. Também é usada no texto do Introduction 6 e do loading-data.
+ *
+ * O ritmo é sempre o do "Hello!": cada letra demora [LetterDurationMs] a aparecer e começa
+ * [CycloMotion.LetterStaggerMs] depois da anterior, seja qual for o comprimento do texto (um texto
+ * mais comprido demora mais, em vez de as letras ficarem mais rápidas). O "Hello!" (6 letras)
+ * dura exatamente o mesmo de antes: [CycloMotion.HelloDurationMs].
  */
 @Stable
 class LetterRevealState(val text: String) {
     internal val letters: List<Animatable<Float, AnimationVector1D>> = List(text.length) { Animatable(0f) }
     internal val spacing = Animatable(0f)
 
+    /** Do início da primeira letra ao fim da última (2 000 ms no "Hello!"). */
+    val revealMs: Int = CycloMotion.LetterStaggerMs * (text.length - 1).coerceAtLeast(0) + LetterDurationMs
+
+    /** Duração total de [play], com o atraso inicial. */
+    val durationMs: Int = CycloMotion.LettersStartDelayMs + revealMs
+
     /**
-     * Corre a animação inteira: começa ao fim de [CycloMotion.LettersStartDelayMs] e dura
-     * [CycloMotion.HelloDurationMs] (a última letra acaba exatamente nesse tempo).
+     * Corre a animação inteira: começa ao fim de [CycloMotion.LettersStartDelayMs]; o espaçamento
+     * fecha durante [revealMs] e a última letra acaba nesse tempo.
      */
     suspend fun play() {
-        val letterDuration = (CycloMotion.HelloDurationMs - CycloMotion.LetterStaggerMs * (letters.size - 1))
-            .coerceAtLeast(CycloMotion.LetterStaggerMs)
+        val letterDuration = LetterDurationMs
         coroutineScope {
             launch {
                 delay(CycloMotion.LettersStartDelayMs.toLong())
-                spacing.animateTo(1f, tween(CycloMotion.HelloDurationMs, easing = CycloMotion.Decelerate))
+                spacing.animateTo(1f, tween(revealMs, easing = CycloMotion.Decelerate))
             }
             letters.forEachIndexed { index, letter ->
                 launch {
@@ -61,8 +71,14 @@ class LetterRevealState(val text: String) {
     }
 
     companion object {
-        /** Duração total de [play], do início ao fim da última letra. */
-        const val TotalDurationMs = CycloMotion.LettersStartDelayMs + CycloMotion.HelloDurationMs
+        /**
+         * Quanto demora cada letra a aparecer: a das letras do "Hello!" (6 letras em
+         * [CycloMotion.HelloDurationMs], com [CycloMotion.LetterStaggerMs] entre elas = 1 500 ms).
+         */
+        const val LetterDurationMs = CycloMotion.HelloDurationMs - CycloMotion.LetterStaggerMs * 5
+
+        /** O tamanho do "Hello!" (header-big, 39): o desfoque das letras é proporcional a ele. */
+        const val HelloFontSizeSp = 39f
     }
 }
 
@@ -111,7 +127,10 @@ fun LetterRevealText(
                         val p = state.letters[index].value
                         alpha = p
                         renderEffect = if (effects.blurEnabled && effects.animationsEnabled && p < 1f) {
-                            val sigma = figmaBlurPx(FigmaBlur.HelloReveal) * (1f - p)
+                            // O desfoque 9 do "Hello!" à escala desta letra: num texto de 15 parece
+                            // igual ao do "Hello!" (antes ficava 2,6 vezes maior, e as letras eram manchas).
+                            val scale = style.fontSize.value / LetterRevealState.HelloFontSizeSp
+                            val sigma = figmaBlurPx(FigmaBlur.HelloReveal) * scale * (1f - p)
                             BlurEffect(sigma, sigma, TileMode.Decal)
                         } else {
                             null
