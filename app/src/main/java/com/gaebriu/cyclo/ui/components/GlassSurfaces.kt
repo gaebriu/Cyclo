@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSampler
+import com.gaebriu.cyclo.ui.effects.cycloLightSheen
 import com.gaebriu.cyclo.ui.effects.drawBackdrop
 import com.gaebriu.cyclo.ui.effects.drawBlurredPath
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
@@ -69,7 +70,7 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
         drawPath(shape, CycloColors.GlassFill, blendMode = blend)
         drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx()), 15.dp.toPx())
         drawInsideBorder(cornerRadius.toPx(), glassBorderBrush(), blend)
-    }
+    }.cycloLightSheen(cornerRadius, strength = 0.8f)
 }
 
 /**

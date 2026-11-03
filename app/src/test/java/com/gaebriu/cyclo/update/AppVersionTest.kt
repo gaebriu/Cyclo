@@ -51,6 +51,8 @@ class AppVersionTest {
     @Test
     fun twoPartTags() {
         assertEquals("Beta 1.1", v("beta-1.1").label())
+        assertEquals("Beta 1.2", v("beta-1.2").label())
+        assertTrue(v("beta-1.2") > v("beta-1.1"))
         assertEquals("Beta 1.0", v("beta-1.0").label())
         assertTrue(v("beta-1.1") > v("beta-1.0.0"))
         // O .apk da beta-1.0 (versionName beta-1.0.0) continua a ser a versão da tag beta-1.0.

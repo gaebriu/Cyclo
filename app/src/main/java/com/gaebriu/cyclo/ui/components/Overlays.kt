@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.main.excludeFromPageSwipe
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloSprings
@@ -67,20 +68,30 @@ fun AnchoredMenuHost(
     content: @Composable () -> Unit,
 ) {
     val effects = LocalVisualEffects.current
+    // Largura (e opacidade) e altura têm molas próprias: a abrir, o menu escorre do campo (a altura
+    // chega um pouco depois da largura e assenta com um ressalto pequeno, como um líquido); a
+    // fechar, recolhe primeiro na altura, depressa e sem ressalto.
     val progress = remember { Animatable(0f) }
+    val progressY = remember { Animatable(0f) }
     LaunchedEffect(visible) {
+        val target = if (visible) 1f else 0f
+        launch { progressY.animateTo(target, if (visible) CycloSprings.MenuPour.float else CycloSprings.MenuRetract.float) }
         // A abrir, uma mola com um ressalto muito leve; a fechar, mais rápida e sem ressalto.
-        progress.animateTo(
-            if (visible) 1f else 0f,
-            if (visible) CycloMotion.MenuOpenSpring else CycloMotion.MenuCloseSpring,
-        )
+        progress.animateTo(target, if (visible) CycloMotion.MenuOpenSpring else CycloMotion.MenuCloseSpring)
     }
     // Onde o host está na janela, para passar o [anchor] para as coordenadas dele.
     var hostOrigin by remember { mutableStateOf(Offset.Zero) }
     // Já saiu por completo: não existe.
-    if (!visible && progress.value <= 0f) return
+    if (!visible && progress.value <= 0f && progressY.value <= 0f) return
 
-    Box(modifier = modifier.fillMaxSize().onGloballyPositioned { hostOrigin = it.positionInWindow() }) {
+    // Aberto, o ecrã todo é do menu: arrastar na horizontal não muda de página por baixo dele
+    // (antes, um dedo a deslizar no menu do Feed levava a página para as rotinas guardadas).
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .excludeFromPageSwipe()
+            .onGloballyPositioned { hostOrigin = it.positionInWindow() },
+    ) {
         // Apanha os toques fora do menu.
         Box(
             modifier = Modifier
@@ -99,9 +110,8 @@ fun AnchoredMenuHost(
                         transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0f)
                         alpha = p
                         if (effects.animationsEnabled) {
-                            val scale = lerp(CycloMotion.MenuStartScale, 1f, raw.coerceAtLeast(0f))
-                            scaleX = scale
-                            scaleY = scale
+                            scaleX = lerp(CycloMotion.MenuStartScale, 1f, raw.coerceAtLeast(0f))
+                            scaleY = lerp(MenuStartScaleY, 1f, progressY.value.coerceAtLeast(0f))
                             // Ligeiro desfoque a abrir e a fechar (6 a 0), como os textos a aparecer.
                             val sigma = figmaBlurPx(FigmaBlur.MenuReveal) * (1f - p)
                             renderEffect = if (effects.blurEnabled && sigma > 0.5f) {
@@ -183,7 +193,8 @@ fun BottomSheetHost(
     }
     if (!visible && position.value >= 1f && (effects.animationsEnabled || fade.value <= 0f)) return
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // Aberta, o ecrã todo é da folha (como nos menus): o swipe das páginas não começa por baixo dela.
+    Box(modifier = modifier.fillMaxSize().excludeFromPageSwipe()) {
         // Apanha os toques fora da folha.
         Box(
             modifier = Modifier
@@ -199,7 +210,22 @@ fun BottomSheetHost(
                 .graphicsLayer {
                     val distance = size.height + marginPx
                     val p = position.value
-                    translationY = if (p >= 0f) p * distance else -rubberBand(-p * distance, size.height)
+                    if (p >= 0f) {
+                        translationY = p * distance
+                    } else {
+                        // Para cima (dedo ou o ressalto da abertura): parte sobe, parte estica a
+                        // partir da base, e afina um pouco na largura (o volume mantém-se).
+                        val pull = rubberBand(-p * distance, size.height)
+                        val stretch = if (effects.animationsEnabled && size.height > 0f) {
+                            (pull * SheetStretchShare / size.height).coerceAtMost(SheetMaxStretch)
+                        } else {
+                            0f
+                        }
+                        translationY = -(pull - stretch * size.height)
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                        scaleY = 1f + stretch
+                        scaleX = 1f - stretch * 0.3f
+                    }
                     // Opaca a partir de um terço da subida: o vidro não fica meio transparente.
                     alpha = ((1f - p.coerceAtLeast(0f)) / 0.33f).coerceIn(0f, 1f) * fade.value
                 }
@@ -229,6 +255,18 @@ fun BottomSheetHost(
         ) { content() }
     }
 }
+
+/** Altura de que os menus partem (a largura parte de [CycloMotion.MenuStartScale]): escorrem do campo. */
+private const val MenuStartScaleY = 0.8f
+
+/**
+ * Quanto da resistência de uma folha puxada para cima (ou do ressalto ao abrir) é esticar em vez
+ * de subir: a folha estica-se a partir da base, como gel, em vez de só deslizar.
+ */
+private const val SheetStretchShare = 0.45f
+
+/** Quanto do ecrã a folha pode esticar, no máximo (fração da altura dela). */
+private const val SheetMaxStretch = 0.04f
 
 /** Quanto do caminho arrastar uma folha para baixo a fecha ao largar (~80 dp na folha do GitHub). */
 private const val DismissFraction = 0.3f

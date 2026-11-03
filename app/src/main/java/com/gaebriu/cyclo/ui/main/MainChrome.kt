@@ -271,12 +271,21 @@ fun MainNavigationBar(
             .drawBehind {
                 // feed-icon-background: #313233 a 39 % em Luminosity.
                 val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
-                val x = lerp(IndicatorInset.toPx(), SecondIndicatorStart.toPx(), pagePosition().coerceIn(0f, 1f))
+                val p = pagePosition().coerceIn(0f, 1f)
+                val x = lerp(IndicatorInset.toPx(), SecondIndicatorStart.toPx(), p)
+                // A meio caminho entre os dois separadores, a pílula estica-se na largura e afina
+                // na altura (uma gota a passar de um lado para o outro); nos separadores tem a
+                // forma do Figma. Segue a mesma posição contínua (dedo, toque, voltar).
+                val stretch = if (effects.animationsEnabled) kotlin.math.sin(p * kotlin.math.PI.toFloat()) else 0f
+                val width = IndicatorWidth.toPx() * (1f + IndicatorStretchX * stretch)
+                val height = IndicatorHeight.toPx() * (1f - IndicatorSquashY * stretch)
+                val left = x + (IndicatorWidth.toPx() - width) / 2f
+                val top = IndicatorInset.toPx() + (IndicatorHeight.toPx() - height) / 2f
                 drawRoundRect(
                     color = CycloColors.GlassBorder,
                     alpha = 0.39f,
-                    topLeft = Offset(x, IndicatorInset.toPx()),
-                    size = Size(IndicatorWidth.toPx(), IndicatorHeight.toPx()),
+                    topLeft = Offset(left, top),
+                    size = Size(width, height),
                     cornerRadius = CornerRadius(NavigationBarRadius.toPx()),
                     blendMode = blend,
                 )
@@ -328,3 +337,9 @@ private fun NavigationItem(
 
 /** Espaço a reservar por baixo do conteúdo para a barra de navegação não o tapar no fim do scroll. */
 fun navigationBarReserve(bottomInset: Dp): Dp = bottomInset + NavigationBarHeight + CycloDimens.ScreenMargin
+
+/** Quanto a pílula da barra de navegação estica na largura a meio da passagem entre separadores. */
+private const val IndicatorStretchX = 0.22f
+
+/** Quanto a mesma pílula afina na altura a meio da passagem (o volume parece manter-se). */
+private const val IndicatorSquashY = 0.08f

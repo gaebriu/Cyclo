@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
+import com.gaebriu.cyclo.ui.effects.cycloLightSheen
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloType
@@ -154,7 +155,9 @@ private fun CycloButtonSurface(
                     style = Stroke(width = strokeWidth),
                     blendMode = blend,
                 )
-            },
+            }
+            // Vidro (Next): a luz segue o dedo, como nos menus. O botão roxo é opaco e fica igual.
+            .then(if (style.luminosity) Modifier.cycloLightSheen(style.cornerRadius, strength = 0.8f) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         BasicText(text = text, style = CycloType.Button)

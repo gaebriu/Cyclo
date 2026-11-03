@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -40,7 +41,11 @@ import com.gaebriu.cyclo.data.RoutineDraft
 import com.gaebriu.cyclo.ui.components.CycloGlassButton
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
 import com.gaebriu.cyclo.ui.components.MaxRoutineNameLength
+import com.gaebriu.cyclo.ui.effects.Backdrop
+import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.backdropSource
+import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.routine.RepeatOption
 import com.gaebriu.cyclo.ui.routine.rememberRepeatSelection
 import com.gaebriu.cyclo.ui.theme.CycloColors
@@ -294,7 +299,12 @@ fun IntroductionFlow(
                     // Impede que os toques passem para o ecrã que está por baixo.
                     .pointerInput(Unit) { detectTapGestures { } },
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
+                // O que fica por baixo dos menus da repetição (action-menu-when-to-show e
+                // action-menu-big-choose-days), que o desfocam como os menus das definições. É a
+                // Column e não esta Box: os menus estão dentro da Box e não podem usar uma camada
+                // que os contenha. Tutorial e editor são este mesmo código: o desfoque é igual.
+                val pagesBackdrop = rememberBackdropLayer()
+                Column(modifier = Modifier.fillMaxSize().backdropSource(pagesBackdrop)) {
                     // FIXO: botão de cima e barra de progresso.
                     IntroTopBar(
                         leadingIsBack = step > firstPage,
@@ -444,7 +454,9 @@ fun IntroductionFlow(
                 }
 
                 // Menus por cima de tudo (também do Next).
-                RepeatOverlays(selection = repeat, bottomMargin = bottomInset)
+                CompositionLocalProvider(LocalBackdrop provides Backdrop.of(pagesBackdrop)) {
+                    RepeatOverlays(selection = repeat, bottomMargin = bottomInset)
+                }
             }
         }
     }

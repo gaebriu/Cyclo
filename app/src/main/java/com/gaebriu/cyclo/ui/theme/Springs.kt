@@ -118,6 +118,38 @@ object CycloSprings {
 
     /** O conteúdo do loading-data (argola e texto) a sair: mais rápido do que o véu, sem ressalto. */
     val ContentOut = CycloSpring(response = 0.4f, dampingFraction = 1f)
+
+    /*
+     * Gel (toque como um material flexível, ver components/Pressable.kt). Cada eixo tem a sua mola,
+     * com uma ligeira diferença de fase: é essa diferença que se lê como gelatina.
+     */
+
+    /** Gel a comprimir na largura: imediato, sem ressalto (o dedo carrega). */
+    val GelPressX = CycloSpring(response = 0.2f, dampingFraction = 1f)
+
+    /** Gel a comprimir na altura: um pouco atrás da largura. */
+    val GelPressY = CycloSpring(response = 0.24f, dampingFraction = 1f)
+
+    /** Gel a recuperar na largura: passa um pouco da forma original e volta (ressalto controlado). */
+    val GelReleaseX = CycloSpring(response = 0.34f, dampingFraction = 0.58f)
+
+    /** Gel a recuperar na altura: mais lento e um pouco mais solto do que a largura. */
+    val GelReleaseY = CycloSpring(response = 0.4f, dampingFraction = 0.54f)
+
+    /** O reflexo de luz a seguir o dedo: quase imediato, só alisa o movimento (não é um cursor). */
+    val LightFollow = CycloSpring(response = 0.14f, dampingFraction = 1f)
+
+    /** O reflexo de luz a acender (dedo a tocar). */
+    val LightIn = CycloSpring(response = 0.22f, dampingFraction = 1f)
+
+    /** O reflexo de luz a apagar (dedo a sair): mais lento, como a luz a dissipar-se. */
+    val LightOut = CycloSpring(response = 0.5f, dampingFraction = 1f)
+
+    /** Menus (action-menu) a abrir na altura: escorrem do campo um pouco depois da largura. */
+    val MenuPour = CycloSpring(response = 0.36f, dampingFraction = 0.74f)
+
+    /** Menus (action-menu) a fechar na altura: recolhem um pouco antes da largura. */
+    val MenuRetract = fromStiffness(900f, Spring.DampingRatioNoBouncy)
 }
 
 /**

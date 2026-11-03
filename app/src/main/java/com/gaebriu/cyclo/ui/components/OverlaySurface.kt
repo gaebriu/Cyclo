@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSampler
+import com.gaebriu.cyclo.ui.effects.cycloLightSheen
 import com.gaebriu.cyclo.ui.effects.drawBackdrop
 import com.gaebriu.cyclo.ui.effects.drawBlurredPath
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
@@ -24,7 +25,8 @@ import com.gaebriu.cyclo.ui.theme.FigmaBlur
  * Fundo dos menus, das folhas e da barra de baixo (undo-action, e os derivados action-menu,
  * action-menu-when-to-show e action-menu-big): #101011 em Luminosity sobre o desfoque de fundo
  * 39, brilho exterior (0, 0, desfoque 9) e duas sombras interiores (0, ±2, desfoque 2), todos em
- * #A3A2A7. Sem contorno (a borda de 1 dp foi retirada a pedido).
+ * #A3A2A7. Sem contorno (a borda de 1 dp foi retirada a pedido). Com o dedo em cima, a luz
+ * segue-o ([cycloLightSheen]).
  *
  * O desfoque usa o que está por trás ([LocalBackdrop]); sem desfoque nas definições, fica sólido.
  */
@@ -50,5 +52,5 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius): M
         // Sombras interiores, em cima e em baixo.
         drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, -2.dp.toPx()), 2.dp.toPx())
         drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, 2.dp.toPx()), 2.dp.toPx())
-    }
+    }.cycloLightSheen(cornerRadius)
 }
