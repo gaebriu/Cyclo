@@ -29,6 +29,7 @@ class BackupTest {
         chronotype = Chronotype.NightOwl,
         fallAsleep = FallAsleepTime.ThirtyOrMore,
         bedtimeReminder = false,
+        feedOrder = listOf(FeedSection.Feeling, FeedSection.Caffeine, FeedSection.SleepFactors),
     )
     private val exportedAt = Instant.parse("2026-11-02T21:00:00Z")
 
@@ -46,6 +47,19 @@ class BackupTest {
         assertEquals(FallAsleepTime.ThirtyOrMore, c.fallAsleep)
         assertEquals(false, c.bedtimeReminder)
         assertEquals(exportedAt, c.exportedAt)
+        assertEquals(data.feedOrder, c.feedOrder)
+    }
+
+    @Test
+    fun feedOrderIsOptionalAndNormalized() {
+        // Sem ordem (cópias antigas): fica a atual.
+        val old = buildBackupJson(data, exportedAt, "x").replace(Regex(""",\s*"feedOrder": \[[^\]]*\]"""), "")
+        assertNull(valid(old).feedOrder)
+        // Nomes desconhecidos saem; os que faltam vão para o fim; repetidos contam uma vez.
+        assertEquals(
+            listOf(FeedSection.Feeling, FeedSection.Caffeine, FeedSection.SleepFactors),
+            normalizeFeedOrder(listOf(FeedSection.Feeling, FeedSection.Feeling)),
+        )
     }
 
     @Test

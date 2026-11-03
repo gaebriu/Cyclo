@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- As línguas do Cyclo, para a escolha por app nas definições do Android (Sistema > Línguas). -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="pt-PT" />
+</locale-config>

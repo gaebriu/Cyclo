@@ -131,6 +131,9 @@ fun RollingText(text: String, style: TextStyle, direction: Int, modifier: Modifi
         BasicText(
             text = current,
             style = centered,
+            // Uma hora nunca se parte em duas linhas (com letra grande, a linha de horas é que
+            // passa para baixo; ver BedtimeRow).
+            softWrap = false,
             modifier = Modifier
                 .clearAndSetSemantics { }
                 .graphicsLayer {

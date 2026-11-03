@@ -1,84 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        Texto dos widgets: a fonte do sistema (TextAppearance.DeviceDefault, a do aparelho), com os
-        pesos do Cyclo (Medium 500 nos valores, SemiBold 600 nos nomes e na hora grande). A app
-        continua com a Inter; os widgets vivem no ecrã principal e seguem a fonte dele.
+        Textos das pré-visualizações na lista de widgets do lançador (TextViews): a fonte do
+        sistema, porque o lançador não carrega as fontes da app nos widgets. Os widgets a sério são
+        desenhados com a Inter (ver widget/WidgetCanvas.kt). Medidas do Figma (Componentes 4).
     -->
-    <style name="CycloWidgetText">
-        <item name="android:textAppearance">@android:style/TextAppearance.DeviceDefault</item>
-        <item name="android:ellipsize">end</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:includeFontPadding">false</item>
-        <item name="android:maxLines">1</item>
-        <item name="android:textColor">#FCFCFE</item>
-        <item name="android:textFontWeight">500</item>
-    </style>
-
-    <!-- Valores das linhas (como o CardValue dos cartões, mais compacto): 13 sp, 16 dp de altura. -->
-    <style name="CycloWidgetValue" parent="CycloWidgetText">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">16dp</item>
-        <item name="android:textSize">13sp</item>
-    </style>
-
-    <!-- Valores do widget pequeno: 12 sp. -->
-    <style name="CycloWidgetValue.Small">
-        <item name="android:textSize">12sp</item>
-    </style>
-
-    <!-- Nome da rotina (como o CardTitle): SemiBold. -->
-    <style name="CycloWidgetName" parent="CycloWidgetText">
-        <item name="android:layout_width">match_parent</item>
+    <style name="CycloWidgetPreviewText">
+        <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">18dp</item>
-        <item name="android:textFontWeight">600</item>
-        <item name="android:textSize">14sp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">#FCFCFE</item>
+        <item name="android:textSize">15dp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:includeFontPadding">false</item>
     </style>
 
-    <!-- Rótulo por cima da hora grande ("In bed by"): #A3A2A7. -->
-    <style name="CycloWidgetLabel" parent="CycloWidgetValue">
-        <item name="android:textColor">#A3A2A7</item>
-    </style>
-
-    <!-- A hora grande: SemiBold, encolhe sozinha para caber na largura (autoSize). -->
-    <style name="CycloWidgetHero" parent="CycloWidgetText">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">match_parent</item>
-        <item name="android:textFontWeight">600</item>
-        <item name="android:autoSizeTextType">uniform</item>
-        <item name="android:autoSizeMinTextSize">14sp</item>
-        <item name="android:autoSizeMaxTextSize">30sp</item>
-        <item name="android:autoSizeStepGranularity">1sp</item>
-    </style>
-
-    <!-- Ícones das linhas: 13 dp (12 no pequeno), a 6 dp do texto. -->
-    <style name="CycloWidgetIcon">
-        <item name="android:layout_width">13dp</item>
-        <item name="android:layout_height">13dp</item>
-        <item name="android:layout_marginEnd">6dp</item>
+    <style name="CycloWidgetPreviewIcon">
+        <item name="android:layout_width">15dp</item>
+        <item name="android:layout_height">15dp</item>
         <item name="android:importantForAccessibility">no</item>
     </style>
 
-    <style name="CycloWidgetIcon.Small">
-        <item name="android:layout_width">12dp</item>
-        <item name="android:layout_height">12dp</item>
-        <item name="android:layout_marginEnd">5dp</item>
-    </style>
-
-    <!-- Uma linha (ícone e valor). -->
-    <style name="CycloWidgetRow">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">16dp</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:orientation">horizontal</item>
-    </style>
-
-    <!-- ViewFlipper de uma linha: a hora nova entra por baixo, a antiga sai por cima. -->
-    <style name="CycloWidgetFlipper">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">match_parent</item>
+    <!-- Uma hora do Wake Time Widget: a nova entra por baixo, a antiga sai por cima. -->
+    <style name="CycloWidgetSlot">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">18dp</item>
+        <item name="android:layout_gravity">top|start</item>
         <item name="android:inAnimation">@anim/widget_time_in</item>
         <item name="android:outAnimation">@anim/widget_time_out</item>
-        <item name="android:measureAllChildren">true</item>
+        <item name="android:importantForAccessibility">no</item>
+    </style>
+
+    <style name="CycloWidgetSlotText">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:scaleType">fitXY</item>
+        <item name="android:importantForAccessibility">no</item>
     </style>
 </resources>

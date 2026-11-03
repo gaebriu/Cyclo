@@ -88,6 +88,19 @@ import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
+import com.gaebriu.cyclo.ui.theme.CycloSprings
+import com.gaebriu.cyclo.ui.components.ReorderableColumn
+import com.gaebriu.cyclo.ui.effects.ShatterOverlay
+import com.gaebriu.cyclo.ui.effects.ShatterState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.runtime.rememberUpdatedState
@@ -120,6 +133,12 @@ private const val SearchFinishDelayMs = 350L
  * botões apagar, widget, editar e ligar/desligar. As rotinas desligadas ficam veladas (o véu
  * aparece e desaparece com uma mola), menos os botões.
  *
+ * - Long press num cartão e arrastar muda a ordem (ver [ReorderableColumn]); a nova ordem guarda-se
+ *   ao largar ([onReorder]). Com uma pesquisa escrita não se reordena (a lista está filtrada).
+ * - Apagar: o cartão parte-se em partículas a partir do botão de apagar ([ShatterOverlay]) e os de
+ *   baixo sobem para o lugar dele, em cascata. Repor (o "Undo"): volta com zoom, opacidade e um
+ *   ligeiro overshoot, e os de baixo descem para lhe dar lugar.
+ *
  * Com a pesquisa aberta ([searchOpen]), a caixa de pesquisa (search-box) aparece no topo da lista
  * e só ficam os cartões com o texto no nome. [onSearchFinished] avisa quando se acaba de escrever
  * (quem mostra decide se a caixa fecha).
@@ -136,184 +155,159 @@ fun SavedRoutinesScreen(
     onEdit: (Routine) -> Unit,
     onToggleActive: (Routine) -> Unit,
     onAddWidget: (Routine) -> Unit,
+    onReorder: (List<Routine>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val effects = LocalVisualEffects.current
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
     val search = animateFloatAsState(
         targetValue = if (searchOpen) 1f else 0f,
         animationSpec = CycloMotion.SearchSpring,
         label = "search",
     )
-    val cards = remember { CardListMemory() }
-    // Muda quando um cartão apagado acaba de sair (para o tirar da lista).
-    var settled by remember { mutableIntStateOf(0) }
-    val entries = remember(routines, settled) { cards.entries(routines) }
-    val visible = remember(entries, query, searchOpen) {
+    val returning = remember { ReturningCards() }
+    val entering = remember(routines) { returning.update(routines) }
+    val filtering = searchOpen && query.isNotBlank()
+    val visible = remember(routines, query, searchOpen) {
         val q = query.trim()
-        if (!searchOpen || q.isEmpty()) entries else entries.filter { it.routine.name.contains(q, ignoreCase = true) }
+        if (!filtering) routines else routines.filter { it.name.contains(q, ignoreCase = true) }
     }
+    val shatter = remember { ShatterState() }
+    val overlayCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val scroll = rememberScrollState()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .cycloVerticalScroll(rememberScrollState())
-            // O espaço entre cartões vai dentro de cada um (encolhe com ele ao sair): tira-se o do último.
-            .padding(top = SavedContentTop, bottom = (bottomReserve - CycloDimens.Spacing).coerceAtLeast(0.dp)),
-    ) {
-        if (searchOpen || search.value > 0f) {
-            SearchBox(
-                query = query,
-                onQueryChange = onQueryChange,
-                onFinished = onSearchFinished,
-                open = searchOpen,
-                progress = { search.value },
-            )
-        }
-        Column(modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin)) {
-            visible.forEach { entry ->
-                val routine = entry.routine
-                key(routine.id) {
-                    AnimatedCard(
-                        leaving = entry.leaving,
-                        entering = cards.consumeEntering(routine.id),
-                        onGone = {
-                            if (cards.finishLeaving(routine.id)) settled++
-                        },
-                    ) {
-                        // A sair, a rotina já não existe: os botões não fazem nada (além de não
-                        // receberem toques), para não apagar ou editar uma rotina que já lá não está.
-                        val live = !entry.leaving
+    Box(modifier = modifier.fillMaxSize().onGloballyPositioned { overlayCoordinates[0] = it }) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .cycloVerticalScroll(scroll)
+                // O espaço entre cartões vai dentro de cada um (encolhe com ele ao sair): tira-se o do último.
+                .padding(top = SavedContentTop, bottom = (bottomReserve - CycloDimens.Spacing).coerceAtLeast(0.dp)),
+        ) {
+            if (searchOpen || search.value > 0f) {
+                SearchBox(
+                    query = query,
+                    onQueryChange = onQueryChange,
+                    onFinished = onSearchFinished,
+                    open = searchOpen,
+                    progress = { search.value },
+                )
+            }
+            ReorderableColumn(
+                items = visible,
+                key = { it.id },
+                onReorder = { ordered -> if (ordered.map { it.id } != routines.map { it.id }) onReorder(ordered) },
+                moveUpLabel = stringResource(R.string.reorder_move_up),
+                moveDownLabel = stringResource(R.string.reorder_move_down),
+                enabled = !filtering,
+                scrollState = scroll,
+                modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin),
+            ) { routine, handle ->
+                val snapshot = rememberGraphicsLayer()
+                val cardCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+                Column {
+                    PoppingIn(entering = routine.id in entering, onStarted = { entering -= routine.id }) {
                         RoutineCard(
                             routine = routine,
-                            onDelete = { if (live) onDelete(routine) },
-                            onEdit = { if (live) onEdit(routine) },
-                            onToggleActive = { if (live) onToggleActive(routine) },
-                            onAddWidget = { if (live) onAddWidget(routine) },
+                            modifier = Modifier
+                                .then(handle)
+                                .onGloballyPositioned { cardCoordinates[0] = it }
+                                // O cartão desenha-se numa camada que também serve de fotografia
+                                // para as partículas, ao apagar.
+                                .drawWithContent {
+                                    snapshot.record { this@drawWithContent.drawContent() }
+                                    drawLayer(snapshot)
+                                },
+                            onDelete = {
+                                val card = cardCoordinates[0]?.takeIf { it.isAttached }
+                                val overlay = overlayCoordinates[0]?.takeIf { it.isAttached }
+                                if (!effects.animationsEnabled || card == null || overlay == null) {
+                                    onDelete(routine)
+                                } else {
+                                    scope.launch {
+                                        val image = snapshot.toImageBitmap()
+                                        val topLeft = overlay.localPositionOf(card, Offset.Zero)
+                                        // As partículas partem do botão de apagar (o primeiro dos quatro).
+                                        val origin = with(density) {
+                                            Offset(
+                                                card.size.width - (CardPadding + ActionButtonSize * 4 + 15.dp * 3 - ActionButtonSize / 2).toPx(),
+                                                card.size.height - (CardPadding + ActionButtonSize / 2).toPx(),
+                                            )
+                                        }
+                                        shatter.burst(image, topLeft, origin, density)
+                                        CycloHaptics.shatter(view)
+                                        returning.removed += routine.id
+                                        onDelete(routine)
+                                    }
+                                }
+                            },
+                            onEdit = { onEdit(routine) },
+                            onToggleActive = { onToggleActive(routine) },
+                            onAddWidget = { onAddWidget(routine) },
                         )
                     }
+                    Spacer(Modifier.height(CycloDimens.Spacing))
                 }
             }
         }
+        ShatterOverlay(shatter, Modifier.fillMaxSize())
     }
 }
 
-/** Um cartão na lista: a rotina e se está a sair (já foi apagada). */
-@Immutable
-private class CardEntry(val routine: Routine, val leaving: Boolean)
-
 /**
- * Memória da lista de cartões, para animar quem sai e quem volta. Não é estado do Compose: só muda
- * quando a lista de rotinas muda (ou quando um cartão acaba de sair), dentro do `remember` que a lê.
- *
- * - Uma rotina que desaparece da lista foi apagada: fica no lugar que tinha, a sair (zoom out).
- * - Uma rotina apagada que volta (o "Undo") entra com zoom in. As rotinas novas e a primeira
- *   composição não animam.
+ * Memória das rotinas apagadas neste ecrã, para que uma que volte (o "Undo") entre com zoom. Não é
+ * estado do Compose: só muda quando a lista de rotinas muda, dentro do `remember` que a lê.
  */
-private class CardListMemory {
-    private var previous: List<Routine>? = null
+private class ReturningCards {
+    private var previous: Set<Long>? = null
 
-    /** Apagadas e ainda a sair: o lugar que tinham e a rotina. */
-    private val leaving = LinkedHashMap<Long, Pair<Int, Routine>>()
+    /** Ids apagados neste ecrã. */
+    val removed = HashSet<Long>()
 
-    /** Ids apagados neste ecrã: se voltarem, entram com zoom in. */
-    private val removed = HashSet<Long>()
-
-    /** Ids que voltaram e ainda não começaram a entrar. */
-    private val entering = HashSet<Long>()
-
-    fun entries(routines: List<Routine>): List<CardEntry> {
+    /** As rotinas que acabaram de voltar (entram com zoom uma vez). */
+    fun update(routines: List<Routine>): MutableSet<Long> {
+        val ids = routines.mapTo(HashSet()) { it.id }
         val before = previous
-        if (before != null && before !== routines) {
-            val ids = routines.mapTo(HashSet()) { it.id }
-            val beforeIds = before.mapTo(HashSet()) { it.id }
-            before.forEachIndexed { index, routine ->
-                if (routine.id !in ids) {
-                    leaving[routine.id] = index to routine
-                    removed += routine.id
-                }
-            }
-            routines.forEach { routine ->
-                if (routine.id !in beforeIds && routine.id in removed) {
-                    removed -= routine.id
-                    // Ainda a sair: o mesmo cartão volta a entrar de onde está.
-                    if (leaving.remove(routine.id) == null) entering += routine.id
-                }
-            }
-        }
-        previous = routines
-        val list = routines.mapTo(ArrayList()) { CardEntry(it, leaving = false) }
-        leaving.values.sortedBy { it.first }.forEach { (index, routine) ->
-            list.add(index.coerceAtMost(list.size), CardEntry(routine, leaving = true))
-        }
-        return list
+        previous = ids
+        if (before == null) return HashSet()
+        val back = ids.filterTo(HashSet()) { it !in before && it in removed }
+        removed -= back
+        return back
     }
-
-    /** Se o cartão [id] deve entrar com zoom in (só uma vez). */
-    fun consumeEntering(id: Long): Boolean = entering.remove(id)
-
-    /** O cartão apagado [id] acabou de sair. true se saiu da lista (é preciso recompor). */
-    fun finishLeaving(id: Long): Boolean = leaving.remove(id) != null
 }
 
 /**
- * Apagar e repor uma rotina: o cartão sai com zoom out (fade e o lugar a fechar) e volta com zoom in,
- * com as molas dos menus (abre com um ressalto muito leve, fecha mais rápido e sem ressalto).
- * Sem animações no sistema, só fade. A sair, o cartão já não reage a toques nem ao TalkBack (a
- * rotina já não existe).
+ * Um cartão que volta (o "Undo"): zoom de 90 % com opacidade, e a mola [CycloSprings.PopIn] passa
+ * um pouco do tamanho final e volta (overshoot controlado), com o háptico a acompanhar. Sem
+ * animações, aparece logo.
  */
 @Composable
-private fun AnimatedCard(
-    leaving: Boolean,
-    entering: Boolean,
-    onGone: () -> Unit,
-    content: @Composable () -> Unit,
-) {
+private fun PoppingIn(entering: Boolean, onStarted: () -> Unit, content: @Composable () -> Unit) {
     val effects = LocalVisualEffects.current
-    val state = remember { MutableTransitionState(!entering) }
-    state.targetState = !leaving
-    val latestOnGone by rememberUpdatedState(onGone)
-    if (leaving && state.isIdle && !state.currentState) {
-        LaunchedEffect(Unit) { latestOnGone() }
-    }
-    val enter = if (effects.animationsEnabled) {
-        scaleIn(CycloMotion.MenuOpenSpring, initialScale = CycloMotion.MenuStartScale) +
-            fadeIn(CycloMotion.MenuOpenSpring) +
-            expandVertically(CardSizeOpenSpring, expandFrom = Alignment.CenterVertically)
-    } else {
-        fadeIn(CycloMotion.FadeSpring)
-    }
-    val exit = if (effects.animationsEnabled) {
-        scaleOut(CycloMotion.MenuCloseSpring, targetScale = CycloMotion.MenuStartScale) +
-            fadeOut(CycloMotion.MenuCloseSpring) +
-            shrinkVertically(CardSizeCloseSpring, shrinkTowards = Alignment.CenterVertically)
-    } else {
-        fadeOut(CycloMotion.FadeSpring)
-    }
-    AnimatedVisibility(visibleState = state, enter = enter, exit = exit) {
-        Column(
-            modifier = if (leaving) {
-                Modifier
-                    .clearAndSetSemantics { }
-                    .pointerInput(Unit) {
-                        // Engole todos os toques antes de chegarem aos botões.
-                        awaitPointerEventScope {
-                            while (true) {
-                                awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
-                            }
-                        }
-                    }
-            } else {
-                Modifier
-            },
-        ) {
-            content()
-            Spacer(Modifier.height(CycloDimens.Spacing))
+    val view = LocalView.current
+    val pop = remember { Animatable(if (entering && effects.animationsEnabled) 0f else 1f) }
+    val latestOnStarted by rememberUpdatedState(onStarted)
+    LaunchedEffect(Unit) {
+        if (pop.value < 1f) {
+            latestOnStarted()
+            CycloHaptics.popIn(view)
+            pop.animateTo(1f, CycloSprings.PopIn.float)
         }
     }
+    Box(
+        modifier = Modifier.graphicsLayer {
+            val p = pop.value
+            val scale = lerp(CycloMotion.MenuStartScale, 1f, p)
+            scaleX = scale
+            scaleY = scale
+            alpha = p.coerceIn(0f, 1f)
+        },
+    ) {
+        content()
+    }
 }
-
-/** O lugar do cartão a abrir e a fechar, ao ritmo do zoom ([CycloMotion.MenuOpenSpring] e [CycloMotion.MenuCloseSpring]). */
-private val CardSizeOpenSpring = spring(dampingRatio = 0.78f, stiffness = 520f, visibilityThreshold = IntSize.VisibilityThreshold)
-private val CardSizeCloseSpring = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 700f, visibilityThreshold = IntSize.VisibilityThreshold)
 
 /**
  * search-box: a caixa de escrever/ditar com "What are you looking for?", com o vidro do Figma
@@ -397,6 +391,7 @@ private fun Modifier.layoutHeightFraction(fraction: () -> Float): Modifier =
 @Composable
 private fun RoutineCard(
     routine: Routine,
+    modifier: Modifier = Modifier,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onToggleActive: () -> Unit,
@@ -413,14 +408,17 @@ private fun RoutineCard(
     val stateText = stringResource(if (routine.active) R.string.saved_state_on else R.string.saved_state_off)
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .height(CardHeight)
+            // Com letra grande, o cartão cresce em vez de cortar o texto.
+            .heightIn(min = CardHeight)
             .cycloCard(shadowColor = null),
     ) {
         Column(
             modifier = Modifier
                 .padding(CardPadding)
+                // Os botões ficam por baixo do texto (com letra grande, o cartão cresce).
+                .padding(bottom = ActionButtonSize + CardPadding)
                 .semantics(mergeDescendants = true) { stateDescription = stateText },
         ) {
             BasicText(
@@ -490,7 +488,7 @@ private fun RoutineCard(
 
 @Composable
 private fun InfoRow(iconPath: String, content: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(18.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 18.dp)) {
         CycloIcon(path = iconPath, size = 15.dp, tint = CycloColors.TextPrimary)
         Spacer(Modifier.width(6.dp))
         content()

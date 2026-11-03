@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Widget da hora de dormir de uma rotina (ver widget/BedtimeWidgets.kt). Abre a 4 x 2 e pode ir
-     de 2 x 2 até ao tamanho que o lançador deixar; o código escolhe a versão para o tamanho atual
-     (pequena, larga ou grande). A altura mínima de 110 dp deixa de fora a fila única (o formato de
-     cápsula): uma fila tem ~51 a 102 dp e duas ~110 a 220 dp na tabela de tamanhos do Android. -->
+<!-- Routine Widget (Figma 244:48, 345 x 164; ver widget/BedtimeWidgets.kt). O nome do ficheiro e do
+     provider ficam os de antes, para os widgets já postos no ecrã principal continuarem a funcionar.
+     Abre a 4 x 2; ao redimensionar, o cartão escala com a proporção do Figma (nunca se deforma) e
+     fica centrado no espaço. Abaixo de ~250 x 110 dp o texto ficaria pequeno de mais. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:description="@string/widget_description"
-    android:initialLayout="@layout/widget_bedtime_wide"
+    android:description="@string/widget_routine_description"
+    android:initialLayout="@layout/widget_routine"
+    android:previewLayout="@layout/widget_routine_preview"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="110dp"
+    android:minResizeWidth="250dp"
     android:minResizeHeight="110dp"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="4"

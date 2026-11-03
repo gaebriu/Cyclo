@@ -307,6 +307,27 @@ object BedtimeEngine {
             .mapNotNull { r -> r.nextWake(now)?.let { r to it } }
             .minByOrNull { it.second }
 
+    /** Quão longe pode estar a hora de acordar que o wake-time-container do Feed mostra. */
+    val FeedWindow: java.time.Duration = java.time.Duration.ofHours(24)
+
+    /**
+     * A hora de acordar do wake-time-container do Feed (e do Wake Time Widget): a primeira das
+     * rotinas ligadas, se for dentro de [FeedWindow]. null = o Feed não mostra o cartão.
+     */
+    fun feedWake(routines: List<Routine>, now: LocalDateTime): Pair<Routine, LocalDateTime>? =
+        nextWake(routines, now)?.takeIf { (_, wake) -> java.time.Duration.between(now, wake) <= FeedWindow }
+
+    /**
+     * As seis horas para adormecer do wake-time-container (6 a 1 ciclos), com o tempo para
+     * adormecer de hoje ([plan]). O Feed e o Wake Time Widget usam ambos isto.
+     */
+    fun feedBedtimes(routine: Routine, wake: LocalDateTime, now: LocalDateTime, age: Int?, chronotype: Chronotype, fallAsleep: FallAsleepTime, log: DailyLog?): List<Bedtime> =
+        bedtimesFor(routine.wakeHour, routine.wakeMinute, feedLatency(wake, now, age, chronotype, fallAsleep, log))
+
+    /** O tempo estimado para adormecer hoje, em minutos (o das definições mais o que o dia pede). */
+    fun feedLatency(wake: LocalDateTime, now: LocalDateTime, age: Int?, chronotype: Chronotype, fallAsleep: FallAsleepTime, log: DailyLog?): Long =
+        plan(wake, now, age, chronotype, fallAsleep, log).fallAsleepMinutes.toLong()
+
     /** As próximas horas de acordar de uma rotina, a partir de [now] (no máximo [count]). */
     fun upcomingWakes(routine: Routine, now: LocalDateTime, count: Int): List<LocalDateTime> {
         val result = ArrayList<LocalDateTime>(count)

@@ -137,6 +137,22 @@ enum class FallAsleepTime(val planMinutes: Int) {
     ThirtyOrMore(30),
 }
 
+/**
+ * Os blocos do Feed que se podem reordenar (long press e arrastar). O wake-time-recommendation-group
+ * ("To rise refreshed tomorrow") não está aqui: fica sempre no seu lugar, no topo.
+ */
+enum class FeedSection { Caffeine, SleepFactors, Feeling }
+
+/** A ordem do Figma: cafeína, o que pode afetar o sono, como se sente. */
+val DefaultFeedOrder: List<FeedSection> = FeedSection.entries
+
+/**
+ * Uma ordem guardada, completa: as secções que esta versão não conhece saem, as que faltam vão
+ * para o fim (pela ordem de omissão) e as repetidas contam uma vez.
+ */
+fun normalizeFeedOrder(order: List<FeedSection>): List<FeedSection> =
+    (order + DefaultFeedOrder).distinct()
+
 /** Tudo o que a app guarda. */
 @Immutable
 data class CycloData(
@@ -154,6 +170,14 @@ data class CycloData(
      * Figma; só vale de facto com a autorização de notificações (ver BedtimeReminder).
      */
     val bedtimeReminder: Boolean = true,
+    /** A ordem dos blocos do Feed (reordenáveis), sem o grupo da hora de acordar. */
+    val feedOrder: List<FeedSection> = DefaultFeedOrder,
+    /**
+     * O versionCode da última vez que a app abriu (null = nunca guardado). Serve para saber, na
+     * primeira abertura depois de uma atualização, que deve mostrar o Introduction 0 e ir logo
+     * para o Feed (sem o tutorial). Fica no aparelho: não vai nas cópias.
+     */
+    val lastRunVersion: Int? = null,
 )
 
 /** Idades aceites na caixa da idade. */

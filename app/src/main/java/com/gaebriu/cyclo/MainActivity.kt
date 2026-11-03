@@ -1,6 +1,7 @@
 ﻿package com.gaebriu.cyclo
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import com.gaebriu.cyclo.widget.BedtimeWidgets
 import android.view.animation.DecelerateInterpolator
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
         // Aberta pelo lápis do widget: vai direta ao editor da rotina (só na primeira criação, não
         // ao recriar depois de rodar o ecrã).
         if (savedInstanceState == null) handleWidgetIntent(intent)
+        lastLocales = resources.configuration.locales
 
         setContent {
             ProvideVisualEffects {
@@ -54,6 +56,22 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    /**
+     * A língua mudou (escolhida nas definições do Cyclo ou do Android): a Activity não é recriada
+     * (configChanges no manifesto), o Compose volta a ler os textos sozinho. Aqui redesenham-se os
+     * widgets e atualiza-se o nome do canal das notificações, que vivem fora da Activity.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        val before = lastLocales
+        super.onConfigurationChanged(newConfig)
+        lastLocales = newConfig.locales
+        if (before != null && before != newConfig.locales) {
+            viewModel.data.value?.let { com.gaebriu.cyclo.reminder.CycloSync.languageChanged(applicationContext, it) }
+        }
+    }
+
+    private var lastLocales: android.os.LocaleList? = null
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

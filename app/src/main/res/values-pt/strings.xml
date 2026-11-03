@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Português (Portugal): tom calmo, simples e claro, como o inglês. Tratamento por "tu". -->
+<resources>
+    <!-- A língua destes textos (para formatar datas e horas na mesma língua). -->
+    <string name="locale_tag" translatable="false">pt-PT</string>
+
+    <!-- Comuns -->
+    <string name="undo">Anular</string>
+    <string name="try_again">Tentar de novo</string>
+    <string name="error_save_failed">Não foi possível guardar</string>
+    <string name="action_edit">Editar</string>
+    <string name="action_remove">Remover</string>
+    <string name="action_add_widget">Adicionar como widget</string>
+    <string name="routine_removed">Rotina removida</string>
+
+    <!-- Editor de rotinas (Introduction 2 a 5) -->
+    <string name="editor_done">Concluído</string>
+
+    <!-- Barra de navegação e mini-menu -->
+    <string name="main_tab_feed">Feed</string>
+    <string name="main_tab_saved">Rotinas guardadas</string>
+    <string name="main_search">Procurar rotinas</string>
+    <string name="main_add_routine">Adicionar rotina</string>
+    <string name="main_settings">Definições</string>
+
+    <!-- Feed -->
+    <string name="feed_greeting_morning">Bom dia</string>
+    <string name="feed_greeting_afternoon">Boa tarde</string>
+    <string name="feed_greeting_evening">Boa noite</string>
+    <!-- Ex.: "Sexta-feira, 31 de outubro - 12:08" (dia da semana, mês, dia, hora) -->
+    <string name="feed_date">%1$s, %3$d de %2$s - %4$s</string>
+    <string name="feed_wake_title">Para amanhã acordares com energia:</string>
+    <string name="feed_wake_more">Ações da hora de acordar</string>
+    <plurals name="feed_bedtime_description">
+        <item quantity="one">Adormecer às %1$s, %2$d ciclo de sono</item>
+        <item quantity="many">Adormecer às %1$s, %2$d ciclos de sono</item>
+        <item quantity="other">Adormecer às %1$s, %2$d ciclos de sono</item>
+    </plurals>
+    <string name="feed_caffeine_title">Quanta cafeína bebeste hoje?</string>
+    <string name="feed_caffeine_less">Tirar um</string>
+    <string name="feed_caffeine_more">Juntar um</string>
+    <string name="feed_caffeine_more_actions">Ações da cafeína</string>
+    <string name="feed_caffeine_reset">Repor</string>
+    <string name="feed_caffeine_reset_done">Cafeína reposta</string>
+    <string name="feed_sleep_title">Hoje houve algo que possa afetar o teu sono?</string>
+    <string name="feed_factor_exercise">Exercício intenso</string>
+    <string name="feed_factor_meal">Refeição pesada e tardia</string>
+    <string name="feed_factor_nap">Sesta longa ou tardia</string>
+    <string name="feed_feeling_title">Como te sentes esta noite?</string>
+    <string name="feed_feeling_meter">Como te sentes</string>
+    <string name="feed_feeling_level_1">Ótimo</string>
+    <string name="feed_feeling_level_2">Bem</string>
+    <string name="feed_feeling_level_3">Mais ou menos</string>
+    <string name="feed_feeling_level_4">Não muito bem</string>
+    <string name="feed_feeling_level_5">Mal</string>
+
+    <!-- Rotinas guardadas -->
+    <string name="saved_search_placeholder">O que procuras?</string>
+    <string name="saved_state_on">Ligada</string>
+    <string name="saved_state_off">Desligada</string>
+    <string name="saved_delete">Apagar %1$s</string>
+    <string name="saved_widget">Adicionar %1$s como widget</string>
+    <string name="saved_edit">Editar %1$s</string>
+    <string name="saved_toggle">%1$s no feed</string>
+
+    <!-- Reordenar (ações do TalkBack em cada cartão das rotinas e bloco do Feed) -->
+    <string name="reorder_move_up">Mover para cima</string>
+    <string name="reorder_move_down">Mover para baixo</string>
+
+    <!-- Definições -->
+    <string name="settings_title">Definições</string>
+    <string name="settings_back">Voltar</string>
+    <string name="settings_sleep_profile">Perfil de sono</string>
+    <string name="settings_age">A tua idade</string>
+    <!-- Idade ainda por escrever (o valor da linha e o texto da caixa) -->
+    <string name="settings_age_unset">Toca para escrever</string>
+    <string name="settings_age_done">Guardar idade</string>
+    <!-- Ex.: "29 anos" -->
+    <plurals name="settings_age_value">
+        <item quantity="one">%1$d ano</item>
+        <item quantity="many">%1$d anos</item>
+        <item quantity="other">%1$d anos</item>
+    </plurals>
+    <string name="settings_age_invalid">Escreve uma idade entre 5 e 100</string>
+    <string name="settings_chronotype">Cronótipo</string>
+    <string name="settings_chronotype_hummingbird">Colibri</string>
+    <string name="settings_chronotype_early_bird">Madrugador</string>
+    <string name="settings_chronotype_night_owl">Coruja noturna</string>
+    <string name="settings_fall_asleep">Tempo a adormecer</string>
+    <!-- Valor na linha (curto) e opções do menu (action-menu-time-to-fall-asleep) -->
+    <string name="settings_fall_asleep_under_5_short">Menos de 5 min</string>
+    <string name="settings_fall_asleep_15_short">15 min</string>
+    <string name="settings_fall_asleep_30_short">30+ min</string>
+    <string name="settings_fall_asleep_under_5">Menos de 5 minutos</string>
+    <string name="settings_fall_asleep_15">15 minutos</string>
+    <string name="settings_fall_asleep_30">30 minutos ou mais</string>
+    <string name="settings_reminders">Lembretes</string>
+    <string name="settings_bedtime_reminder">Hora de dormir</string>
+    <string name="settings_notifications_denied">Permite as notificações para ligar</string>
+    <string name="settings_format_language">Formato e idioma</string>
+    <string name="settings_time_format">Formato das horas</string>
+    <string name="settings_12_hour">12 horas</string>
+    <string name="settings_24_hour">24 horas</string>
+    <string name="settings_language">Idioma</string>
+    <!-- action-menu-lang (Componentes 4): o nome de cada língua -->
+    <string name="language_english">Inglês</string>
+    <string name="language_portuguese">Português</string>
+    <string name="settings_data">Dados</string>
+    <string name="settings_export_data">Exportar os meus dados</string>
+    <string name="settings_restore_data">Restaurar os meus dados</string>
+    <string name="settings_data_description">Exporta as tuas rotinas e definições para um ficheiro JSON, ou restaura-as a partir de um que guardaste antes</string>
+    <string name="settings_about">Sobre</string>
+    <string name="settings_github">Ver no GitHub</string>
+    <!-- Ex.: "Cyclo Alpha 0.7.3" -->
+    <string name="settings_version">Cyclo %1$s</string>
+
+    <!-- new-update-group (Definições): uma versão nova no GitHub -->
+    <!-- Ex.: "Chegou o Cyclo Alpha 0.7.4" -->
+    <string name="update_title">Chegou o Cyclo %1$s</string>
+    <string name="update_subtitle">Melhorámos algumas coisas :)</string>
+    <string name="update_download">Descarregar agora</string>
+    <string name="update_view_release">Ver as novidades</string>
+    <string name="update_dismiss">Agora não</string>
+    <!-- Ex.: "A descarregar 42%" -->
+    <string name="update_downloading_percent">A descarregar %1$d%%</string>
+    <string name="update_downloading">A descarregar…</string>
+    <string name="update_cancel">Cancelar descarga</string>
+    <string name="update_ready">Pronta a instalar</string>
+    <string name="update_install">Instalar atualização</string>
+    <string name="update_failed">A descarga parou. Verifica a ligação.</string>
+    <string name="update_failed_storage">Não há espaço suficiente para a atualização</string>
+    <string name="update_failed_invalid">Esta atualização não parece estar bem. Tenta mais tarde.</string>
+    <string name="update_install_failed">Não conseguimos abrir o instalador</string>
+
+    <!-- action-menu-big-open-github -->
+    <string name="github_sheet_title">O Cyclo é open source</string>
+    <string name="github_sheet_text_1">Qualquer pessoa pode ver como o Cyclo é feito</string>
+    <string name="github_sheet_text_2">Podes dar uma vista de olhos, relatar um erro ou sugerir uma ideia</string>
+    <string name="github_sheet_open">Abrir o GitHub</string>
+    <string name="github_open_failed">Não conseguimos abrir o GitHub</string>
+
+    <!-- Exportar e repor os dados -->
+    <string name="export_done">Dados exportados</string>
+    <string name="export_cancelled">Exportação cancelada</string>
+    <string name="export_failed">Não conseguimos exportar os teus dados</string>
+    <string name="restore_no_file">Não escolheste nenhum ficheiro</string>
+    <string name="restore_unreadable">Não conseguimos ler este ficheiro</string>
+    <string name="restore_invalid">Este ficheiro não é uma cópia do Cyclo</string>
+    <string name="restore_too_new">Esta cópia precisa de um Cyclo mais recente</string>
+    <string name="restore_done">Os teus dados estão de volta</string>
+    <string name="restore_failed">Não conseguimos restaurar os teus dados</string>
+    <!-- action-menu-big de confirmação -->
+    <string name="restore_sheet_title">Restaurar esta cópia?</string>
+    <string name="restore_sheet_text_1">As tuas rotinas e definições vão ser substituídas pelas deste ficheiro</string>
+    <!-- Ex.: "Guardada a 2 de novembro de 2026" -->
+    <string name="restore_sheet_text_date">Guardada a %1$s</string>
+    <string name="restore_sheet_text_no_date">Não é possível anular isto</string>
+    <string name="restore_sheet_confirm">Restaurar</string>
+    <!-- loading-data -->
+    <string name="restore_loading">A trazer os teus dados de volta…</string>
+
+    <!-- Lembrete da hora de dormir (notificação) -->
+    <string name="reminder_channel_name">Hora de dormir</string>
+    <string name="reminder_channel_description">Um lembrete para começares a abrandar antes de ires para a cama</string>
+    <string name="reminder_title">Hora de abrandar</string>
+    <string name="reminder_title_early">Hora de abrandar</string>
+    <string name="reminder_title_now">Hora de ir para a cama</string>
+    <!-- Ex.: "Tenta estar na cama às 22:45 e a dormir por volta das 23:00, para uma noite completa antes das 06:30. Baixa as luzes e pousa o telemóvel." -->
+    <string name="reminder_body">Vai para a cama às %1$s para uma noite completa antes das %3$s. %4$s</string>
+    <string name="reminder_body_now">Tenta dormir em breve para descansares o mais possível antes das %1$s.</string>
+    <string-array name="reminder_tips_default">
+        <item>Baixa as luzes e pousa o telemóvel.</item>
+        <item>Algo calmo e sem ecrãs é uma boa forma de começar.</item>
+        <item>Um duche quente ou umas páginas de um livro ajudam a abrandar.</item>
+        <item>Mantém o quarto fresco, escuro e silencioso.</item>
+    </string-array>
+    <string name="reminder_tip_stress">Começar com calma e sem ecrãs pode ajudar-te a acalmar.</string>
+    <string name="reminder_tip_caffeine">A cafeína pode durar horas, por isso começar mais devagar ajuda.</string>
+    <string name="reminder_tip_exercise">Dá tempo ao corpo para arrefecer depois do treino.</string>
+    <string name="reminder_tip_meal">Um pouco mais de tempo ajuda o jantar a assentar.</string>
+    <string name="reminder_tip_nap">Depois de uma sesta longa, o sono pode demorar mais. Mantém as luzes baixas.</string>
+    <string name="reminder_tip_night_owl">Baixar as luzes agora ajuda o teu relógio biológico.</string>
+    <string name="reminder_tip_early_bird">O teu corpo abranda cedo. Começar agora torna a noite mais fácil.</string>
+    <string name="reminder_tip_body_clock">Hoje é mais cedo do que o teu corpo está habituado, por isso dá um pouco mais de tempo ao sono. Mantém as luzes baixas.</string>
+
+    <!-- Widgets -->
+    <string name="widget_routine_label">Rotina</string>
+    <string name="widget_routine_description">A tua rotina, para editar e ligar ou desligar</string>
+    <string name="widget_wake_label">Hora de acordar</string>
+    <string name="widget_wake_description">Quando adormecer, como no teu Feed</string>
+    <string name="widget_no_bedtime">Nenhuma hora de acordar a caminho</string>
+    <string name="widget_no_routine">Ainda não há rotinas</string>
+    <string name="widget_preview_name">Rotina 1</string>
+    <string name="widget_pin_unsupported">O teu ecrã principal não permite adicionar widgets a partir daqui</string>
+</resources>

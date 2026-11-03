@@ -7,6 +7,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Voltar a agendar o lembrete depois de o telemóvel reiniciar. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Hápticos compostos (apagar e repor uma rotina; ver ui/haptics/CycloHaptics.kt). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Verificar e descarregar atualizações das releases do GitHub (ver update/CycloUpdates.kt). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Entregar o .apk descarregado ao instalador do Android (o utilizador confirma). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
         <intent>
@@ -21,14 +27,24 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:resizeableActivity="false"
         android:theme="@style/Theme.Cyclo">
+        <!-- Só retrato, sem ecrã dividido nem janelas flutuantes (pop-up view da One UI):
+             resizeableActivity="false" + screenOrientation="portrait". Os widgets não dependem
+             disto (o launcher é que os desenha). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.Cyclo"
+            android:screenOrientation="portrait"
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi"
+            android:configChanges="locale|layoutDirection"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -46,20 +62,45 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <!-- A língua do sistema mudou: o widget e o canal das notificações mudam de textos. -->
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
             </intent-filter>
         </receiver>
 
-        <!-- Widget da hora de dormir de uma rotina. -->
+        <!-- O .apk de uma atualização, partilhado com o instalador do Android. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
+
+        <!-- Routine Widget (o nome da classe fica o de antes: os widgets já postos continuam a funcionar). -->
         <receiver
             android:name=".widget.BedtimeWidgetProvider"
             android:exported="false"
-            android:label="@string/widget_label">
+            android:label="@string/widget_routine_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_bedtime_info" />
+        </receiver>
+        <!-- Wake Time Widget: o wake-time-container do Feed. -->
+        <receiver
+            android:name=".widget.WakeTimeWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_wake_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_wake_time_info" />
         </receiver>
         <receiver
             android:name=".widget.WidgetPinnedReceiver"

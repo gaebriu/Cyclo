@@ -153,6 +153,15 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setUse24Hour(use24Hour: Boolean) = write { repository.setUse24Hour(use24Hour) }
 
+    /** Nova ordem das rotinas (arrastar nas rotinas guardadas). */
+    fun reorderRoutines(ids: List<Long>) = write { repository.reorderRoutines(ids) }
+
+    /** Nova ordem dos blocos do Feed (arrastar no Feed). */
+    fun setFeedOrder(order: List<FeedSection>) = write { repository.setFeedOrder(order) }
+
+    /** Guarda o versionCode desta abertura (o "acabou de ser atualizada" só vale uma vez). */
+    fun markVersionSeen(versionCode: Int) = write { repository.setLastRunVersion(versionCode) }
+
     fun setAge(age: Int) {
         if (age in AgeRange) write { repository.setAge(age) }
     }
@@ -181,6 +190,20 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     /** O lançador não deixa fixar o widget a partir da app. */
     fun widgetPinUnsupported() = showMessage(string(R.string.widget_pin_unsupported))
+
+    /** O instalador do Android não abriu (o .apk desapareceu ou não há instalador). */
+    fun updateInstallFailed(retry: () -> Unit) =
+        showMessage(string(R.string.update_install_failed), actionLabel = string(R.string.try_again), isError = true, action = retry)
+
+    /** O download da atualização falhou: a barra de baixo diz porquê e "Try again" descarrega de novo. */
+    fun updateDownloadFailed(reason: com.gaebriu.cyclo.update.DownloadState.Failed.Reason, retry: () -> Unit) {
+        val text = when (reason) {
+            com.gaebriu.cyclo.update.DownloadState.Failed.Reason.Network -> R.string.update_failed
+            com.gaebriu.cyclo.update.DownloadState.Failed.Reason.Storage -> R.string.update_failed_storage
+            com.gaebriu.cyclo.update.DownloadState.Failed.Reason.Invalid -> R.string.update_failed_invalid
+        }
+        showMessage(string(text), actionLabel = string(R.string.try_again), isError = true, action = retry)
+    }
 
     /** Não há nada para abrir a página do GitHub. */
     fun gitHubOpenFailed() = showMessage(string(R.string.github_open_failed), isError = true)
@@ -311,8 +334,11 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val MaxCaffeine = 99
 
-        /** O loading-data fica à vista o tempo da animação das letras (não pisca). */
-        const val MinRestoreMs = 2600L
+        /**
+         * O loading-data fica à vista a animação inteira do Introduction 6 (o véu, as letras e o
+         * anel, e uma pausa curta): o mesmo que `LoadingDataMinMs` em ui/settings/LoadingDataOverlay.kt.
+         */
+        const val MinRestoreMs = 3020L
     }
 }
 

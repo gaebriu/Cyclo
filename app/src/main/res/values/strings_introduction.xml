@@ -23,6 +23,8 @@
     <string name="introduction_2_title">What time do you want to wake up?</string>
     <string name="introduction_2_hour">hour</string>
     <string name="introduction_2_minute">min</string>
+    <!-- AM-PM-Slider (TalkBack): a caixa da metade do dia no formato de 12 h -->
+    <string name="introduction_2_period">AM or PM</string>
     <string name="introduction_2_hint">Scroll or tap to interact</string>
 
     <!-- Introduction 3 -->

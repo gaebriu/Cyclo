@@ -27,7 +27,11 @@ class BedtimeAlarmReceiver : BroadcastReceiver() {
                     val wake = intent.getLongExtra(BedtimeReminder.ExtraWakeMillis, -1L)
                     if (routineId >= 0 && wake > 0) BedtimeReminder.notify(app, data, routineId, wake)
                 }
-                CycloSync.apply(app, data, animateWidgets = false)
+                if (intent.action == Intent.ACTION_LOCALE_CHANGED) {
+                    CycloSync.languageChanged(app, data)
+                } else {
+                    CycloSync.apply(app, data, animateWidgets = false)
+                }
             } finally {
                 pending.finish()
             }

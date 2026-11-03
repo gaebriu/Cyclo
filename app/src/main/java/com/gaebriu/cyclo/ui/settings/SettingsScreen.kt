@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -101,6 +103,15 @@ import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSource
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
+import com.gaebriu.cyclo.ui.i18n.AppLanguage
+import com.gaebriu.cyclo.ui.theme.CycloSprings
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.main.MainEdgeFades
 import com.gaebriu.cyclo.ui.scroll.cycloVerticalScroll
@@ -129,11 +140,17 @@ private val RowInset = 15.dp
 /** Scroll em que a faixa de baixo some, ao chegar ao fim da página. */
 private val BottomFadeRamp = 48.dp
 
+/** Espaço mínimo entre o nome e o valor de uma linha. */
+private val RowLabelGap = 9.dp
+
+/** Margem de cima e de baixo do texto das linhas (só conta com letra grande: a 1x a linha tem 48 dp). */
+private val RowTextVertical = 6.dp
+
 /** Onde o valor acaba quando há seta (a seta de 24 dp fica a 15 dp da direita, 9 dp depois do valor). */
 private val ValueEndWithArrow = 48.dp
 
 /** Os menus das definições (só um aberto de cada vez). */
-private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat }
+private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Language }
 
 /**
  * Definições: o perfil de sono (idade, cronótipo, tempo a adormecer), o lembrete da hora de dormir,
@@ -145,7 +162,7 @@ private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat }
  * - "Bedtime" liga o lembrete (pede a autorização de notificações; ver [onToggleReminder]).
  * - "Export my data" e "Restore my data" abrem o seletor de ficheiros do sistema.
  * - "View on GitHub" mostra primeiro o action-menu-big-open-github.
- * - A língua mostra-se como no Figma, sem menu.
+ * - A língua abre o action-menu-lang (Componentes 4): muda logo a língua da app toda ([onSetLanguage]).
  * - Voltar (botão, gesto) fecha primeiro o menu, a folha ou a caixa da idade, se estiverem abertos.
  *
  * @param reminderOn o interruptor como se vê: ligado nas definições e com autorização.
@@ -162,9 +179,17 @@ fun SettingsScreen(
     onExport: () -> Unit,
     onRestore: () -> Unit,
     onOpenGitHub: () -> Unit,
+    onSetLanguage: (AppLanguage) -> Unit,
     onClose: () -> Unit,
+    update: UpdateUi? = null,
+    onUpdateDownload: () -> Unit = {},
+    onUpdateCancel: () -> Unit = {},
+    onUpdateInstall: () -> Unit = {},
+    onUpdateDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // A língua em que os textos estão (muda com eles).
+    val language = AppLanguage.fromTag(stringResource(R.string.locale_tag))
     val density = LocalDensity.current
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val topExtra = (statusTop - 24.dp).coerceAtLeast(0.dp)
@@ -225,6 +250,39 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(TitleToContent))
 
+            // new-update-group: só com uma versão nova no GitHub (e não dispensada há menos de
+            // 24 h). Entra e sai com zoom, fade e o lugar a abrir e a fechar.
+            var shownUpdate by remember { mutableStateOf(update) }
+            if (update != null) shownUpdate = update
+            AnimatedVisibility(
+                visible = update != null,
+                enter = if (LocalVisualEffects.current.animationsEnabled) {
+                    fadeIn(CycloSprings.Enter.float) + scaleIn(CycloSprings.Enter.float, initialScale = CycloMotion.MenuStartScale) +
+                        expandVertically(CycloSprings.Enter.intSize, expandFrom = Alignment.Top)
+                } else {
+                    fadeIn(CycloMotion.FadeSpring)
+                },
+                exit = if (LocalVisualEffects.current.animationsEnabled) {
+                    fadeOut(CycloSprings.Exit.float) + scaleOut(CycloSprings.Exit.float, targetScale = CycloMotion.MenuStartScale) +
+                        shrinkVertically(CycloSprings.Exit.intSize, shrinkTowards = Alignment.Top)
+                } else {
+                    fadeOut(CycloMotion.FadeSpring)
+                },
+            ) {
+                shownUpdate?.let { shown ->
+                    Column {
+                        UpdateGroup(
+                            update = shown,
+                            onDownload = onUpdateDownload,
+                            onCancel = onUpdateCancel,
+                            onInstall = onUpdateInstall,
+                            onDismiss = onUpdateDismiss,
+                        )
+                        Spacer(Modifier.height(SectionGap))
+                    }
+                }
+            }
+
             // Perfil de sono.
             SectionLabel(stringResource(R.string.settings_sleep_profile), labelStyle)
             AgeRow(
@@ -271,8 +329,12 @@ fun SettingsScreen(
                 onClickAt = openMenu(SettingsMenu.TimeFormat),
             )
             Spacer(Modifier.height(RowGap))
-            // Como no Figma: a língua mostra-se, sem menu.
-            SettingsRow(stringResource(R.string.settings_language), value = stringResource(R.string.settings_language_english))
+            SettingsRow(
+                label = stringResource(R.string.settings_language),
+                value = stringResource(language.label),
+                arrow = true,
+                onClickAt = openMenu(SettingsMenu.Language),
+            )
             Spacer(Modifier.height(SectionGap))
 
             // Dados.
@@ -338,6 +400,18 @@ fun SettingsScreen(
                             if (chosen != data.fallAsleep) onSetFallAsleep(chosen)
                         },
                     )
+                    // action-menu-lang (Componentes 4, 238:73): "English" e "Portuguese", com o
+                    // visto na atual. A escolha muda a língua da app toda, sem reiniciar.
+                    SettingsMenu.Language -> CycloActionMenu(
+                        items = AppLanguage.entries.map { ActionMenuItem(stringResource(it.label)) },
+                        selectedIndex = language.ordinal,
+                        compact = true,
+                        onItemClick = { index ->
+                            menu = SettingsMenu.None
+                            val chosen = AppLanguage.entries[index]
+                            if (chosen != language) onSetLanguage(chosen)
+                        },
+                    )
                     // Como no Componentes 3: "24-hour" primeiro.
                     SettingsMenu.TimeFormat, SettingsMenu.None -> CycloActionMenu(
                         items = listOf(
@@ -387,8 +461,9 @@ fun SettingsScreen(
 }
 
 /**
- * A versão instalada como se mostra ao utilizador: "alpha-0.7.2" fica "Alpha 0.7.2", "beta-1.2.0"
- * fica "Beta 1.2.0", e uma versão final ("1.0.0") fica só o número.
+ * A versão instalada como se mostra ao utilizador (lida do versionName do pacote, não escrita à
+ * mão): "beta-1.0.0" fica "Beta 1.0", "alpha-0.7.2" fica "Alpha 0.7.2" e uma versão final
+ * ("1.0.0") fica só o número ("1.0"). A mesma regra de [AppVersion.label].
  */
 @Composable
 private fun rememberVersionLabel(): String {
@@ -400,15 +475,8 @@ private fun rememberVersionLabel(): String {
     }
 }
 
-internal fun versionLabel(versionName: String): String {
-    val stage = versionName.substringBefore('-', missingDelimiterValue = "")
-    val number = versionName.substringAfter('-')
-    return when (stage.lowercase()) {
-        "alpha" -> "Alpha $number"
-        "beta" -> "Beta $number"
-        else -> versionName
-    }
-}
+internal fun versionLabel(versionName: String): String =
+    com.gaebriu.cyclo.update.AppVersion.parse(versionName)?.label() ?: versionName
 
 @Composable
 private fun SectionLabel(text: String, style: TextStyle) {
@@ -446,10 +514,12 @@ private fun SettingsRow(
         }
         else -> onClick
     }
-    Box(
+    // O nome à esquerda e o valor (e a seta) à direita, lado a lado: com letra grande, cada um
+    // passa para a linha seguinte e a linha cresce, em vez de se sobreporem.
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(CycloDimens.InputHeight)
+            .heightIn(min = CycloDimens.InputHeight)
             // A posição mede-se antes do zoom do toque, para o menu não "tremer".
             .onGloballyPositioned { coordinates[0] = it }
             .then(if (click != null) Modifier.cycloPressable(onClick = click) else Modifier)
@@ -457,19 +527,25 @@ private fun SettingsRow(
                 contentDescription = label
                 if (value != null) stateDescription = value
             }
-            .cycloCard(shadowColor = null),
-        contentAlignment = Alignment.CenterStart,
+            .cycloCard(shadowColor = null)
+            .padding(horizontal = RowInset, vertical = RowTextVertical),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        BasicText(text = label, style = CycloType.CardTitle, modifier = Modifier.padding(start = RowInset))
-        Row(
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = RowInset),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        BasicText(text = label, style = CycloType.CardTitle, modifier = Modifier.weight(1f, fill = false).padding(end = RowLabelGap))
+        // O valor e a seta juntos, encostados à direita.
+        Row(modifier = Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
             if (value != null) {
-                BasicText(text = value, style = CycloType.InputHint)
-                if (arrow) Spacer(Modifier.width(ValueEndWithArrow - RowInset - 24.dp))
+                BasicText(
+                    text = value,
+                    style = CycloType.InputHint.copy(textAlign = TextAlign.End),
+                    modifier = Modifier.weight(1f, fill = false),
+                )
             }
-            if (arrow) CycloIcon(path = CycloIconPaths.DropDown, size = 24.dp, tint = CycloColors.TextPrimary, luminosity = false)
+            if (arrow) {
+                Spacer(Modifier.width(ValueEndWithArrow - RowInset - 24.dp))
+                CycloIcon(path = CycloIconPaths.DropDown, size = 24.dp, tint = CycloColors.TextPrimary, luminosity = false)
+            }
         }
     }
 }
@@ -482,7 +558,7 @@ private fun SwitchRow(label: String, on: Boolean, onToggle: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(CycloDimens.InputHeight)
+            .heightIn(min = CycloDimens.InputHeight)
             .cycloPressable(
                 onClick = {
                     CycloHaptics.toggle(view, !on)
@@ -500,7 +576,11 @@ private fun SwitchRow(label: String, on: Boolean, onToggle: () -> Unit) {
             .cycloCard(shadowColor = null),
         contentAlignment = Alignment.CenterStart,
     ) {
-        BasicText(text = label, style = CycloType.CardTitle, modifier = Modifier.padding(start = RowInset))
+        BasicText(
+            text = label,
+            style = CycloType.CardTitle,
+            modifier = Modifier.padding(start = RowInset, end = RowInset + 42.dp + RowLabelGap, top = RowTextVertical, bottom = RowTextVertical),
+        )
         CycloSwitch(on = on, modifier = Modifier.align(Alignment.CenterEnd).padding(end = RowInset))
     }
 }
@@ -642,7 +722,7 @@ private fun AgeInputBox(initial: Int?, onDone: (Int) -> Unit, onCancel: () -> Un
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(CycloDimens.InputHeight)
+            .heightIn(min = CycloDimens.InputHeight)
             .graphicsLayer { translationX = shake.value.dp.toPx() }
             .cycloCard(shadowColor = null),
         contentAlignment = Alignment.CenterStart,
@@ -698,11 +778,15 @@ private fun SettingsButton(text: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(CycloDimens.InputHeight)
+            .heightIn(min = CycloDimens.InputHeight)
             .cycloPressable(onClick = onClick)
             .cycloCard(shadowColor = null),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText(text = text, style = CycloType.CardTitle.copy(textAlign = TextAlign.Center))
+        BasicText(
+            text = text,
+            style = CycloType.CardTitle.copy(textAlign = TextAlign.Center),
+            modifier = Modifier.padding(horizontal = RowInset, vertical = RowTextVertical),
+        )
     }
 }

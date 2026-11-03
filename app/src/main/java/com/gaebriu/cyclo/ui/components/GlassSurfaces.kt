@@ -77,12 +77,14 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
  * Não tem desfoque de fundo; desenha o que está por trás só para a mistura.
  *
  * @param shadowColor cor da sombra exterior (0, 4, desfoque [shadowBlur]); null = sem sombra.
+ * @param underFill desenhado por cima do fundo e por baixo do vidro (recortado à forma).
  */
 @Composable
 fun Modifier.cycloCard(
     shadowColor: Color? = Color.Black.copy(alpha = 0.24f),
     shadowBlur: Dp = 39.dp,
     cornerRadius: Dp = 15.dp,
+    underFill: (DrawScope.() -> Unit)? = null,
 ): Modifier {
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
@@ -98,6 +100,8 @@ fun Modifier.cycloCard(
             }
         }
         if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape)
+        // O que fica entre o fundo e o vidro (ex.: o brilho roxo do new-update-group).
+        if (underFill != null) clipPath(shape) { underFill() }
         drawPath(shape, CycloColors.GlassFill, blendMode = blend)
     }
 }

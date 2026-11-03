@@ -34,6 +34,12 @@ private val ChronotypeKey = stringPreferencesKey("chronotype")
 private val FallAsleepKey = stringPreferencesKey("fall_asleep")
 private val BedtimeReminderKey = booleanPreferencesKey("bedtime_reminder")
 
+/** A ordem dos blocos do Feed: os nomes separados por vírgulas (sem valor = a do Figma). */
+private val FeedOrderKey = stringPreferencesKey("feed_order")
+
+/** O versionCode da última abertura (ver [CycloData.lastRunVersion]). */
+private val LastRunVersionKey = intPreferencesKey("last_run_version")
+
 /** O DataStore da app (um só por processo: o lembrete e o widget também o leem). */
 internal val Context.cycloStore: DataStore<Preferences> get() = applicationContext.cycloDataStore
 
@@ -63,6 +69,8 @@ class CycloRepository(context: Context) {
                     ?.let { name -> FallAsleepTime.entries.firstOrNull { it.name == name } }
                     ?: FallAsleepTime.Fifteen,
                 bedtimeReminder = prefs[BedtimeReminderKey] ?: true,
+                feedOrder = prefs[FeedOrderKey]?.let(::parseFeedOrder) ?: DefaultFeedOrder,
+                lastRunVersion = prefs[LastRunVersionKey],
             )
         }
 
@@ -88,6 +96,26 @@ class CycloRepository(context: Context) {
         store.edit { prefs -> prefs[BedtimeReminderKey] = on }
     }
 
+    /** Guarda a nova ordem das rotinas (arrastadas nas rotinas guardadas), pelos ids. */
+    suspend fun reorderRoutines(ids: List<Long>) {
+        store.edit { prefs ->
+            val routines = prefs.routines()
+            val position = ids.withIndex().associate { (i, id) -> id to i }
+            // As que não vieram na lista (ex.: criadas entretanto) ficam no fim, pela ordem que tinham.
+            prefs.setRoutines(routines.sortedBy { position[it.id] ?: (ids.size + routines.indexOf(it)) })
+        }
+    }
+
+    /** Guarda a nova ordem dos blocos do Feed. */
+    suspend fun setFeedOrder(order: List<FeedSection>) {
+        store.edit { prefs -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
+    }
+
+    /** Guarda o versionCode desta abertura (ver [CycloData.lastRunVersion]). */
+    suspend fun setLastRunVersion(versionCode: Int) {
+        store.edit { prefs -> prefs[LastRunVersionKey] = versionCode }
+    }
+
     /**
      * Repõe uma cópia já validada ([parseBackup]), numa só escrita: ou entra tudo, ou nada.
      * Substitui as rotinas e o registo do dia; as definições que a cópia não traz ficam como estão.
@@ -104,6 +132,7 @@ class CycloRepository(context: Context) {
             contents.chronotype?.let { prefs[ChronotypeKey] = it.name }
             contents.fallAsleep?.let { prefs[FallAsleepKey] = it.name }
             contents.bedtimeReminder?.let { prefs[BedtimeReminderKey] = it }
+            contents.feedOrder?.let { order -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
         }
     }
 
@@ -193,6 +222,10 @@ private fun parseRoutines(json: String): List<Routine> = runCatching {
         )
     }
 }.getOrDefault(emptyList())
+
+/** Os nomes que esta versão conhece, pela ordem guardada, completados com os que faltam. */
+private fun parseFeedOrder(text: String): List<FeedSection> =
+    normalizeFeedOrder(text.split(',').mapNotNull { name -> FeedSection.entries.firstOrNull { it.name == name.trim() } })
 
 private fun DailyLog.toJson(): String = dailyLogToJson(this).toString()
 

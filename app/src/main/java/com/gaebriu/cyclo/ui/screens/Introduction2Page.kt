@@ -40,16 +40,24 @@ import com.gaebriu.cyclo.ui.icons.CycloHeaderIcons
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
+import androidx.compose.runtime.key
+import com.gaebriu.cyclo.ui.time.LocalTimeFormat
 import kotlinx.coroutines.launch
 
 /** Espaço entre as duas caixas, onde ficam os dois pontos. */
 private val PickerGap = 45.dp
 
+/** Dos minutos ao AM-PM-Slider no formato de 12 h (Figma 244:150: 247 → 271). */
+private val PeriodGap = 24.dp
+
 /**
  * Introduction 2: "What time do you want to wake up?" (só o conteúdo; o botão de cima, a barra
  * de progresso e o Next são fixos e vivem em [IntroductionFlow]).
  *
- * Só formato 24 h por agora (o AM/PM fica para quando houver design das 3 caixas).
+ * O formato segue o das horas da app ([LocalTimeFormat]: o das definições ou, sem escolha, o do
+ * sistema): 24 h com as horas e os minutos (Figma 8:146), 12 h com as horas (12, 01 ... 11), os
+ * minutos e o AM-PM-Slider (Figma 244:150). As três caixas são o mesmo [CycloTimeUnitPicker] e
+ * cada uma muda só a sua parte; a hora guarda-se sempre em 24 h ([onHourChange] recebe 0 a 23).
  * O estado da hora vive em quem usa o ecrã, para sobreviver a voltar atrás.
  *
  * @param hintVisible o texto "Scroll or tap to interact" desaparece com um fade só depois
@@ -79,6 +87,11 @@ fun Introduction2Page(
     val sunRotation = remember { Animatable(0f) }
     var sunTarget by remember { mutableFloatStateOf(0f) }
     var lastHour by remember { mutableIntStateOf(wakeHour) }
+    val use24Hour = LocalTimeFormat.current.use24Hour
+    // 12 h: a caixa das horas tem 12 valores (0 mostra-se "12") e a do AM/PM dois.
+    val hourCount = if (use24Hour) 24 else 12
+    val shownHour = if (use24Hour) wakeHour else wakeHour % 12
+    val pm = wakeHour >= 12
     var lastMinute by remember { mutableIntStateOf(wakeMinute) }
 
     fun turnSun(from: Int, to: Int, valueCount: Int) {
@@ -119,7 +132,7 @@ fun Introduction2Page(
 
             Spacer(Modifier.height(63.dp))
 
-            // "hour" e "min" por cima das caixas.
+            // "hour" e "min" por cima das caixas (nada por cima do AM/PM, como no Figma).
             Row {
                 BasicText(
                     text = stringResource(R.string.introduction_2_hour),
@@ -132,21 +145,26 @@ fun Introduction2Page(
                     style = CycloType.Body,
                     modifier = Modifier.width(PickerWidth),
                 )
+                if (!use24Hour) Spacer(Modifier.width(PeriodGap + PickerWidth))
             }
 
             Spacer(Modifier.height(CycloDimens.Spacing))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CycloTimeUnitPicker(
-                    value = wakeHour,
-                    valueCount = 24,
-                    contentDescription = stringResource(R.string.introduction_2_hour),
-                    onValueChange = {
-                        turnSun(lastHour, it, 24)
-                        lastHour = it
-                        onHourChange(it)
-                    },
-                )
+                // Uma caixa nova ao mudar de formato (outro número de valores).
+                key(use24Hour) {
+                    CycloTimeUnitPicker(
+                        value = shownHour,
+                        valueCount = hourCount,
+                        contentDescription = stringResource(R.string.introduction_2_hour),
+                        onValueChange = {
+                            turnSun(lastHour, it, hourCount)
+                            lastHour = it
+                            onHourChange(if (use24Hour) it else it + if (pm) 12 else 0)
+                        },
+                        label = if (use24Hour) TwoDigits else ::hour12Label,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .width(PickerGap)
@@ -171,6 +189,20 @@ fun Introduction2Page(
                     },
                     manyChoices = true,
                 )
+                if (!use24Hour) {
+                    Spacer(Modifier.width(PeriodGap))
+                    // AM-PM-Slider: 0 = AM, 1 = PM; muda só a metade do dia (as horas e os minutos ficam).
+                    CycloTimeUnitPicker(
+                        value = if (pm) 1 else 0,
+                        valueCount = 2,
+                        contentDescription = stringResource(R.string.introduction_2_period),
+                        onValueChange = { period ->
+                            val hour = wakeHour % 12 + period * 12
+                            if (hour != wakeHour) onHourChange(hour)
+                        },
+                        label = { if (it == 1) "PM" else "AM" },
+                    )
+                }
             }
 
             Spacer(Modifier.height(CycloDimens.Spacing))
@@ -194,3 +226,9 @@ private fun circularSteps(from: Int, to: Int, valueCount: Int): Int {
     val forward = ((to - from) % valueCount + valueCount) % valueCount
     return if (forward <= valueCount / 2) forward else forward - valueCount
 }
+
+/** "06", "23": dois algarismos (as horas de 24 h e os minutos). */
+private val TwoDigits: (Int) -> String = { String.format(java.util.Locale.ROOT, "%02d", it) }
+
+/** As horas de 12 h: 0 mostra-se "12", o resto com dois algarismos ("06"), como no Figma. */
+private fun hour12Label(value: Int): String = if (value == 0) "12" else String.format(java.util.Locale.ROOT, "%02d", value)

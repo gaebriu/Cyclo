@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Wake Time Widget (Figma 244:107, 345 x 171): o wake-time-container do Feed. O cartão (fundo,
+    sol e hora de acordar, separador e ícones) é um bitmap à escala que cabe no lançador, com a
+    proporção do Figma; cada uma das seis horas é um ViewFlipper posto por cima no sítio dela, para
+    a hora nova rolar quando o tempo para adormecer muda (ver widget/BedtimeWidgets.kt).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/widget_card"
+        android:layout_width="345dp"
+        android:layout_height="171dp"
+        android:layout_gravity="center">
+
+        <ImageView
+            android:id="@+id/widget_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY" />
+
+        <ViewFlipper android:id="@+id/slot0" style="@style/CycloWidgetSlot">
+            <ImageView android:id="@+id/slot0_a" style="@style/CycloWidgetSlotText" />
+            <ImageView android:id="@+id/slot0_b" style="@style/CycloWidgetSlotText" />
+        </ViewFlipper>
+
+        <ViewFlipper android:id="@+id/slot1" style="@style/CycloWidgetSlot">
+            <ImageView android:id="@+id/slot1_a" style="@style/CycloWidgetSlotText" />
+            <ImageView android:id="@+id/slot1_b" style="@style/CycloWidgetSlotText" />
+        </ViewFlipper>
+
+        <ViewFlipper android:id="@+id/slot2" style="@style/CycloWidgetSlot">
+            <ImageView android:id="@+id/slot2_a" style="@style/CycloWidgetSlotText" />
+            <ImageView android:id="@+id/slot2_b" style="@style/CycloWidgetSlotText" />
+        </ViewFlipper>
+
+        <ViewFlipper android:id="@+id/slot3" style="@style/CycloWidgetSlot">
+            <ImageView android:id="@+id/slot3_a" style="@style/CycloWidgetSlotText" />
+            <ImageView android:id="@+id/slot3_b" style="@style/CycloWidgetSlotText" />
+        </ViewFlipper>
+
+        <ViewFlipper android:id="@+id/slot4" style="@style/CycloWidgetSlot">
+            <ImageView android:id="@+id/slot4_a" style="@style/CycloWidgetSlotText" />
+            <ImageView android:id="@+id/slot4_b" style="@style/CycloWidgetSlotText" />
+        </ViewFlipper>
+
+        <ViewFlipper android:id="@+id/slot5" style="@style/CycloWidgetSlot">
+            <ImageView android:id="@+id/slot5_a" style="@style/CycloWidgetSlotText" />
+            <ImageView android:id="@+id/slot5_b" style="@style/CycloWidgetSlotText" />
+        </ViewFlipper>
+    </FrameLayout>
+</FrameLayout>

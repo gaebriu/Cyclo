@@ -1,5 +1,6 @@
 ﻿package com.gaebriu.cyclo.ui.components
 
+import com.gaebriu.cyclo.ui.theme.CycloSprings
 import android.os.SystemClock
 import androidx.compose.animation.core.FloatExponentialDecaySpec
 import androidx.compose.animation.core.Spring
@@ -64,6 +65,8 @@ private const val MinTickIntervalMs = 35L
  *
  * @param valueCount quantos valores há (24 para horas, 60 para minutos).
  * @param manyChoices háptico mais leve, para seletores com muitos valores (minutos).
+ * @param label o texto de cada valor (por omissão, dois algarismos: "06"); ex.: "12" para o 0
+ *              das horas de 12 h, ou "AM" / "PM" (AM-PM-Slider, Figma 244:187).
  * @param onValueChange chamado cada vez que o valor mostrado muda.
  */
 @Composable
@@ -74,6 +77,7 @@ fun CycloTimeUnitPicker(
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     manyChoices: Boolean = false,
+    label: (Int) -> String = ::format,
 ) {
     val density = LocalDensity.current
     val view = LocalView.current
@@ -117,7 +121,7 @@ fun CycloTimeUnitPicker(
             animate(
                 initialValue = position,
                 targetValue = position.roundToInt() + direction.toFloat(),
-                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
+                animationSpec = CycloSprings.fromStiffness(Spring.StiffnessMedium, 0.8f).float,
             ) { v, _ -> position = v }
         }
     }
@@ -130,7 +134,7 @@ fun CycloTimeUnitPicker(
             .size(PickerWidth, PickerHeight)
             .semantics {
                 this.contentDescription = contentDescription
-                stateDescription = format(value)
+                stateDescription = label(value)
                 customActions = listOf(
                     CustomAccessibilityAction(increaseLabel) { nudge(+1); true },
                     CustomAccessibilityAction(decreaseLabel) { nudge(-1); true },
@@ -160,7 +164,7 @@ fun CycloTimeUnitPicker(
                         animate(
                             initialValue = position,
                             targetValue = position.roundToInt().toFloat(),
-                            animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium),
+                            animationSpec = CycloSprings.fromStiffness(Spring.StiffnessMedium, 0.8f).float,
                         ) { v, _ -> position = v }
                     }
                 },
@@ -168,7 +172,7 @@ fun CycloTimeUnitPicker(
     ) {
         // O número atual sobe e desvanece-se; o seguinte entra por baixo. Em repouso só se vê um.
         BasicText(
-            text = format(base.mod(valueCount)),
+            text = label(base.mod(valueCount)),
             style = CycloType.Picker,
             modifier = Modifier
                 .align(Alignment.Center)
@@ -179,7 +183,7 @@ fun CycloTimeUnitPicker(
                 },
         )
         BasicText(
-            text = format((base + 1).mod(valueCount)),
+            text = label((base + 1).mod(valueCount)),
             style = CycloType.Picker,
             modifier = Modifier
                 .align(Alignment.Center)

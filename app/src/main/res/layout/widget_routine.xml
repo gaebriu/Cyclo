@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Routine Widget (Figma 244:48, 345 x 164). O cartão é desenhado num bitmap à escala que cabe no
+    espaço do lançador, sempre com a proporção do Figma (ver widget/BedtimeWidgets.kt): o código
+    dá o tamanho a widget_card e põe os botões (zonas de toque transparentes) nos sítios do Figma.
+    RemoteViews só infla classes @RemoteView: sem Space nem View simples.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/widget_card"
+        android:layout_width="345dp"
+        android:layout_height="164dp"
+        android:layout_gravity="center">
+
+        <ImageView
+            android:id="@+id/widget_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY" />
+
+        <!-- edit-routine-b e activate/deactivate-routine-b: as zonas de toque (o desenho vai no bitmap). -->
+        <FrameLayout
+            android:id="@+id/widget_edit"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|start" />
+
+        <FrameLayout
+            android:id="@+id/widget_toggle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|start" />
+    </FrameLayout>
+</FrameLayout>

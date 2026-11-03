@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wake Time Widget (Figma 244:107, 345 x 171; ver widget/BedtimeWidgets.kt): o wake-time-container
+     do Feed. Abre a 4 x 2; ao redimensionar, o cartão escala com a proporção do Figma (nunca se
+     deforma) e fica centrado no espaço. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_wake_description"
+    android:initialLayout="@layout/widget_wake_time"
+    android:previewLayout="@layout/widget_wake_time_preview"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

@@ -22,13 +22,14 @@ import java.time.format.DateTimeParseException
  *     "onboarded": true,
  *     "routines": [ { "id", "name", "wakeHour", "wakeMinute", "repeat", "daysMask", "active", "anchor" } ],
  *     "dailyLog": { "date", "caffeine", "factors": [], "mood", "caffeineTimes": [ms], "factorTimes": { nome: ms } } | null,
- *     "settings": { "use24Hour": true | null, "age": 30 | null, "chronotype", "fallAsleep", "bedtimeReminder" }
+ *     "settings": { "use24Hour": true | null, "age": 30 | null, "chronotype", "fallAsleep", "bedtimeReminder",
+ *                   "feedOrder": ["Caffeine", "SleepFactors", "Feeling"] }
  *   }
  * }
  * ```
  * "caffeineTimes" e "factorTimes" (as horas dos registos, para o [BedtimeEngine]) vieram depois e
  * são opcionais: as versões anteriores ignoram-nos e as cópias sem eles continuam válidas, por isso
- * a versão do formato não mudou.
+ * a versão do formato não mudou. O mesmo para "feedOrder" (a ordem dos blocos do Feed, alpha-0.7.3).
  * Os enums vão pelo nome, como no DataStore. Ao mudar o formato, sobe-se [BackupFormatVersion] e
  * [parseBackup] passa a saber ler as versões antigas.
  */
@@ -48,6 +49,8 @@ data class BackupContents(
     val fallAsleep: FallAsleepTime?,
     val bedtimeReminder: Boolean?,
     val exportedAt: Instant?,
+    /** A ordem dos blocos do Feed (null = a cópia não a traz, fica a atual). */
+    val feedOrder: List<FeedSection>? = null,
 )
 
 /** Porque é que uma cópia não pode ser reposta. */
@@ -72,6 +75,7 @@ fun buildBackupJson(data: CycloData, exportedAt: Instant, appVersion: String): S
         .put("chronotype", data.chronotype.name)
         .put("fallAsleep", data.fallAsleep.name)
         .put("bedtimeReminder", data.bedtimeReminder)
+        .put("feedOrder", JSONArray(data.feedOrder.map { it.name }))
     val content = JSONObject()
         .put("onboarded", data.onboarded)
         .put("routines", routinesToJson(data.routines))
@@ -131,6 +135,10 @@ fun parseBackup(text: String): BackupParseResult {
                 fallAsleep = enumOrNull<FallAsleepTime>(settings.optString("fallAsleep")),
                 bedtimeReminder = if (settings.has("bedtimeReminder")) settings.getBoolean("bedtimeReminder") else null,
                 exportedAt = runCatching { Instant.parse(root.getString("exportedAt")) }.getOrNull(),
+                // Nomes que esta versão não conhece são ignorados; os que faltam vão para o fim.
+                feedOrder = settings.optJSONArray("feedOrder")?.let { array ->
+                    normalizeFeedOrder(List(array.length()) { array.optString(it) }.mapNotNull { enumOrNull<FeedSection>(it) })
+                },
             ),
         )
     } catch (e: JSONException) {

@@ -8,6 +8,9 @@ import androidx.compose.ui.unit.dp
 /**
  * Tempos e curvas das animações. O Figma não os define, por isso são PROPOSTAS
  * para afinares à vista na app a correr.
+ *
+ * As molas vêm todas dos presets do motor de animações ([CycloSprings], em Springs.kt); aqui ficam
+ * com o nome do sítio onde se usam. Animações novas usam os presets.
  */
 object CycloMotion {
     // Introduction 0
@@ -35,7 +38,7 @@ object CycloMotion {
      * de uma folha do iOS / Material You: reage ao toque e pode ser interrompida sem saltos.
      * O fade e o desfoque dos textos seguem o progresso desta mola, por isso têm a mesma duração.
      */
-    val ScreenRiseSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 280f)
+    val ScreenRiseSpring = CycloSprings.Sheet.float
 
     /** Ecrã que recua por baixo de outro: zoom out até 92 % e um véu #010101 a 24 %. */
     const val BackgroundScale = 0.92f
@@ -48,30 +51,30 @@ object CycloMotion {
     const val HintFadeDurationMs = 350
 
     /** Transição da caixa do nome entre escrever e ouvir (ícones, borda, textos). */
-    val ListeningSpring = spring<Float>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+    val ListeningSpring = CycloSprings.fromStiffness(Spring.StiffnessMediumLow, 0.8f).float
 
     /** Volta de um ciclo dos gradientes animados da caixa a ouvir (texto e borda, da esquerda para a direita). */
     const val ListeningShimmerMs = 2200
 
     /** A caixa do nome a ir para cima do teclado (e a voltar). Mola suave, ao estilo iOS / Material You. */
-    val KeyboardSpring = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+    val KeyboardSpring = CycloSprings.Overlay.float
 
     /** Fades de elementos soltos (ex.: o subtítulo do Introduction 3 com o teclado). Mola sem ressalto. */
-    val FadeSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+    val FadeSpring = CycloSprings.Gentle.float
 
     /** Zoom out subtil de um botão enquanto está carregado: botões grandes e botões só de ícone. */
     const val ButtonPressScale = 0.96f
     const val IconButtonPressScale = 0.88f
 
     /** Mola do zoom dos botões: responde logo ao toque e assenta com um ligeiro ressalto. */
-    val PressSpring = spring<Float>(dampingRatio = 0.65f, stiffness = 500f)
+    val PressSpring = CycloSprings.Press.float
 
     /** Caixa do nome ao completar o ditado: a de escrever entra com zoom in, a de ouvir sai com zoom out. */
     const val CompletionZoom = 0.94f
     val CompletionSpring = spring<Float>(dampingRatio = 0.5f, stiffness = Spring.StiffnessMediumLow)
 
     /** Menus e folhas que aparecem por cima do ecrã (entrada e saída). */
-    val OverlaySpring = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+    val OverlaySpring = CycloSprings.Overlay.float
 
     /**
      * Crescimento da barra de progresso. O limiar de visibilidade é fino: com o de omissão (0,01)
@@ -103,7 +106,7 @@ object CycloMotion {
      * Regresso do scroll à ponta depois de esticar (rubber band) e o bounce de um lançamento que
      * bate na ponta, como no iOS: mola criticamente amortecida, sem oscilar.
      */
-    val ScrollBounceSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 200f)
+    val ScrollBounceSpring = CycloSprings.Bounce.float
 
     /** A caixa do nome do Introduction 5 a alargar ao escrever (e a voltar): a mesma mola do teclado. */
     val NameFieldExpandSpring = KeyboardSpring
@@ -125,12 +128,24 @@ object CycloMotion {
     /** O brilho do topo do Feed a nascer (como o do Introduction 0). */
     const val FeedGlowDurationMs = 1600
 
-    /** Troca entre o Feed e as rotinas guardadas: fade cruzado com um ligeiro deslize. */
+    /** Troca entre o Feed e as rotinas guardadas sem animações no sistema: só o fade. */
     const val TabSwitchDurationMs = 320
-    val TabSwitchShift = 24.dp
 
-    /** A pílula da barra de navegação a deslizar para o botão escolhido. */
-    val NavIndicatorSpring = spring<Float>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+    /** Feed ⇄ rotinas guardadas com o dedo: fração da largura a partir da qual a página muda ao largar. */
+    const val PageSwipeThreshold = 0.5f
+
+    /** Velocidade (larguras por segundo) a partir da qual um lançamento muda de página, mesmo curto. */
+    const val PageFlingVelocity = 0.55f
+
+    /** A página que sai, enquanto a outra entra, fica um pouco mais escura (opacidade mínima). */
+    const val PageOutgoingAlpha = 0.4f
+
+    /** Reordenar (long press e arrastar): o cartão cresce um pouco e ganha sombra. */
+    const val DragLiftScale = 1.04f
+
+    /** Arrastar perto do topo ou do fundo faz scroll, até esta velocidade (dp por frame a 60 Hz). */
+    const val DragAutoScrollMaxDp = 14f
+
 
     /** Quanto tempo a barra de baixo (undo-action) fica à vista antes de sair sozinha. */
     const val MessageDurationMs = 4000L
@@ -142,7 +157,7 @@ object CycloMotion {
     val SearchSpring = KeyboardSpring
 
     /** Cartões das rotinas a mudar (ligar/desligar, aparecer, desaparecer). */
-    val CardSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+    val CardSpring = CycloSprings.Gentle.float
 
     /**
      * Brilho do topo ao mudar entre o Feed e as rotinas guardadas: volta a crescer e a acender, e
@@ -157,7 +172,7 @@ object CycloMotion {
      * Número da cafeína a rolar: o novo entra por baixo (ou por cima, ao tirar) e o antigo sai,
      * com fade e desfoque. Mola rápida com um ressalto muito leve. PROPOSTA.
      */
-    val CounterSpring = spring<Float>(dampingRatio = 0.78f, stiffness = 420f)
+    val CounterSpring = CycloSprings.Snappy.float
 
     /** Quanto o número da cafeína se desloca a rolar, em fração da sua altura. */
     const val CounterRollDistance = 0.7f
@@ -183,8 +198,8 @@ object CycloMotion {
     const val MenuStartScale = 0.9f
 
     /** Menus (action-menu) a abrir: mola com um ressalto muito leve no zoom. PROPOSTA. */
-    val MenuOpenSpring = spring<Float>(dampingRatio = 0.78f, stiffness = 520f)
+    val MenuOpenSpring = CycloSprings.Enter.float
 
     /** Menus (action-menu) a fechar: mais rápido e sem ressalto. PROPOSTA. */
-    val MenuCloseSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 700f)
+    val MenuCloseSpring = CycloSprings.Exit.float
 }

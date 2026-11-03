@@ -13,14 +13,32 @@ android {
         applicationId = "com.gaebriu.cyclo"
         minSdk = 33
         targetSdk = 37
-        versionCode = 14
-        versionName = "alpha-0.7.2"
+        // versionName = a tag do GitHub ("beta-1.0.0"; final: "1.0.0"). Mostra-se "Cyclo Beta 1.0".
+        versionCode = 16
+        versionName = "beta-1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Chave das releases: o keystore e as palavras-passe ficam FORA do repositório, no
+    // ~/.gradle/gradle.properties (CYCLO_RELEASE_*). Sem elas, o release sai sem assinatura.
+    // Todas as releases têm de usar a mesma chave: o Android só aceita atualizações assinadas igual.
+    val releaseStore = providers.gradleProperty("CYCLO_RELEASE_STORE_FILE").orNull
+    signingConfigs {
+        if (releaseStore != null) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = providers.gradleProperty("CYCLO_RELEASE_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("CYCLO_RELEASE_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("CYCLO_RELEASE_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (releaseStore != null) signingConfig = signingConfigs.getByName("release")
+            proguardFiles("proguard-rules.pro")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -46,7 +64,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     // O org.json do Android é só um esboço nos testes locais (lança exceção): usa-se o verdadeiro.

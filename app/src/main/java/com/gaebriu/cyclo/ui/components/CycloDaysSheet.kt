@@ -42,6 +42,7 @@ import com.gaebriu.cyclo.ui.routine.hasDay
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.CycloType
 
 /**
@@ -107,7 +108,7 @@ private fun DayChip(day: Weekday, selected: Boolean, onToggle: () -> Unit) {
     val name = stringResource(day.fullName)
     val progress by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = CycloSprings.fromStiffness(Spring.StiffnessMediumLow, 0.8f).float,
         label = "day",
     )
 

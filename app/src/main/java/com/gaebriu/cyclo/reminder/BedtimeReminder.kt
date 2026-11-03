@@ -19,6 +19,7 @@ import com.gaebriu.cyclo.data.BedtimePlan
 import com.gaebriu.cyclo.data.CycloData
 import com.gaebriu.cyclo.data.Routine
 import com.gaebriu.cyclo.data.WindDownReason
+import com.gaebriu.cyclo.ui.i18n.appLocale
 import com.gaebriu.cyclo.ui.time.cycloTimeFormatter
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -61,9 +62,12 @@ object BedtimeReminder {
     /** O interruptor como se mostra: ligado nas definições E com autorização. */
     fun isOn(context: Context, data: CycloData): Boolean = data.bedtimeReminder && isPermitted(context)
 
+    /**
+     * Cria o canal (ou, se já existe, atualiza o nome e a descrição para a língua atual; a
+     * importância e o que o utilizador escolheu para o canal ficam como estão).
+     */
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(ChannelId) != null) return
         manager.createNotificationChannel(
             NotificationChannel(ChannelId, context.getString(R.string.reminder_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = context.getString(R.string.reminder_channel_description)
@@ -79,14 +83,11 @@ object BedtimeReminder {
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
         val zone = ZoneId.systemDefault()
 
-        // Refrescar quando a próxima hora de acordar passar (o widget passa para a seguinte).
+        // Refrescar os widgets no próximo momento em que o que mostram muda (ver [nextRefresh]).
+        // RTC sem acordar o aparelho: se estiver a dormir, refresca quando acordar.
         val refresh = refreshIntent(context)
-        val nextWake = BedtimeEngine.nextWake(data.routines, now)?.second
-        if (nextWake != null) {
-            alarms.setAndAllowWhileIdle(AlarmManager.RTC, nextWake.plusMinutes(1).atZone(zone).toInstant().toEpochMilli(), refresh)
-        } else {
-            alarms.cancel(refresh)
-        }
+        val refreshAt = nextRefresh(data, now)
+        alarms.setAndAllowWhileIdle(AlarmManager.RTC, refreshAt.atZone(zone).toInstant().toEpochMilli(), refresh)
 
         val pending = reminderIntent(context, null)
         if (!isOn(context, data)) {
@@ -106,6 +107,27 @@ object BedtimeReminder {
             at,
             reminderIntent(context, routine.id to plan.wake.atZone(zone).toInstant().toEpochMilli()),
         )
+    }
+
+    /**
+     * Quando o widget volta a precisar de ser desenhado sem que os dados mudem: o início do
+     * wind-down ("Wind down at ..." passa a "Start winding down"), a hora de ir para a cama, a hora
+     * de acordar (passa à seguinte) ou a meia-noite (o registo do dia recomeça). O mais cedo deles,
+     * pelo menos um minuto depois de agora.
+     */
+    internal fun nextRefresh(data: CycloData, now: LocalDateTime): LocalDateTime {
+        val candidates = mutableListOf(now.toLocalDate().plusDays(1).atStartOfDay().plusMinutes(1))
+        BedtimeEngine.nextWake(data.routines, now)?.let { (_, wake) ->
+            candidates += wake.plusMinutes(1)
+            val plan = BedtimeEngine.plan(wake, now, data.age, data.chronotype, data.fallAsleep, data.dailyLog)
+            candidates += plan.windDownStart
+            // A hora ideal (não a arredondada a "agora" de quando já não dá tempo): passa a "Time for bed".
+            candidates += plan.idealBedtime
+        }
+        // O Wake Time Widget (como o Feed) só mostra uma hora de acordar a 24 h: muda quando ela entra.
+        BedtimeEngine.nextWake(data.routines, now)?.let { (_, wake) -> candidates += wake.minus(BedtimeEngine.FeedWindow) }
+        val earliest = now.plusMinutes(1)
+        return candidates.filter { it.isAfter(earliest) }.minOrNull() ?: earliest
     }
 
     /**
@@ -193,7 +215,7 @@ object BedtimeReminder {
     /** Formato das horas: o escolhido nas definições ou, sem escolha, o do sistema. */
     fun timeFormatter(context: Context, use24Hour: Boolean?): DateTimeFormatter {
         val is24 = use24Hour ?: DateFormat.is24HourFormat(context)
-        return cycloTimeFormatter(is24)
+        return cycloTimeFormatter(is24, context.appLocale())
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(Prefs, Context.MODE_PRIVATE)

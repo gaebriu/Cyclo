@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Português (Portugal). Em values-pt (e não values-pt-rPT) para que qualquer português do sistema
+     (ex.: pt-BR) use estes textos em vez do inglês. -->
+<resources>
+    <!-- Comuns -->
+    <string name="close">Fechar</string>
+    <string name="back">Voltar</string>
+    <string name="increase">Aumentar</string>
+    <string name="decrease">Diminuir</string>
+    <string name="next">Seguinte</string>
+    <string name="introduction_progress">Passo %1$d de %2$d</string>
+
+    <!-- Introduction 0 -->
+    <string name="introduction_0_greeting">Olá!</string>
+    <string name="introduction_0_get_started">Começar</string>
+
+    <!-- Introduction 1 -->
+    <string name="introduction_1_title">Ciclos de sono, o que são?</string>
+    <string name="introduction_1_body_1">Quando dormes, o teu cérebro passa por vários ciclos. Cada um dura cerca de 90 minutos e chama-se ciclo de sono</string>
+    <string name="introduction_1_body_2">Uma noite completa e reparadora tem normalmente 4 a 6 ciclos, o que dá 6 a 9 horas de sono</string>
+    <string name="introduction_1_body_3">Acordar entre ciclos é natural e revigorante. Acordar a meio de um deixa aquela sensação pesada e confusa a que se chama inércia do sono</string>
+    <string name="introduction_1_body_4">O Cyclo ajuda-te a evitá-la, encontrando as melhores horas para adormecer ou acordar, sempre no fim de um ciclo</string>
+
+    <!-- Introduction 2 -->
+    <string name="introduction_2_title">A que horas queres acordar?</string>
+    <string name="introduction_2_hour">hora</string>
+    <string name="introduction_2_minute">min</string>
+    <string name="introduction_2_period">AM ou PM</string>
+    <string name="introduction_2_hint">Desliza ou toca para mudar</string>
+
+    <!-- Introduction 3 -->
+    <string name="introduction_3_title">Dá-lhe um nome</string>
+    <string name="introduction_3_subtitle">Assim guardas a tua hora de acordar para a teres sempre à mão</string>
+    <string name="introduction_3_placeholder">Toca para escrever</string>
+    <string name="introduction_3_listening">A ouvir...</string>
+    <string name="introduction_3_dictate">Escrever por voz</string>
+    <string name="introduction_3_switch_to_keyboard">Mudar para o teclado</string>
+    <string name="routine_default_name">Rotina %1$d</string>
+
+    <!-- Introduction 5 -->
+    <string name="introduction_5_title">Queres adicioná-la como widget ao ecrã principal?</string>
+    <string name="introduction_5_subtitle">Se preferires, salta esta parte</string>
+    <string name="introduction_5_add_widget">Adicionar como widget</string>
+    <!-- Introduction 6 -->
+    <string name="introduction_6_text">Está tudo pronto!</string>
+    <!-- Introduction 4 -->
+    <string name="introduction_4_title">Quando deve aparecer no teu feed?</string>
+    <string name="introduction_4_subtitle">Se for só para uma vez, salta esta parte</string>
+    <string name="introduction_4_repeat_field">Quando mostrar</string>
+    <string name="repeat_just_once">Mostrar só desta vez</string>
+    <string name="repeat_everyday">Todos os dias</string>
+    <string name="repeat_during_week">Durante a semana</string>
+    <string name="repeat_during_weekend">Ao fim de semana</string>
+    <string name="repeat_selected_days">Mostrar nos dias escolhidos</string>
+    <string name="repeat_choose_days_hint">Escolher dias</string>
+    <string name="days_sheet_title">Escolher dias</string>
+    <string name="days_sheet_description">Esta rotina vai repetir-se todas as semanas nestes dias</string>
+    <string name="days_sheet_done">Concluído</string>
+    <string name="day_short_sunday">D</string>
+    <string name="day_short_monday">S</string>
+    <string name="day_short_tuesday">T</string>
+    <string name="day_short_wednesday">Q</string>
+    <string name="day_short_thursday">Q</string>
+    <string name="day_short_friday">S</string>
+    <string name="day_short_saturday">S</string>
+    <string name="day_sunday">Domingo</string>
+    <string name="day_monday">Segunda-feira</string>
+    <string name="day_tuesday">Terça-feira</string>
+    <string name="day_wednesday">Quarta-feira</string>
+    <string name="day_thursday">Quinta-feira</string>
+    <string name="day_friday">Sexta-feira</string>
+    <string name="day_saturday">Sábado</string>
+
+    <!-- Resumo dos dias escolhidos (ex.: "Domingos, segundas") -->
+    <string name="day_sunday_plural">Domingos</string>
+    <string name="day_monday_plural">Segundas</string>
+    <string name="day_tuesday_plural">Terças</string>
+    <string name="day_wednesday_plural">Quartas</string>
+    <string name="day_thursday_plural">Quintas</string>
+    <string name="day_friday_plural">Sextas</string>
+    <string name="day_saturday_plural">Sábados</string>
+    <string name="days_summary_separator">, </string>
+</resources>

@@ -64,6 +64,12 @@ import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSource
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.settings.SettingsScreen
+import com.gaebriu.cyclo.ui.settings.UpdateUi
+import com.gaebriu.cyclo.ui.screens.Introduction0Screen
+import com.gaebriu.cyclo.update.CycloUpdates
+import com.gaebriu.cyclo.update.DownloadState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import com.gaebriu.cyclo.ui.time.ProvideTimeFormat
 import com.gaebriu.cyclo.ui.effects.StaggeredReveal
 import com.gaebriu.cyclo.ui.main.FeedRevealItems
@@ -85,6 +91,9 @@ private const val OverlayNone = 0
 private const val OverlayTutorial = 1
 private const val OverlayEditor = 2
 private const val OverlaySettings = 3
+
+/** A primeira abertura depois de uma atualização: o Introduction 0 e, sozinho, o Feed. */
+private const val OverlayUpdated = 4
 
 /**
  * A app: o Feed e as rotinas guardadas por baixo e, por cima, o tutorial (só até ser feito), o
@@ -109,8 +118,28 @@ fun CycloApp(viewModel: CycloViewModel) {
 
     // O tutorial decide-se uma vez, ao abrir: a marca "feito" é escrita no Introduction 5, mas o
     // tutorial continua até ao fim do 6.
-    var overlay by rememberSaveable { mutableIntStateOf(if (data.onboarded) OverlayNone else OverlayTutorial) }
-    var overlayOpen by rememberSaveable { mutableStateOf(!data.onboarded) }
+    // Depois de uma atualização (o versionCode guardado é outro), a primeira abertura mostra o
+    // Introduction 0 e passa sozinha para o Feed, sem o tutorial. Só com o tutorial já feito: numa
+    // instalação nova vale o tutorial. Os dados não mudam.
+    val context = LocalContext.current
+    val versionCode = remember(context) {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt() }.getOrDefault(0)
+    }
+    val justUpdated = data.onboarded && data.lastRunVersion != versionCode
+    var overlay by rememberSaveable {
+        mutableIntStateOf(
+            when {
+                !data.onboarded -> OverlayTutorial
+                justUpdated -> OverlayUpdated
+                else -> OverlayNone
+            },
+        )
+    }
+    var overlayOpen by rememberSaveable { mutableStateOf(!data.onboarded || justUpdated) }
+    // Esta versão já abriu: guarda-se logo (um arranque normal a seguir não volta a mostrar nada).
+    LaunchedEffect(versionCode) {
+        if (data.lastRunVersion != versionCode) viewModel.markVersionSeen(versionCode)
+    }
     // Cada abertura do editor tem uma chave nova, para começar sempre do zero.
     var editorKey by rememberSaveable { mutableLongStateOf(0L) }
     var editorRoutineId by rememberSaveable { mutableLongStateOf(-1L) }
@@ -126,7 +155,7 @@ fun CycloApp(viewModel: CycloViewModel) {
     var revealPlayed by rememberSaveable { mutableStateOf(false) }
     val reveal = remember { StaggeredReveal(FeedRevealItems.Count, startRevealed = revealPlayed) }
     val glow = remember { Animatable(if (revealPlayed) 1f else 0f) }
-    val feedVisible = !(overlay == OverlayTutorial && overlayOpen)
+    val feedVisible = !((overlay == OverlayTutorial || overlay == OverlayUpdated) && overlayOpen)
     LaunchedEffect(feedVisible) {
         if (feedVisible && !revealPlayed) {
             revealPlayed = true
@@ -144,7 +173,6 @@ fun CycloApp(viewModel: CycloViewModel) {
 
     // Seletores de ficheiros do sistema e a autorização de notificações. Ficam aqui (e não nas
     // definições) porque o "Try again" da barra de baixo pode abri-los depois de as fechar.
-    val context = LocalContext.current
     val exportPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
         viewModel::exportTo,
@@ -179,6 +207,8 @@ fun CycloApp(viewModel: CycloViewModel) {
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                // Atualizações no GitHub: ao abrir e ao voltar à app (no máximo de 6 em 6 horas).
+                CycloUpdates.checkIfDue(context)
                 val allowed = BedtimeReminder.isPermitted(context)
                 if (allowed != notificationsAllowed) {
                     notificationsAllowed = allowed
@@ -205,9 +235,14 @@ fun CycloApp(viewModel: CycloViewModel) {
         }
     }
 
-    /** "Add as a widget": pede ao lançador para fixar o widget da rotina [routineId]. */
+    /** "Add as a widget": pede ao lançador para fixar o Routine Widget da rotina [routineId]. */
     fun pinWidget(routineId: Long) {
         if (!BedtimeWidgets.requestPin(context, routineId)) viewModel.widgetPinUnsupported()
+    }
+
+    /** "Add as a widget" do menu do Wake Time do Feed: o Wake Time Widget. */
+    fun pinWakeWidget() {
+        if (!BedtimeWidgets.requestPinWakeTime(context)) viewModel.widgetPinUnsupported()
     }
 
     val gitHubUrl = stringResource(R.string.github_url)
@@ -221,6 +256,7 @@ fun CycloApp(viewModel: CycloViewModel) {
             onDeleteRoutine = viewModel::deleteRoutine,
             onToggleRoutine = { viewModel.setRoutineActive(it.id, !it.active) },
             onAddWidget = { routine -> pinWidget(routine.id) },
+            onAddWakeWidget = { pinWakeWidget() },
             onCaffeineChange = viewModel::changeCaffeine,
             onCaffeineReset = viewModel::resetCaffeine,
             onToggleFactor = viewModel::toggleFactor,
@@ -229,6 +265,8 @@ fun CycloApp(viewModel: CycloViewModel) {
                 overlay = OverlaySettings
                 overlayOpen = true
             },
+            onReorderRoutines = { ordered -> viewModel.reorderRoutines(ordered.map { it.id }) },
+            onReorderFeed = viewModel::setFeedOrder,
         )
     }
 
@@ -237,7 +275,43 @@ fun CycloApp(viewModel: CycloViewModel) {
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
     )
     // O Feed só precisa de existir quando se vê (durante o tutorial está todo tapado).
-    val showMain by remember { derivedStateOf { overlay != OverlayTutorial || cover.value < 1f } }
+    val showMain by remember { derivedStateOf { (overlay != OverlayTutorial && overlay != OverlayUpdated) || cover.value < 1f } }
+
+    // O new-update-group das definições: a versão nova (se houver e não tiver sido dispensada há
+    // menos de 24 horas, ou se já estiver a descarregar) e o estado do download.
+    val availableUpdate by CycloUpdates.available.collectAsState()
+    val dismissedUntil by CycloUpdates.dismissedUntil.collectAsState()
+    val updateDownload by CycloUpdates.download.collectAsState()
+    val updateUi = availableUpdate
+        ?.takeIf { updateDownload != DownloadState.Idle || System.currentTimeMillis() >= dismissedUntil }
+        ?.let { UpdateUi(it.version.label(), updateDownload, canDownload = it.apkUrl != null) }
+
+    // Instalar: o instalador nativo do Android (o utilizador confirma lá). Se não abrir, a barra de
+    // baixo diz e "Try again" tenta outra vez.
+    fun installUpdate() {
+        val file = (CycloUpdates.download.value as? DownloadState.Done)?.file
+        if (file == null || !CycloUpdates.install(context, file)) viewModel.updateInstallFailed { installUpdate() }
+    }
+    // O download acabou: o instalador abre logo (uma vez). Se o utilizador sair dele sem instalar,
+    // o grupo fica com "Install update". Um erro vai para a barra de baixo (undo-action) com
+    // "Try again", que descarrega de novo, e o grupo volta ao "Download now".
+    LaunchedEffect(updateDownload) {
+        when (val state = updateDownload) {
+            is DownloadState.Done -> {
+                // Com a app em segundo plano, o Android bloqueia abrir o instalador: espera-se que o
+                // utilizador volte (o pedido só se gasta quando o instalador pode mesmo abrir).
+                lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
+                if (CycloUpdates.takeAutoInstall()) installUpdate()
+            }
+            is DownloadState.Failed -> {
+                CycloUpdates.resetDownload()
+                viewModel.updateDownloadFailed(state.reason) {
+                    CycloUpdates.available.value?.let { CycloUpdates.startDownload(context, it) }
+                }
+            }
+            else -> Unit
+        }
+    }
     // Tudo o que fica por baixo da barra de baixo (undo-action), que o desfoca.
     val screens = rememberBackdropLayer()
 
@@ -310,7 +384,16 @@ fun CycloApp(viewModel: CycloViewModel) {
                         }
                     },
             ) {
-                if (overlay == OverlayTutorial) {
+                if (overlay == OverlayUpdated) {
+                    // Depois de uma atualização: o "Hello!" do Introduction 0 e, no fim dele, o
+                    // ecrã desce e o Feed aparece com a sua entrada. Voltar salta a espera.
+                    Introduction0Screen(onGetStarted = {}, showButtons = false)
+                    LaunchedEffect(Unit) {
+                        delay(CycloMotion.LettersStartDelayMs + CycloMotion.HelloDurationMs + CycloMotion.AllSetHoldMs)
+                        overlayOpen = false
+                    }
+                    BackHandler(enabled = overlayOpen) { overlayOpen = false }
+                } else if (overlay == OverlayTutorial) {
                     IntroductionFlow(
                         mode = IntroductionMode.Tutorial,
                         nextRoutineNumber = data.routines.size + 1,
@@ -341,7 +424,24 @@ fun CycloApp(viewModel: CycloViewModel) {
                                 viewModel.gitHubOpenFailed()
                             }
                         },
+                        onSetLanguage = { com.gaebriu.cyclo.ui.i18n.AppLanguage.set(context, it) },
                         onClose = { overlayOpen = false },
+                        update = updateUi,
+                        onUpdateDownload = {
+                            availableUpdate?.let { update ->
+                                if (update.apkUrl != null) {
+                                    CycloUpdates.startDownload(context, update)
+                                } else if (!CycloUpdates.openReleasePage(context, update)) {
+                                    viewModel.gitHubOpenFailed()
+                                }
+                            }
+                        },
+                        onUpdateCancel = CycloUpdates::cancelDownload,
+                        onUpdateInstall = ::installUpdate,
+                        onUpdateDismiss = {
+                            CycloUpdates.cancelDownload()
+                            CycloUpdates.dismiss(context)
+                        },
                     )
                 } else {
                     key(editorKey) {
@@ -382,8 +482,10 @@ fun CycloApp(viewModel: CycloViewModel) {
                 onDismiss = viewModel::cancelRestore,
                 bottomMargin = bottomInset,
             ) {
+                val locale = com.gaebriu.cyclo.ui.i18n.rememberAppLocale()
                 val savedOn = shownRestore?.exportedAt?.let { instant ->
                     DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
+                        .withLocale(locale)
                         .format(instant.atZone(ZoneId.systemDefault()).toLocalDate())
                 }
                 CycloBigSheet(

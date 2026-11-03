@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.platform.LocalConfiguration
+import com.gaebriu.cyclo.ui.i18n.rememberAppLocale
 import androidx.compose.ui.platform.LocalContext
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
@@ -29,7 +29,7 @@ val LocalTimeFormat = staticCompositionLocalOf {
 @Composable
 fun ProvideTimeFormat(use24Hour: Boolean?, content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = rememberAppLocale()
     // O do sistema lê-se de cada vez que a configuração muda (ex.: ao voltar das definições do Android).
     val system = DateFormat.is24HourFormat(context)
     val is24 = use24Hour ?: system

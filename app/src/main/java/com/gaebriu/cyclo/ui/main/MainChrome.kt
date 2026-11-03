@@ -249,22 +249,21 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, first
 
 /**
  * Barra de navegação (navigation-bar): Feed e rotinas guardadas. A pílula do botão escolhido
- * desliza de um para o outro com uma mola; o ícone escolhido é branco e o outro cinzento.
+ * acompanha a página: segue o dedo durante o swipe e a mola da página ao tocar; o ícone escolhido
+ * é branco e o outro cinzento.
+ *
+ * @param pagePosition de 0 (Feed) a 1 (rotinas guardadas), a posição contínua das páginas.
  */
 @Composable
 fun MainNavigationBar(
     selected: MainTab,
+    pagePosition: () -> Float,
     onSelect: (MainTab) -> Unit,
     feedDescription: String,
     savedDescription: String,
     modifier: Modifier = Modifier,
 ) {
     val effects = LocalVisualEffects.current
-    val position by animateFloatAsState(
-        targetValue = if (selected == MainTab.Saved) 1f else 0f,
-        animationSpec = CycloMotion.NavIndicatorSpring,
-        label = "navIndicator",
-    )
     Box(
         modifier = modifier
             .size(NavigationBarWidth, NavigationBarHeight)
@@ -272,7 +271,7 @@ fun MainNavigationBar(
             .drawBehind {
                 // feed-icon-background: #313233 a 39 % em Luminosity.
                 val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
-                val x = lerp(IndicatorInset.toPx(), SecondIndicatorStart.toPx(), position)
+                val x = lerp(IndicatorInset.toPx(), SecondIndicatorStart.toPx(), pagePosition().coerceIn(0f, 1f))
                 drawRoundRect(
                     color = CycloColors.GlassBorder,
                     alpha = 0.39f,
@@ -287,7 +286,7 @@ fun MainNavigationBar(
             NavigationItem(
                 iconPath = CycloAppIconPaths.Home,
                 description = feedDescription,
-                amount = { 1f - position },
+                amount = { 1f - pagePosition().coerceIn(0f, 1f) },
                 isSelected = selected == MainTab.Feed,
                 onClick = { onSelect(MainTab.Feed) },
             )
@@ -295,7 +294,7 @@ fun MainNavigationBar(
             NavigationItem(
                 iconPath = CycloAppIconPaths.Bookmark,
                 description = savedDescription,
-                amount = { position },
+                amount = { pagePosition().coerceIn(0f, 1f) },
                 isSelected = selected == MainTab.Saved,
                 onClick = { onSelect(MainTab.Saved) },
             )

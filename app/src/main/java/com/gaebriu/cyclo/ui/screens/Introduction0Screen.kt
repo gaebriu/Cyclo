@@ -76,6 +76,8 @@ private typealias Progress = Animatable<Float, AnimationVector1D>
  *
  * @param onGetStarted ação do botão Get started (a navegação liga-se por fora).
  * O botão "What's new?" é só visual, por decisão tua, e não tem ação.
+ * @param showButtons false na abertura depois de uma atualização: só o "Hello!" e o brilho, sem o
+ *                    "Get started" (a app passa sozinha para o Feed).
  * @param recede de 0 a 1: quanto este ecrã já recuou por baixo do Introduction 1. O brilho roxo
  *               desaparece com um fade de cima para baixo (e reaparece de baixo para cima ao
  *               voltar), para não ficar cortado no topo quando o ecrã encolhe.
@@ -85,6 +87,7 @@ fun Introduction0Screen(
     onGetStarted: () -> Unit,
     modifier: Modifier = Modifier,
     recede: () -> Float = { 0f },
+    showButtons: Boolean = true,
 ) {
     val effects = LocalVisualEffects.current
     val greeting = stringResource(R.string.introduction_0_greeting)
@@ -129,12 +132,14 @@ fun Introduction0Screen(
                 .padding(top = GreetingTop),
         )
 
-        IntroButtons(
-            buttons = buttons,
-            effects = effects,
-            onGetStarted = onGetStarted,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
+        if (showButtons) {
+            IntroButtons(
+                buttons = buttons,
+                effects = effects,
+                onGetStarted = onGetStarted,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
     }
 }
 

@@ -1,0 +1,49 @@
+﻿package com.gaebriu.cyclo.update
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** A comparação das versões (tags do GitHub contra o versionName instalado). */
+class AppVersionTest {
+    private fun v(text: String) = AppVersion.parse(text)!!
+
+    @Test
+    fun parsesAlphaTags() {
+        assertEquals(AppVersion(listOf(0, 7, 3), AppVersion.Stage.Alpha), v("alpha-0.7.3"))
+        assertEquals("Alpha 0.7.3", v("alpha-0.7.3").label())
+    }
+
+    @Test
+    fun numbersCompareNumerically() {
+        assertTrue(v("alpha-0.7.10") > v("alpha-0.7.9"))
+        assertTrue(v("alpha-0.8.0") > v("alpha-0.7.3"))
+        assertTrue(v("alpha-1.0.0") > v("alpha-0.99.99"))
+    }
+
+    @Test
+    fun sameNumbersOrderByStage() {
+        assertTrue(v("beta-1.0.0") > v("alpha-1.0.0"))
+        assertTrue(v("rc-1.0.0") > v("beta-1.0.0"))
+        assertTrue(v("1.0.0") > v("rc-1.0.0"))
+        assertTrue(v("v1.0.0-beta.2") > v("v1.0.0-beta.1"))
+    }
+
+    @Test
+    fun labels() {
+        assertEquals("Beta 1.0", v("beta-1.0.0").label())
+        assertEquals("1.0", v("1.0.0").label())
+        assertEquals("Beta 1.0.2", v("beta-1.0.2").label())
+        assertTrue(v("beta-1.0.0") > v("alpha-0.7.3"))
+    }
+
+    @Test
+    fun newerAlphaBeatsOlderFinal() = assertTrue(v("alpha-0.8.0") > v("0.7.0"))
+
+    @Test
+    fun equalVersionsAreNotNewer() = assertEquals(0, v("alpha-0.7.3").compareTo(v("Alpha-0.7.3")))
+
+    @Test
+    fun rejectsNonVersions() = assertNull(AppVersion.parse("docs"))
+}

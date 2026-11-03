@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -36,6 +37,9 @@ import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import com.gaebriu.cyclo.ui.theme.CycloSprings
+import com.gaebriu.cyclo.ui.theme.projectedEnd
+import com.gaebriu.cyclo.ui.theme.rubberBand
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.launch
@@ -125,8 +129,20 @@ fun AnchoredMenuHost(
 }
 
 /**
- * Folha que sobe de baixo com uma mola e se fecha arrastando-a para baixo (ou tocando fora).
- * Fica [bottomMargin] acima do fundo do ecrã, como o botão Next.
+ * Folha que sobe de baixo (todos os action-menu-big: abrir o GitHub, repor os dados, os dias da
+ * repetição) e se fecha arrastando-a para baixo ou tocando fora. Fica [bottomMargin] acima do
+ * fundo do ecrã, como o botão Next.
+ *
+ * A física é a mesma em todas: uma só posição contínua ([position]: 0 = aberta, 1 = escondida)
+ * que o dedo move diretamente e as molas continuam.
+ * - Abre com [CycloSprings.SheetOpen] (peso, ressalto quase invisível) e fecha com
+ *   [CycloSprings.SheetClose] (mais rápida, sem ressalto).
+ * - Ao largar, a mola parte com a velocidade do dedo, e o sítio para onde o lançamento iria
+ *   ([projectedEnd]) decide se fecha ou volta: um gesto rápido e curto fecha, um arrastar lento a
+ *   meio volta ao lugar; arrastada um terço do caminho, fecha (a não ser que o dedo a atire para cima).
+ * - Para cima, resiste (rubber band) em vez de parar de repente.
+ * - A opacidade só acompanha o início da subida (a folha não fica transparente a meio caminho).
+ * - Sem animações, abre e fecha com um fade.
  *
  * Tem de estar num sítio que ocupe o ecrã todo.
  */
@@ -138,19 +154,34 @@ fun BottomSheetHost(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    val effects = LocalVisualEffects.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
-    val progress = remember { Animatable(0f) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
+    // 0 = aberta, 1 = escondida (abaixo do ecrã); < 0 = puxada para cima (com resistência).
+    val position = remember { Animatable(1f) }
+    // A distância de aberta a escondida, em píxeis (a altura da folha mais a margem de baixo).
+    var travel by remember { mutableFloatStateOf(0f) }
+    // A velocidade do dedo ao largar (fração por segundo), para a mola seguinte continuar dela.
+    var releaseVelocity by remember { mutableFloatStateOf(0f) }
+    val marginPx = with(density) { bottomMargin.toPx() }
 
     LaunchedEffect(visible) {
-        progress.animateTo(if (visible) 1f else 0f, CycloMotion.OverlaySpring)
-        if (!visible) dragOffset = 0f
+        val target = if (visible) 0f else 1f
+        val velocity = releaseVelocity
+        releaseVelocity = 0f
+        if (!effects.animationsEnabled) {
+            position.snapTo(target)
+        } else {
+            val spring = if (visible) CycloSprings.SheetOpen.float else CycloSprings.SheetClose.float
+            position.animateTo(target, spring, initialVelocity = velocity)
+        }
     }
-    if (!visible && progress.value <= 0f) return
-
-    val dismissDistance = with(density) { 80.dp.toPx() }
-    val marginPx = with(density) { bottomMargin.toPx() }
+    // Sem animações, a folha entra e sai com um fade (a posição salta).
+    val fade = remember { Animatable(if (visible) 1f else 0f) }
+    LaunchedEffect(visible, effects.animationsEnabled) {
+        if (!effects.animationsEnabled) fade.animateTo(if (visible) 1f else 0f, CycloMotion.FadeSpring) else fade.snapTo(1f)
+    }
+    if (!visible && position.value >= 1f && (effects.animationsEnabled || fade.value <= 0f)) return
 
     Box(modifier = modifier.fillMaxSize()) {
         // Apanha os toques fora da folha.
@@ -164,26 +195,33 @@ fun BottomSheetHost(
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = CycloDimens.ScreenMargin)
                 .padding(bottom = bottomMargin)
+                .onSizeChanged { travel = it.height + marginPx }
                 .graphicsLayer {
-                    val p = progress.value.coerceIn(0f, 1f)
-                    translationY = (1f - p) * (size.height + marginPx) + dragOffset
-                    alpha = p
+                    val distance = size.height + marginPx
+                    val p = position.value
+                    translationY = if (p >= 0f) p * distance else -rubberBand(-p * distance, size.height)
+                    // Opaca a partir de um terço da subida: o vidro não fica meio transparente.
+                    alpha = ((1f - p.coerceAtLeast(0f)) / 0.33f).coerceIn(0f, 1f) * fade.value
                 }
                 .draggable(
                     orientation = Orientation.Vertical,
+                    enabled = visible,
                     state = rememberDraggableState { delta ->
-                        dragOffset = (dragOffset + delta).coerceAtLeast(0f)
+                        if (travel > 0f) scope.launch { position.snapTo(position.value + delta / travel) }
                     },
-                    onDragStopped = { velocity ->
-                        if (dragOffset > dismissDistance || velocity > 1200f) {
+                    onDragStarted = { position.stop() },
+                    onDragStopped = { velocityPx ->
+                        val velocity = if (travel > 0f) velocityPx / travel else 0f
+                        val end = projectedEnd(position.value, velocity)
+                        // Fecha: arrastada um terço (~80 dp, a não ser que o dedo a lance para cima), um
+                        // lançamento que a levaria a meio, ou um gesto rápido para baixo.
+                        val dragged = position.value > DismissFraction && velocity > -0.5f
+                        if (dragged || end > 0.5f || velocity > 2.4f) {
+                            releaseVelocity = velocity
                             onDismiss()
                         } else {
-                            scope.launch {
-                                animate(
-                                    initialValue = dragOffset,
-                                    targetValue = 0f,
-                                    animationSpec = CycloMotion.OverlaySpring,
-                                ) { value, _ -> dragOffset = value }
+                            launch {
+                                position.animateTo(0f, CycloSprings.SheetOpen.float, initialVelocity = velocity)
                             }
                         }
                     },
@@ -191,3 +229,6 @@ fun BottomSheetHost(
         ) { content() }
     }
 }
+
+/** Quanto do caminho arrastar uma folha para baixo a fecha ao largar (~80 dp na folha do GitHub). */
+private const val DismissFraction = 0.3f

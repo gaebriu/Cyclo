@@ -11,6 +11,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -48,6 +49,20 @@ object CycloSync {
                     first = false
                 }
         }
+    }
+
+    /** Volta a desenhar os widgets e a agendar o lembrete com os dados guardados (fora da thread principal). */
+    fun refresh(context: Context) {
+        val app = context.applicationContext
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            runCatching { apply(app, CycloRepository(app).data.first(), animateWidgets = false) }
+        }
+    }
+
+    /** A língua mudou: o canal das notificações e os widgets passam a ter os textos novos. */
+    fun languageChanged(context: Context, data: CycloData) {
+        runCatching { BedtimeReminder.ensureChannel(context) }
+        apply(context, data, animateWidgets = false)
     }
 
     /** Reagenda o lembrete e atualiza os widgets com estes dados. */

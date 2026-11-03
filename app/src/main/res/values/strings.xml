@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">Cyclo</string>
+    <string name="app_name" translatable="false">Cyclo</string>
+    <!-- A língua destes textos (para formatar datas e horas na mesma língua; ver ui/i18n). -->
+    <string name="locale_tag" translatable="false">en</string>
 
     <!-- Comuns -->
     <string name="undo">Undo</string>
@@ -7,6 +9,7 @@
     <string name="error_save_failed">Couldn\'t save your changes</string>
     <string name="action_edit">Edit</string>
     <string name="action_remove">Remove</string>
+    <string name="action_add_widget">Add as a widget</string>
     <string name="routine_removed">Routine removed</string>
 
     <!-- Editor de rotinas (Introduction 2 a 5) -->
@@ -58,6 +61,10 @@
     <string name="saved_edit">Edit %1$s</string>
     <string name="saved_toggle">%1$s on the feed</string>
 
+    <!-- Reordenar (ações do TalkBack em cada cartão das rotinas e bloco do Feed) -->
+    <string name="reorder_move_up">Move up</string>
+    <string name="reorder_move_down">Move down</string>
+
     <!-- Definições -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>
@@ -92,15 +99,37 @@
     <string name="settings_12_hour">12-hour</string>
     <string name="settings_24_hour">24-hour</string>
     <string name="settings_language">Language</string>
-    <string name="settings_language_english">English</string>
+    <!-- action-menu-lang (Componentes 4): o nome de cada língua -->
+    <string name="language_english">English</string>
+    <string name="language_portuguese">Portuguese</string>
     <string name="settings_data">Data</string>
     <string name="settings_export_data">Export my data</string>
     <string name="settings_restore_data">Restore my data</string>
     <string name="settings_data_description">Export your routines and settings as a JSON file, or restore them from one you saved before</string>
     <string name="settings_about">About</string>
     <string name="settings_github">View on GitHub</string>
-    <!-- Ex.: "Cyclo Version Alpha 0.7.2" (a fase e o número; numa versão final, só o número, como o "Cyclo Version 1.0" do Figma) -->
-    <string name="settings_version">Cyclo Version %1$s</string>
+    <!-- Ex.: "Cyclo Alpha 0.7.3" (a fase e o número, do versionName "alpha-0.7.3") -->
+    <string name="settings_version">Cyclo %1$s</string>
+
+    <!-- new-update-group (Definições): uma versão nova no GitHub -->
+    <!-- Ex.: "Cyclo Alpha 0.7.4 is here" -->
+    <string name="update_title">Cyclo %1$s is here</string>
+    <string name="update_subtitle">We’ve made things better :)</string>
+    <string name="update_download">Download now</string>
+    <!-- A release não tem um .apk: o botão abre a página dela no GitHub -->
+    <string name="update_view_release">See what\'s new</string>
+    <string name="update_dismiss">Not now</string>
+    <!-- Ex.: "Downloading 42%" -->
+    <string name="update_downloading_percent">Downloading %1$d%%</string>
+    <string name="update_downloading">Downloading...</string>
+    <string name="update_cancel">Cancel download</string>
+    <string name="update_ready">Ready to install</string>
+    <string name="update_install">Install update</string>
+    <string name="update_failed">The download stopped. Check your connection.</string>
+    <string name="update_failed_storage">There isn\'t enough space for the update</string>
+    <!-- O .apk descarregado não é o Cyclo da versão anunciada -->
+    <string name="update_failed_invalid">This update doesn\'t look right. Try again later.</string>
+    <string name="update_install_failed">Couldn\'t open the installer</string>
 
     <!-- action-menu-big-open-github -->
     <string name="github_sheet_title">Cyclo is open source</string>
@@ -155,23 +184,22 @@
     <string name="reminder_tip_early_bird">Your body slows down early. Starting now keeps tonight easy.</string>
     <string name="reminder_tip_body_clock">Tonight is earlier than your body is used to, so give sleep a little more time. Keep the lights low.</string>
 
-    <!-- Widget -->
-    <string name="widget_label">Bedtime</string>
-    <string name="widget_description">Your routine and when to go to bed</string>
-    <!-- Ex.: "In bed by 22:45" -->
-    <string name="widget_bed_at">In bed by %1$s</string>
-    <string name="widget_bed_now">Time for bed</string>
-    <!-- Ex.: "Wind down at 22:15" -->
-    <string name="widget_wind_down_at">Wind down at %1$s</string>
-    <string name="widget_wind_down_now">Start winding down</string>
-    <!-- Por cima da hora grande dos widgets pequeno e grande (ex.: "In bed by" / "22:45"). -->
-    <string name="widget_bed_label">In bed by</string>
-    <!-- Linha da lua do widget pequeno, sem espaço para "Start winding down". -->
-    <string name="widget_wind_down_now_short">Wind down now</string>
-    <string name="widget_routine_off">Routine is off</string>
+    <!-- Widgets (Componentes 4): Routine Widget e Wake Time Widget -->
+    <string name="widget_routine_label">Routine</string>
+    <string name="widget_routine_description">Your routine, with edit and on/off</string>
+    <string name="widget_wake_label">Wake time</string>
+    <string name="widget_wake_description">When to fall asleep, like on your Feed</string>
+    <!-- Wake Time Widget sem hora de acordar nas próximas 24 horas -->
     <string name="widget_no_bedtime">No wake-up coming up</string>
     <string name="widget_no_routine">No routines yet</string>
-    <!-- Ex.: "Work, wake up at 06:00, In bed by 22:45" -->
-    <string name="widget_content_description">%1$s, wake up at %2$s, %3$s</string>
+    <!-- Pré-visualização na lista de widgets do lançador (os valores de exemplo do Figma) -->
+    <string name="widget_preview_name">Routine 1</string>
+    <string name="widget_preview_wake" translatable="false">06:00</string>
+    <string name="widget_preview_bed_0" translatable="false">08:45</string>
+    <string name="widget_preview_bed_1" translatable="false">10:15</string>
+    <string name="widget_preview_bed_2" translatable="false">11:45</string>
+    <string name="widget_preview_bed_3" translatable="false">01:15</string>
+    <string name="widget_preview_bed_4" translatable="false">02:45</string>
+    <string name="widget_preview_bed_5" translatable="false">04:15</string>
     <string name="widget_pin_unsupported">Your home screen can\'t add widgets from here</string>
 </resources>

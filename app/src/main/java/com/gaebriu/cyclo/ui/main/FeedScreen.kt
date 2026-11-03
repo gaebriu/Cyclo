@@ -24,6 +24,8 @@ import com.gaebriu.cyclo.ui.effects.backdropSource
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.time.LocalTimeFormat
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -32,6 +34,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,7 +68,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalConfiguration
+import com.gaebriu.cyclo.ui.i18n.rememberAppLocale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
@@ -83,12 +86,15 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.Bedtime
 import com.gaebriu.cyclo.data.DailyLog
 import com.gaebriu.cyclo.data.Routine
 import com.gaebriu.cyclo.data.SleepFactor
+import com.gaebriu.cyclo.data.FeedSection
+import com.gaebriu.cyclo.ui.components.ReorderableColumn
 import com.gaebriu.cyclo.data.bedtimesFor
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
@@ -112,7 +118,6 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
 import kotlinx.coroutines.launch
-import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.TextStyle as DateTextStyle
@@ -167,6 +172,9 @@ object FeedRevealItems {
  *   emoções e o cronótipo pedem; ver [BedtimeEngine] e [bedtimesFor]); as duas com mais ciclos têm
  *   estrela. Mudam ~1 s depois do último toque, e rolam para a hora nova.
  * - O "..." da hora de acordar abre "Edit" / "Remove"; o da cafeína abre "Reset".
+ * - Os blocos da cafeína, do que pode afetar o sono e de como se sente reordenam-se com long press e
+ *   arrastar ([feedOrder], [onReorder]; ver [ReorderableColumn]): os outros abrem espaço com a mesma
+ *   física das rotinas guardadas. O wake-time-recommendation-group fica de fora e não muda.
  */
 @Composable
 fun FeedScreen(
@@ -176,25 +184,24 @@ fun FeedScreen(
     age: Int?,
     chronotype: Chronotype,
     fallAsleep: FallAsleepTime,
+    feedOrder: List<FeedSection>,
     reveal: StaggeredReveal,
     bottomReserve: Dp,
     wakeShadow: Color,
     onEditRoutine: (Routine) -> Unit,
     onRemoveRoutine: (Routine) -> Unit,
+    onAddWakeWidget: () -> Unit,
     onCaffeineChange: (Int) -> Unit,
     onCaffeineReset: () -> Unit,
     onToggleFactor: (SleepFactor) -> Unit,
     onMoodChange: (Float) -> Unit,
+    onReorder: (List<FeedSection>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val today = now.toLocalDate()
     val log = dailyLog?.takeIf { it.date == today } ?: DailyLog(today)
-    val next = remember(routines, now) {
-        routines
-            .mapNotNull { routine -> routine.nextWake(now)?.let { routine to it } }
-            .filter { (_, wake) -> Duration.between(now, wake) <= Duration.ofHours(24) }
-            .minByOrNull { (_, wake) -> wake }
-    }
+    // A mesma escolha do Wake Time Widget (BedtimeEngine.feedWake): a primeira hora de acordar a 24 h.
+    val next = remember(routines, now) { BedtimeEngine.feedWake(routines, now) }
     val nextRoutine = next?.first
 
     // O tempo estimado para adormecer hoje (BedtimeEngine): o das definições mais o que a cafeína,
@@ -202,7 +209,7 @@ fun FeedScreen(
     // planeado nunca encolhe.
     val targetLatency = remember(next, dailyLog, age, chronotype, fallAsleep, now) {
         next?.let { (_, wake) ->
-            BedtimeEngine.plan(wake, now, age, chronotype, fallAsleep, dailyLog).fallAsleepMinutes.toLong()
+            BedtimeEngine.feedLatency(wake, now, age, chronotype, fallAsleep, dailyLog)
         } ?: fallAsleep.planMinutes.toLong()
     }
     // Só muda depois de os toques assentarem (nada de contas nem saltos a cada toque no "+").
@@ -222,12 +229,13 @@ fun FeedScreen(
     val content = rememberBackdropLayer()
     val menuBackdrop = LocalBackdrop.current + content
 
+    val scroll = rememberScrollState()
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .backdropSource(content)
-                .cycloVerticalScroll(rememberScrollState())
+                .cycloVerticalScroll(scroll)
                 .padding(horizontal = CycloDimens.ScreenMargin)
                 .padding(top = FeedContentTop, bottom = bottomReserve),
         ) {
@@ -235,7 +243,15 @@ fun FeedScreen(
 
             if (nextRoutine != null) {
                 Spacer(Modifier.height(SectionGap))
-                Column(modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Wake)) {
+                // A camada da entrada (fade + desfoque) desenha fora do ecrã e corta tudo o que sai
+                // dos seus limites: alarga-se [WakeShadowBleed] para a sombra do cartão entrar na
+                // animação desde o início (antes só aparecia, de repente, no fim da entrada).
+                Column(
+                    modifier = Modifier
+                        .bleed(WakeShadowBleed)
+                        .staggeredReveal(reveal, FeedRevealItems.Wake)
+                        .padding(WakeShadowBleed),
+                ) {
                     SectionLabel(stringResource(R.string.feed_wake_title))
                     Spacer(Modifier.height(LabelToCard))
                     WakeTimeCard(
@@ -248,30 +264,45 @@ fun FeedScreen(
                 }
             }
 
-            Spacer(Modifier.height(SectionGap))
-            Column(modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Caffeine)) {
-                SectionLabel(stringResource(R.string.feed_caffeine_title))
-                Spacer(Modifier.height(LabelToCard))
-                CaffeineCard(
-                    count = log.caffeine,
-                    onChange = onCaffeineChange,
-                    onMoreClick = { caffeineMenuOpen = true },
-                    onMoreBounds = { caffeineMenuAnchor = it },
-                )
-            }
-
-            Spacer(Modifier.height(SectionGap))
-            Column(modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Sleep)) {
-                SectionLabel(stringResource(R.string.feed_sleep_title))
-                Spacer(Modifier.height(LabelToCard))
-                SleepFactorsCard(selected = log.factors, onToggle = onToggleFactor)
-            }
-
-            Spacer(Modifier.height(SectionGap))
-            Column(modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Feeling)) {
-                SectionLabel(stringResource(R.string.feed_feeling_title))
-                Spacer(Modifier.height(LabelToCard))
-                FeelingCard(mood = log.mood, onMoodChange = onMoodChange)
+            // Os outros blocos: long press e arrastar muda a ordem (o da hora de acordar, em cima,
+            // fica sempre no seu lugar). O espaço antes de cada um vai dentro dele, para se
+            // deslocar com ele. A entrada em cascata segue a ordem em que aparecem.
+            ReorderableColumn(
+                items = feedOrder,
+                key = { it },
+                onReorder = { order -> if (order != feedOrder) onReorder(order) },
+                moveUpLabel = stringResource(R.string.reorder_move_up),
+                moveDownLabel = stringResource(R.string.reorder_move_down),
+                scrollState = scroll,
+            ) { section, handle ->
+                val revealIndex = FeedRevealItems.Caffeine + feedOrder.indexOf(section).coerceAtLeast(0)
+                Column(modifier = Modifier.staggeredReveal(reveal, revealIndex)) {
+                    Spacer(Modifier.height(SectionGap))
+                    Column(modifier = handle) {
+                        when (section) {
+                            FeedSection.Caffeine -> {
+                                SectionLabel(stringResource(R.string.feed_caffeine_title))
+                                Spacer(Modifier.height(LabelToCard))
+                                CaffeineCard(
+                                    count = log.caffeine,
+                                    onChange = onCaffeineChange,
+                                    onMoreClick = { caffeineMenuOpen = true },
+                                    onMoreBounds = { caffeineMenuAnchor = it },
+                                )
+                            }
+                            FeedSection.SleepFactors -> {
+                                SectionLabel(stringResource(R.string.feed_sleep_title))
+                                Spacer(Modifier.height(LabelToCard))
+                                SleepFactorsCard(selected = log.factors, onToggle = onToggleFactor)
+                            }
+                            FeedSection.Feeling -> {
+                                SectionLabel(stringResource(R.string.feed_feeling_title))
+                                Spacer(Modifier.height(LabelToCard))
+                                FeelingCard(mood = log.mood, onMoodChange = onMoodChange)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -286,14 +317,21 @@ fun FeedScreen(
         ) {
             CycloActionMenu(
                 items = listOf(
+                    // action-menu (Componentes, 80:727): Edit, Add as a widget, Remove.
                     ActionMenuItem(stringResource(R.string.action_edit)),
+                    ActionMenuItem(stringResource(R.string.action_add_widget)),
                     ActionMenuItem(stringResource(R.string.action_remove)),
                 ),
                 selectedIndex = -1,
                 onItemClick = { index ->
                     wakeMenuOpen = false
                     val routine = nextRoutine ?: return@CycloActionMenu
-                    if (index == 0) onEditRoutine(routine) else onRemoveRoutine(routine)
+                    when (index) {
+                        0 -> onEditRoutine(routine)
+                        // O Wake Time Widget: a mesma hora de acordar e as mesmas horas do Feed.
+                        1 -> onAddWakeWidget()
+                        else -> onRemoveRoutine(routine)
+                    }
                 },
             )
         }
@@ -335,11 +373,13 @@ private fun Greeting(now: LocalDateTime, reveal: StaggeredReveal) {
             else -> R.string.feed_greeting_evening
         },
     )
-    val locale = LocalConfiguration.current.locales[0]
+    // header-greetings: o dia da semana e o mês na língua da app (não na do sistema), na ordem
+    // dessa língua ("Monday, November 2" / "Segunda-feira, 2 de novembro").
+    val locale = rememberAppLocale()
     val timeFormatter = LocalTimeFormat.current.formatter
     val date = stringResource(
         R.string.feed_date,
-        now.dayOfWeek.getDisplayName(DateTextStyle.FULL, locale),
+        now.dayOfWeek.getDisplayName(DateTextStyle.FULL, locale).replaceFirstChar { it.titlecase(locale) },
         now.month.getDisplayName(DateTextStyle.FULL, locale),
         now.dayOfMonth,
         now.format(timeFormatter),
@@ -418,7 +458,7 @@ private fun WakeTimeCard(
             .cycloCard(shadowColor = shadow.copy(alpha = WakeCardShadowAlpha), shadowBlur = 24.dp)
             .padding(CardPadding),
     ) {
-        Row(modifier = Modifier.fillMaxWidth().height(18.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             CycloIcon(path = CycloAppIconPaths.Sunny, size = 15.dp, tint = CycloColors.TextPrimary)
             Spacer(Modifier.width(6.dp))
             BasicText(
@@ -445,6 +485,22 @@ private fun WakeTimeCard(
         BedtimeRow(bedtimes.drop(2))
     }
 }
+
+/**
+ * Dá [amount] a mais de cada lado aos modificadores que vêm a seguir (ex.: a camada da entrada),
+ * sem mudar o lugar que o bloco ocupa. Quem vem depois devolve o espaço com `padding(amount)`.
+ */
+private fun Modifier.bleed(amount: Dp): Modifier = layout { measurable, constraints ->
+    val px = amount.roundToPx()
+    val placeable = measurable.measure(constraints.offset(px * 2, px * 2))
+    layout(placeable.width - px * 2, placeable.height - px * 2) { placeable.place(-px, -px) }
+}
+
+/**
+ * Até onde chega a sombra do wake-time-container (0, 4, desfoque 24 → sigma 12, ~3 sigma + 4) e,
+ * por isso, quanto a camada da entrada se alarga à volta dele.
+ */
+private val WakeShadowBleed = 44.dp
 
 /** Faz uma caixa maior do que o lugar que ocupa (para zonas de toque à volta de ícones pequenos). */
 private fun Modifier.layoutOutset(outset: Dp): Modifier = this.then(
@@ -478,11 +534,15 @@ private fun Separator() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BedtimeRow(bedtimes: List<Bedtime>) {
-    Row(
+    // Uma fila, como no Figma; com letra muito grande, as horas que não cabem passam para uma
+    // segunda fila (inteiras) em vez de se partirem.
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(15.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(15.dp),
     ) {
         val formatter = LocalTimeFormat.current.formatter
         val style = CycloType.CardTitle.withFeedShadow()
@@ -506,12 +566,12 @@ private fun BedtimeRow(bedtimes: List<Bedtime>) {
 }
 
 /** Ícone de cada hora: estrela (6 e 5 ciclos) e as caras do medidor, de contente a insatisfeito. */
-private fun bedtimeIcon(cycles: Int): Pair<String, Color> = when (cycles) {
-    6, 5 -> CycloAppIconPaths.Star to StarYellow
-    4 -> CycloAppIconPaths.SentimentSatisfied to MoodViolet
-    3 -> CycloAppIconPaths.SentimentNeutral to MoodBlue
-    2 -> CycloAppIconPaths.SentimentDissatisfied to MoodSky
-    else -> CycloAppIconPaths.SentimentDissatisfied to MoodMint
+private fun bedtimeIcon(cycles: Int): Pair<String, Color> = CycloAppIconPaths.bedtime(cycles) to when (cycles) {
+    6, 5 -> StarYellow
+    4 -> MoodViolet
+    3 -> MoodBlue
+    2 -> MoodSky
+    else -> MoodMint
 }
 
 /** Cara ao lado da chávena: muda com a cafeína (0 a 2 contente ... 6 ou mais insatisfeito). */
@@ -534,7 +594,7 @@ private fun CaffeineCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(63.dp)
+            .heightIn(min = 63.dp)
             .cycloCard()
             .padding(horizontal = CardPadding),
         verticalAlignment = Alignment.CenterVertically,
@@ -644,7 +704,7 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(CycloDimens.InputHeight)
+            .heightIn(min = CycloDimens.InputHeight)
             .cycloPressable(
                 onClick = {
                     CycloHaptics.toggle(view, !isSelected)
@@ -677,7 +737,7 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
             .padding(horizontal = CardPadding),
         contentAlignment = Alignment.CenterStart,
     ) {
-        BasicText(text = label, style = CycloType.CardTitle)
+        BasicText(text = label, style = CycloType.CardTitle, modifier = Modifier.padding(end = 24.dp))
         CycloIcon(
             path = CycloAppIconPaths.SmallCheck,
             size = 15.dp,
@@ -776,6 +836,8 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(24.dp)
+            // O medidor arrasta na horizontal: o swipe entre páginas não começa aqui.
+            .excludeFromPageSwipe()
             .semantics {
                 contentDescription = description
                 stateDescription = levels[step]
