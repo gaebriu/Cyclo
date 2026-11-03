@@ -11,7 +11,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.sign
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * O motor de animações do Cyclo: as molas de todas as animações, num só sítio.
@@ -99,6 +103,57 @@ object CycloSprings {
 
     /** Regresso do scroll esticado (rubber band). */
     val Bounce = fromStiffness(200f, Spring.DampingRatioNoBouncy)
+
+    /**
+     * Um elemento a entrar em foco (a argola do Introduction 6 e do loading-data): opacidade e
+     * desfoque juntos, como uma letra do "Hello!" (assenta em ~1,5 s), sem ressalto.
+     */
+    val Focus = CycloSpring(response = 1.25f, dampingFraction = 1f)
+
+    /** O desfoque do ecrã por baixo do loading-data a aumentar: suave e sem ressalto. */
+    val VeilIn = CycloSpring(response = 0.62f, dampingFraction = 1f)
+
+    /** O mesmo desfoque a diminuir, à saída: um pouco mais rápido do que a entrar. */
+    val VeilOut = CycloSpring(response = 0.5f, dampingFraction = 1f)
+
+    /** O conteúdo do loading-data (argola e texto) a sair: mais rápido do que o véu, sem ressalto. */
+    val ContentOut = CycloSpring(response = 0.4f, dampingFraction = 1f)
+}
+
+/**
+ * Onde está, ao fim de [seconds], uma mola [spring] que parte do repouso em 0 para 1, com a
+ * velocidade inicial [velocity] (unidades por segundo). É a solução exata da mola, por isso vários
+ * elementos podem segui-la a partir do MESMO relógio (sincronizados ao frame), em vez de cada um
+ * ter a sua animação.
+ */
+fun springProgress(seconds: Float, spring: CycloSpring, velocity: Float = 0f): Float {
+    if (seconds <= 0f) return 0f
+    val w = 2.0 * PI / spring.response
+    val z = spring.dampingFraction.toDouble()
+    val t = seconds.toDouble()
+    // Deslocamento até ao alvo: começa em 1, com a velocidade ao contrário.
+    val v = -velocity.toDouble()
+    val x = when {
+        z < 1.0 -> {
+            val wd = w * sqrt(1.0 - z * z)
+            exp(-z * w * t) * (cos(wd * t) + (v + z * w) / wd * sin(wd * t))
+        }
+        z == 1.0 -> exp(-w * t) * (1.0 + (v + w) * t)
+        else -> {
+            val root = sqrt(z * z - 1.0)
+            val r1 = -w * (z - root)
+            val r2 = -w * (z + root)
+            val c2 = (v - r1) / (r2 - r1)
+            (1.0 - c2) * exp(r1 * t) + c2 * exp(r2 * t)
+        }
+    }
+    return (1.0 - x).toFloat()
+}
+
+/** Transição suave de 0 a 1 entre [from] e [to] (velocidade zero nas duas pontas, sem esquinas). */
+fun smoothStep(value: Float, from: Float = 0f, to: Float = 1f): Float {
+    val t = ((value - from) / (to - from)).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
 }
 
 /** [spec] com as animações ligadas; um corte sem elas. */

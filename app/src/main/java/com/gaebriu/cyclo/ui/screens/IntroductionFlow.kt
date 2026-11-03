@@ -217,7 +217,7 @@ fun IntroductionFlow(
     val showIntroduction5 by remember { derivedStateOf { step >= 5 || position.value > 4.001f } }
     val showIntroduction6 by remember { derivedStateOf { !isEditor && (step >= 6 || position.value > 5.001f) } }
     // O Introduction 6 só começa as animações depois de assentar.
-    val introduction6Settled by remember { derivedStateOf { step == TutorialStepCount && position.value > 5.999f } }
+    val introduction6Settled by remember { derivedStateOf { step == TutorialStepCount && position.value > 5.98f } }
 
     // Introduction 6: o botão de cima e o Next saem com um fade, à medida que a página entra.
     val chromeAlpha = { if (isEditor) 1f else 1f - (position.value - LastRoutineStep).coerceIn(0f, 1f) }

@@ -14,6 +14,20 @@ class NewestReleaseTest {
          "assets": [${if (apk) """{"name": "cyclo-$tag.apk", "size": 1234, "browser_download_url": "https://github.com/gaebriu/Cyclo/releases/download/$tag/cyclo-$tag.apk"}""" else ""}]}
     """.trimIndent()
 
+    /** A beta-1.1 publicada como no GitHub: tag de duas partes e o .apk com.gaebriu.cyclo.apk. */
+    @Test
+    fun betaOneZeroSeesBetaOneOne() {
+        fun real(tag: String) = """
+            {"tag_name": "$tag", "draft": false, "prerelease": true, "html_url": "https://github.com/gaebriu/Cyclo/releases/tag/$tag",
+             "assets": [{"name": "com.gaebriu.cyclo.apk", "size": 99, "browser_download_url": "https://github.com/gaebriu/Cyclo/releases/download/$tag/com.gaebriu.cyclo.apk"}]}
+        """.trimIndent()
+        val update = CycloUpdates.newestRelease("[${real("beta-1.1")}, ${real("beta-1.0")}]", AppVersion.parse("beta-1.0.0"))!!
+        assertEquals("beta-1.1", update.tag)
+        assertEquals("https://github.com/gaebriu/Cyclo/releases/download/beta-1.1/com.gaebriu.cyclo.apk", update.apkUrl)
+        // Já com a beta-1.1 instalada, não há nada mais recente.
+        assertNull(CycloUpdates.newestRelease("[${real("beta-1.1")}, ${real("beta-1.0")}]", AppVersion.parse("beta-1.1")))
+    }
+
     @Test
     fun picksTheNewestNewerRelease() {
         val json = "[${release("alpha-0.7.4")}, ${release("alpha-0.8.0")}, ${release("alpha-0.7.2")}]"

@@ -24,6 +24,8 @@ import com.gaebriu.cyclo.reminder.CycloSync
 import com.gaebriu.cyclo.ui.components.BottomSheetHost
 import com.gaebriu.cyclo.ui.components.CycloBigSheet
 import com.gaebriu.cyclo.ui.settings.LoadingDataOverlay
+import com.gaebriu.cyclo.ui.settings.loadingDataBlur
+import com.gaebriu.cyclo.ui.settings.rememberLoadingDataState
 import com.gaebriu.cyclo.widget.BedtimeWidgets
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -314,10 +316,17 @@ fun CycloApp(viewModel: CycloViewModel) {
     }
     // Tudo o que fica por baixo da barra de baixo (undo-action), que o desfoca.
     val screens = rememberBackdropLayer()
+    // loading-data: o ecrã por baixo dele desfoca-se a si próprio, em tempo real, com o véu.
+    val loadingData = rememberLoadingDataState(restoring)
 
     ProvideTimeFormat(data.use24Hour) {
     Box(modifier = Modifier.fillMaxSize().background(CycloColors.Background)) {
-        Box(modifier = Modifier.fillMaxSize().backdropSource(screens)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .backdropSource(screens)
+                .loadingDataBlur(loadingData, effects),
+        ) {
         if (showMain) {
             Box(
                 modifier = Modifier
@@ -502,10 +511,11 @@ fun CycloApp(viewModel: CycloViewModel) {
             }
             BackHandler(enabled = pendingRestore != null) { viewModel.cancelRestore() }
 
-            LoadingDataOverlay(visible = restoring)
+            LoadingDataOverlay(loadingData)
 
             CycloMessageBar(
-                message = message,
+                // Durante o loading-data, a mensagem espera que ele comece a sair.
+                message = if (loadingData.holdsMessages) null else message,
                 onDismiss = viewModel::dismissMessage,
                 bottomMargin = bottomInset + CycloDimens.Spacing +
                     if (overlayOpen) CycloDimens.ButtonHeight else NavigationBarHeight,
