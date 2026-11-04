@@ -1,12 +1,14 @@
 ﻿package com.gaebriu.cyclo.ui.components
 
+import kotlin.math.min
+import kotlin.math.exp
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -62,6 +64,14 @@ class ReorderState internal constructor() {
 
     /** Quanto o elemento arrastado está "levantado" (0 a 1): escala e sombra. */
     internal val lift = Animatable(0f)
+
+    /**
+     * O gel do elemento arrastado: quanto se estica na direção do movimento (fração da altura; < 0
+     * achata). Segue a velocidade do dedo com a mola [CycloSprings.GelPressY] e, ao largar, volta a 0
+     * com [CycloSprings.GelReleaseY] (oscila um pouco e assenta), como o toque em [cycloPressable].
+     */
+    internal val stretch = Animatable(0f)
+    internal var stretchVelocity = 0f
 
     /** Depois de largar: a distância que falta até ao lugar final (vai a 0 com a mola de encaixe). */
     internal val dropOffset = Animatable(0f)
@@ -161,6 +171,11 @@ fun <T> ReorderableColumn(
         state.dragOrder = order
     }
 
+    /** Um pequeno abanão no gel quando o arrastado muda de lugar ([direction] +1 desce, -1 sobe). */
+    fun swapImpulse(direction: Int) {
+        if (effects.animationsEnabled) state.stretchVelocity -= direction * SwapStretchImpulse
+    }
+
     /** Troca o arrastado com o vizinho cujo meio ele passou (uma troca de cada vez). */
     fun checkSwap() {
         val dragged = state.draggingKey ?: return
@@ -175,6 +190,7 @@ fun <T> ReorderableColumn(
             if (center > nextTop + (state.heights[next] ?: 0f) / 2f) {
                 move(index, index + 1)
                 CycloHaptics.reorderStep(view)
+                swapImpulse(+1)
                 return
             }
         }
@@ -184,6 +200,7 @@ fun <T> ReorderableColumn(
             if (center < previousTop + (state.heights[previous] ?: 0f) / 2f) {
                 move(index, index - 1)
                 CycloHaptics.reorderStep(view)
+                swapImpulse(-1)
             }
         }
     }
@@ -211,6 +228,47 @@ fun <T> ReorderableColumn(
                 state.desiredTop = state.fingerInColumn() - state.grabOffset
                 checkSwap()
             }
+        }
+    }
+
+    // O gel enquanto se arrasta, fotograma a fotograma: a velocidade do elemento (suavizada) dá o
+    // esticão alvo, limitado em dp como em cycloPressable, e uma mola (GelPressY) leva-o até lá. A
+    // translação continua exatamente no dedo: o gel é só escala, à volta do ponto agarrado.
+    val maxStretchPx = with(density) { MaxDragStretchDp.dp.toPx() }
+    val velocityForMax = with(density) { StretchVelocityForMaxDp.dp.toPx() }
+    LaunchedEffect(state.draggingKey, effects.animationsEnabled) {
+        val dragged = state.draggingKey ?: return@LaunchedEffect
+        if (!effects.animationsEnabled) {
+            state.stretch.snapTo(0f)
+            state.stretchVelocity = 0f
+            return@LaunchedEffect
+        }
+        val omega = (2.0 * Math.PI / CycloSprings.GelPressY.response).toFloat()
+        val zeta = CycloSprings.GelPressY.dampingFraction
+        var x = state.stretch.value
+        var lastNanos = 0L
+        var lastTop = state.desiredTop
+        var smoothVelocity = 0f
+        while (state.draggingKey == dragged) {
+            val now = withFrameNanos { it }
+            if (lastNanos == 0L) {
+                lastNanos = now
+                lastTop = state.desiredTop
+                continue
+            }
+            val dt = ((now - lastNanos) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
+            lastNanos = now
+            val instant = (state.desiredTop - lastTop) / dt
+            lastTop = state.desiredTop
+            smoothVelocity += (instant - smoothVelocity) * (1f - exp(-dt / StretchVelocitySmoothingS))
+            val height = state.heights[dragged]?.takeIf { it > 0f } ?: break
+            val cap = min(MaxDragStretch, maxStretchPx / height)
+            val target = (smoothVelocity / velocityForMax).coerceIn(-1f, 1f) * cap
+            var v = state.stretchVelocity
+            v += (-omega * omega * (x - target) - 2f * zeta * omega * v) * dt
+            x = (x + v * dt).coerceIn(-cap * 1.5f, cap * 1.5f)
+            state.stretchVelocity = v
+            state.stretch.snapTo(x)
         }
     }
 
@@ -311,6 +369,17 @@ private fun finishDrag(
     scope.launch {
         if (animationsEnabled) state.lift.animateTo(0f, CycloSprings.Drop.float) else state.lift.snapTo(0f)
     }
+    // O gel solta-se: volta à forma com a mola de largar do toque (GelReleaseY), a partir da
+    // velocidade que tinha, por isso abana um pouco e assenta.
+    scope.launch {
+        val velocity = state.stretchVelocity
+        state.stretchVelocity = 0f
+        if (animationsEnabled) {
+            state.stretch.animateTo(0f, CycloSprings.GelReleaseY.float, initialVelocity = velocity)
+        } else {
+            state.stretch.snapTo(0f)
+        }
+    }
     onReorder(order)
 }
 
@@ -368,12 +437,23 @@ private fun ReorderableItem(
                 }
                 if (dragging || dropping) {
                     val scale = 1f + (CycloMotion.DragLiftScale - 1f) * lift
-                    scaleX = scale
-                    scaleY = scale
+                    // Gel: estica na direção do movimento e estreita metade disso (volume quase
+                    // constante), à volta do ponto agarrado, que fica debaixo do dedo.
+                    val s = if (animationsEnabled) state.stretch.value else 0f
+                    scaleX = scale * (1f - s * 0.5f)
+                    scaleY = scale * (1f + s)
+                    transformOrigin = TransformOrigin(0.5f, (state.grabOffset / size.height).coerceIn(0f, 1f))
                     shadowElevation = 18.dp.toPx() * lift.coerceIn(0f, 1f)
-                    shape = RoundedCornerShape(radius)
+                    shape = SmoothRoundedCornerShape.px(radius)
                     ambientShadowColor = Color.Black
                     spotShadowColor = Color.Black
+                } else if (animationsEnabled && placement.isRunning) {
+                    // Os vizinhos que abrem espaço também são gel: alongam-se um pouco enquanto
+                    // deslizam (pela velocidade da mola Reflow) e voltam à forma quando param.
+                    val cap = min(NeighbourStretch, NeighbourMaxStretchDp.dp.toPx() / size.height.coerceAtLeast(1f))
+                    val s = abs(placement.velocity / StretchVelocityForMaxDp.dp.toPx()).coerceAtMost(1f) * cap
+                    scaleX = 1f - s * 0.5f
+                    scaleY = 1f + s
                 }
             }
             .semantics {
@@ -383,6 +463,23 @@ private fun ReorderableItem(
         content()
     }
 }
+
+/** Gel do arrastado: no máximo 5 % da altura e 6 dp (como os limites em dp de cycloPressable). */
+private const val MaxDragStretch = 0.05f
+private const val MaxDragStretchDp = 6f
+
+/** A velocidade (dp/s) a que o gel chega ao máximo. */
+private const val StretchVelocityForMaxDp = 2200f
+
+/** Suavização da velocidade do arrastado (s), para o gel não tremer com o ruído do toque. */
+private const val StretchVelocitySmoothingS = 0.06f
+
+/** O abanão de cada troca de lugar (fração da altura por segundo). */
+private const val SwapStretchImpulse = 0.45f
+
+/** Gel dos vizinhos a deslizar: no máximo 2 % e 3 dp. */
+private const val NeighbourStretch = 0.02f
+private const val NeighbourMaxStretchDp = 3f
 
 /** Depois de largar, quanto tempo se espera pelos dados com a nova ordem. */
 private const val PendingOrderTimeoutMs = 1500L

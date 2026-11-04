@@ -6,6 +6,7 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_routine_description"
     android:initialLayout="@layout/widget_routine"
+    android:previewImage="@drawable/widget_routine_preview_image"
     android:previewLayout="@layout/widget_routine_preview"
     android:minWidth="250dp"
     android:minHeight="110dp"

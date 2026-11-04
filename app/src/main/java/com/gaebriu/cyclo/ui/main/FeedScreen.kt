@@ -1,5 +1,10 @@
 ﻿package com.gaebriu.cyclo.ui.main
 
+import com.gaebriu.cyclo.ui.theme.CycloSprings
+import kotlin.math.exp
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.Job
+import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -717,9 +722,7 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
             .drawBehind {
                 val radius = CycloDimens.InputRadius.toPx()
                 val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
-                val shape = Path().apply {
-                    addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
-                }
+                val shape = smoothRoundRectPath(size.width, size.height, radius)
                 if (on > 0f) {
                     // Brilho de cima, só fora da forma.
                     clipPath(shape, clipOp = ClipOp.Difference) {
@@ -782,6 +785,7 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
     val effects = LocalVisualEffects.current
     val view = LocalView.current
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
     val description = stringResource(R.string.feed_feeling_meter)
     val levels = listOf(
         stringResource(R.string.feed_feeling_level_1),
@@ -795,19 +799,39 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
     var step by remember { mutableIntStateOf(stored) }
     // A posição da bola (0 a 1; passa um pouco das pontas com a resistência e a mola).
     val ball = remember { Animatable(stored / last.toFloat()) }
-    // Enquanto o dedo arrasta, a bola está aqui (sem corrotinas a cada movimento).
+    // Enquanto o dedo arrasta, a bola está no dedo ([dragFinger]) mais a distância a que estava
+    // dele quando o arrasto começou ([grabOffset], que se fecha sozinha em poucos fotogramas): sem
+    // corrotinas a cada movimento e sem saltar para o dedo.
     var dragging by remember { mutableStateOf(false) }
-    var dragPosition by remember { mutableFloatStateOf(0f) }
+    var dragFinger by remember { mutableFloatStateOf(0f) }
+    var grabOffset by remember { mutableFloatStateOf(0f) }
+    var grabJob by remember { mutableStateOf<Job?>(null) }
+    var settleJob by remember { mutableStateOf<Job?>(null) }
     var held by remember { mutableStateOf(false) }
-    val ballScale by animateFloatAsState(
+    // State (sem "by"): o tamanho da bola só se lê ao desenhar, por isso a mola dela redesenha o
+    // medidor sem o recompor (antes recompunha-o a cada fotograma enquanto crescia).
+    val ballScale = animateFloatAsState(
         targetValue = if ((held || dragging) && effects.animationsEnabled) CycloMotion.MoodBallHeldScale else 1f,
         animationSpec = CycloMotion.MoodBallScaleSpring,
         label = "moodBall",
     )
+    // A última escolha feita aqui (e quando): um valor guardado mais antigo que chegue depois (duas
+    // escolhas seguidas) não leva a bola para trás.
+    var localStep by remember { mutableIntStateOf(-1) }
+    var localAt by remember { mutableLongStateOf(0L) }
     LaunchedEffect(stored) {
+        if (localStep >= 0) {
+            if (stored == localStep) {
+                localStep = -1
+                return@LaunchedEffect
+            }
+            if (System.currentTimeMillis() - localAt < PendingMoodMs) return@LaunchedEffect
+            localStep = -1
+        }
+        // Mudou fora daqui (outro dia, restauro): a bola vai para lá.
         if (!dragging && stored != step) {
             step = stored
-            ball.animateTo(stored / last.toFloat(), CycloMotion.MoodSettleSpring)
+            if (effects.animationsEnabled) ball.animateTo(stored / last.toFloat(), CycloMotion.MoodSettleSpring) else ball.snapTo(stored / last.toFloat())
         }
     }
 
@@ -818,21 +842,39 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
         }
     }
 
-    /** Leva a bola para o ponto escolhido, a partir de onde está e com [velocity] (fração/s). */
+    /**
+     * Leva a bola para o ponto escolhido, a partir de [from] e com [velocity] (fração/s). A bola
+     * passa do dedo para a mola no mesmo fotograma ([dragging] só desliga depois de a mola estar na
+     * posição do dedo) e a escolha só se grava quando a bola assenta, para a recomposição do Feed
+     * (as horas a dormir mudam) não cair a meio da mola.
+     */
     fun settle(from: Float, velocity: Float = 0f) {
-        val target = step / last.toFloat()
-        scope.launch {
-            ball.snapTo(from)
-            if (effects.animationsEnabled) {
-                ball.animateTo(target, CycloMotion.MoodSettleSpring, initialVelocity = velocity)
-            } else {
-                ball.snapTo(target)
+        val chosen = step
+        val target = chosen / last.toFloat()
+        localStep = chosen
+        localAt = System.currentTimeMillis()
+        settleJob = scope.launch {
+            try {
+                ball.snapTo(from)
+                dragging = false
+                if (effects.animationsEnabled) {
+                    ball.animateTo(target, CycloMotion.MoodSettleSpring, initialVelocity = velocity)
+                } else {
+                    ball.snapTo(target)
+                }
+            } finally {
+                // Também se um arrasto novo interromper a mola (grava-se depois a escolha dele).
+                onMoodChange(target)
             }
         }
-        onMoodChange(target)
     }
 
-    BoxWithConstraints(
+    /** A posição da bola enquanto o dedo arrasta. */
+    fun dragPosition(): Float = rubberBandFraction(dragFinger + grabOffset)
+
+    val ballInset = with(density) { 11.5.dp.toPx() }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(24.dp)
@@ -849,23 +891,10 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
                 }
             },
     ) {
-        val widthPx = constraints.maxWidth.toFloat()
-        val density = LocalDensity.current
-        val ballInset = with(density) { 11.5.dp.toPx() }
-        val trackPx = (widthPx - 2f * ballInset).coerceAtLeast(1f)
-        fun rawFractionAt(x: Float) = (x - ballInset) / trackPx
-
-        /** Para lá das pontas, a bola só anda uma parte do que o dedo anda, até um máximo. */
-        fun rubberBand(f: Float): Float = when {
-            f < 0f -> -minOf(-f * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
-            f > 1f -> 1f + minOf((f - 1f) * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
-            else -> f
-        }
-
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(trackPx) {
+                .pointerInput(Unit) {
                     detectTapGestures(
                         onPress = {
                             held = true
@@ -873,33 +902,52 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
                             held = false
                         },
                     ) { offset ->
-                        setStep((rawFractionAt(offset.x).coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
-                        settle(ball.value)
+                        val trackPx = (size.width - 2f * ballInset).coerceAtLeast(1f)
+                        setStep((((offset.x - ballInset) / trackPx).coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                        settle(if (dragging) dragPosition() else ball.value)
                     }
                 }
-                .pointerInput(trackPx) {
+                .pointerInput(Unit) {
                     awaitEachGesture {
+                        val trackPx = (size.width - 2f * ballInset).coerceAtLeast(1f)
+                        fun rawFractionAt(x: Float) = (x - ballInset) / trackPx
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val start = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ ->
                             change.consume()
                         } ?: return@awaitEachGesture
                         val tracker = VelocityTracker()
                         tracker.addPosition(start.uptimeMillis, start.position)
+                        // A bola começa onde está (a meio de uma mola, se for o caso) e não salta
+                        // para o dedo: a distância entre os dois fecha-se sozinha (mola crítica, a
+                        // partir deste mesmo fotograma), e daí em diante a bola fica debaixo do dedo.
+                        // A mola anterior pára já (antes, ao acabar, devolvia a bola a meio do arrasto).
+                        settleJob?.cancel()
+                        val shown = if (dragging) dragPosition() else ball.value
+                        val finger = rawFractionAt(start.position.x)
+                        dragFinger = finger
+                        grabOffset = shown - finger
                         dragging = true
-                        dragPosition = rubberBand(rawFractionAt(start.position.x))
-                        setStep((dragPosition.coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                        grabJob?.cancel()
+                        grabJob = if (effects.animationsEnabled) {
+                            scope.launch { closeGrab(grabOffset) { grabOffset = it } }
+                        } else {
+                            grabOffset = 0f
+                            null
+                        }
+                        setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
                         horizontalDrag(start.id) { change ->
                             change.consume()
                             tracker.addPosition(change.uptimeMillis, change.position)
-                            dragPosition = rubberBand(rawFractionAt(change.position.x))
-                            setStep((dragPosition.coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                            dragFinger = rawFractionAt(change.position.x)
+                            setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
                         }
-                        // Velocidade do dedo em fração da pista por segundo.
+                        // Larga-se onde a bola está desenhada; a mola parte daí, com a velocidade do dedo.
+                        grabJob?.cancel()
+                        val released = dragPosition()
                         val velocity = tracker.calculateVelocity().x / trackPx
-                        val projected = (dragPosition + velocity * CycloMotion.MoodFlingProjectionS).coerceIn(0f, 1f)
+                        val projected = (released + velocity * CycloMotion.MoodFlingProjectionS).coerceIn(0f, 1f)
                         setStep((projected * last).roundToInt(), haptic = true)
-                        dragging = false
-                        settle(dragPosition, velocity)
+                        settle(released, velocity)
                     }
                 },
         ) {
@@ -925,8 +973,41 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
                     blendMode = blend,
                 )
             }
-            val position = if (dragging) dragPosition else ball.value
-            drawCycloBall(Offset(lerp(ballInset, size.width - ballInset, position), y), ballScale)
+            // Enquanto arrasta: o dedo mais o que falta fechar da distância inicial (lido aqui, a cada fotograma).
+            val position = if (dragging) dragPosition() else ball.value
+            drawCycloBall(Offset(lerp(ballInset, size.width - ballInset, position), y), ballScale.value)
+        }
+    }
+}
+
+/** Quanto tempo uma escolha feita no medidor manda sobre valores guardados diferentes (ms). */
+private const val PendingMoodMs = 2_000L
+
+/** Para lá das pontas, a bola só anda uma parte do que o dedo anda, até um máximo. */
+private fun rubberBandFraction(f: Float): Float = when {
+    f < 0f -> -minOf(-f * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
+    f > 1f -> 1f + minOf((f - 1f) * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
+    else -> f
+}
+
+/**
+ * Fecha a distância entre a bola e o dedo no início de um arrasto: uma mola crítica (sem passar
+ * do dedo) com a resposta de [CycloSprings.Snappy], fotograma a fotograma, a partir de [from].
+ */
+private suspend fun closeGrab(from: Float, set: (Float) -> Unit) {
+    val omega = (2.0 * Math.PI / CycloSprings.Snappy.response).toFloat()
+    var startNanos = -1L
+    while (true) {
+        val done = withFrameNanos { now ->
+            if (startNanos < 0) startNanos = now
+            val t = (now - startNanos) / 1_000_000_000f
+            val k = (1f + omega * t) * exp(-omega * t)
+            set(from * k)
+            k < 0.001f
+        }
+        if (done) {
+            set(0f)
+            return
         }
     }
 }

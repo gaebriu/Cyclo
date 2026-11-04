@@ -28,6 +28,26 @@ class NewestReleaseTest {
         assertNull(CycloUpdates.newestRelease("[${real("beta-1.1")}, ${real("beta-1.0")}]", AppVersion.parse("beta-1.1")))
     }
 
+    /** Da Beta 1.3 direto para a mais recente (1.5), saltando a 1.4, seja qual for a ordem da lista. */
+    @Test
+    fun skipsIntermediateVersions() {
+        fun real(tag: String) = """
+            {"tag_name": "$tag", "draft": false, "prerelease": true, "html_url": "https://github.com/gaebriu/Cyclo/releases/tag/$tag",
+             "assets": [{"name": "com.gaebriu.cyclo.apk", "size": 99, "browser_download_url": "https://github.com/gaebriu/Cyclo/releases/download/$tag/com.gaebriu.cyclo.apk"}]}
+        """.trimIndent()
+        val beta13 = AppVersion.parse("beta-1.3")
+        for (json in listOf(
+            "[${real("beta-1.5")}, ${real("beta-1.4")}, ${real("beta-1.3")}]",
+            "[${real("beta-1.4")}, ${real("beta-1.3")}, ${real("beta-1.5")}]",
+        )) {
+            val update = CycloUpdates.newestRelease(json, beta13)!!
+            assertEquals("beta-1.5", update.tag)
+            assertEquals("Beta 1.5", update.version.label())
+            assertEquals("https://github.com/gaebriu/Cyclo/releases/download/beta-1.5/com.gaebriu.cyclo.apk", update.apkUrl)
+        }
+        assertNull(CycloUpdates.newestRelease("[${real("beta-1.5")}, ${real("beta-1.4")}]", AppVersion.parse("beta-1.5")))
+    }
+
     @Test
     fun picksTheNewestNewerRelease() {
         val json = "[${release("alpha-0.7.4")}, ${release("alpha-0.8.0")}, ${release("alpha-0.7.2")}]"

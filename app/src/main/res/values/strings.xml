@@ -54,6 +54,8 @@
 
     <!-- Rotinas guardadas -->
     <string name="saved_search_placeholder">What are you looking for?</string>
+    <string name="saved_empty_title">Nothing here just yet</string>
+    <string name="saved_empty_text">Tap the + to create your first routine</string>
     <string name="saved_state_on">On</string>
     <string name="saved_state_off">Off</string>
     <string name="saved_delete">Delete %1$s</string>
@@ -130,6 +132,7 @@
     <!-- O .apk descarregado não é o Cyclo da versão anunciada -->
     <string name="update_failed_invalid">This update doesn\'t look right. Try again later.</string>
     <string name="update_install_failed">Couldn\'t open the installer</string>
+    <string name="update_dismissed">Update dismissed</string>
 
     <!-- action-menu-big-open-github -->
     <string name="github_sheet_title">Cyclo is open source</string>
@@ -195,8 +198,8 @@
     <!-- Pré-visualização na lista de widgets do lançador (os valores de exemplo do Figma) -->
     <string name="widget_preview_name">Routine 1</string>
     <string name="widget_preview_wake" translatable="false">06:00</string>
-    <string name="widget_preview_bed_0" translatable="false">08:45</string>
-    <string name="widget_preview_bed_1" translatable="false">10:15</string>
+    <string name="widget_preview_bed_0" translatable="false">20:45</string>
+    <string name="widget_preview_bed_1" translatable="false">22:15</string>
     <string name="widget_preview_bed_2" translatable="false">11:45</string>
     <string name="widget_preview_bed_3" translatable="false">01:15</string>
     <string name="widget_preview_bed_4" translatable="false">02:45</string>

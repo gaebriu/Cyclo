@@ -209,7 +209,7 @@ fun CycloApp(viewModel: CycloViewModel) {
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                // Atualizações no GitHub: ao abrir e ao voltar à app (no máximo de 6 em 6 horas).
+                // Atualizações no GitHub: uma vez por arranque a frio (voltar à app não volta a verificar).
                 CycloUpdates.checkIfDue(context)
                 val allowed = BedtimeReminder.isPermitted(context)
                 if (allowed != notificationsAllowed) {
@@ -280,7 +280,7 @@ fun CycloApp(viewModel: CycloViewModel) {
     val showMain by remember { derivedStateOf { (overlay != OverlayTutorial && overlay != OverlayUpdated) || cover.value < 1f } }
 
     // O new-update-group das definições: a versão nova (se houver e não tiver sido dispensada há
-    // menos de 24 horas, ou se já estiver a descarregar) e o estado do download.
+    // menos de 12 horas, ou se já estiver a descarregar) e o estado do download.
     val availableUpdate by CycloUpdates.available.collectAsState()
     val dismissedUntil by CycloUpdates.dismissedUntil.collectAsState()
     val updateDownload by CycloUpdates.download.collectAsState()
@@ -450,6 +450,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                         onUpdateDismiss = {
                             CycloUpdates.cancelDownload()
                             CycloUpdates.dismiss(context)
+                            viewModel.updateDismissed { CycloUpdates.undoDismiss(context) }
                         },
                     )
                 } else {

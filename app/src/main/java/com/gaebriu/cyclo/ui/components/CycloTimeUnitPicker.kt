@@ -13,7 +13,6 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -140,7 +139,7 @@ fun CycloTimeUnitPicker(
                     CustomAccessibilityAction(decreaseLabel) { nudge(-1); true },
                 )
             }
-            .clip(RoundedCornerShape(15.dp))
+            .clip(SmoothRoundedCornerShape(15.dp))
             .background(CycloColors.GlassFill)
             .draggable(
                 state = dragState,

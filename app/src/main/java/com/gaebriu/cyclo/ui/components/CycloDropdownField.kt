@@ -69,10 +69,7 @@ fun CycloDropdownField(
                 stateDescription = text
             }
             .drawBehind {
-                drawRoundRect(
-                    color = CycloColors.GlassFill,
-                    cornerRadius = CornerRadius(CycloDimens.InputRadius.toPx()),
-                )
+                drawPath(smoothRoundRectPath(size.width, size.height, CycloDimens.InputRadius.toPx()), CycloColors.GlassFill)
             },
     ) {
         BasicText(

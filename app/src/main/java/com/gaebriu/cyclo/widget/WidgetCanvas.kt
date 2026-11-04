@@ -1,5 +1,7 @@
 ﻿package com.gaebriu.cyclo.widget
 
+import androidx.compose.ui.graphics.asAndroidPath
+import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -86,9 +88,14 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
         restore()
     }
 
-    /** O fundo do cartão: #101011, cantos de 15 (background dos dois widgets). */
+    /** O fundo do cartão: #101011, cantos de 15 com o corner smoothing do Figma (background dos dois widgets). */
     fun Canvas.card(width: Float, height: Float) {
-        drawRoundRect(RectF(0f, 0f, width, height), CardRadius, CardRadius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = CardColor })
+        roundRect(width, height, CardColor)
+    }
+
+    /** O retângulo do cartão ([width] x [height], raio 15, smoothing 60 %) a [color]. */
+    fun Canvas.roundRect(width: Float, height: Float, color: Int) {
+        drawPath(smoothRoundRectPath(width, height, CardRadius).asAndroidPath(), Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
     }
 
     /** Um círculo de 39 com a borda de 1 (os botões das rotinas), já misturado sobre o cartão. */

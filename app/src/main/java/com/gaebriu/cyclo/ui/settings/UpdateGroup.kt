@@ -1,5 +1,6 @@
 ﻿package com.gaebriu.cyclo.ui.settings
 
+import com.gaebriu.cyclo.ui.components.addSmoothRoundRect
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -151,7 +152,7 @@ fun UpdateGroup(
                 underFill = {
                     // fx blur type 01: 315 x 33 a 15 dp da esquerda, no topo, muito desfocado.
                     val haze = Path().apply {
-                        addRoundRect(RoundRect(GroupPadding.toPx(), 0f, size.width - GroupPadding.toPx(), 33.dp.toPx(), CornerRadius(16.dp.toPx())))
+                        addSmoothRoundRect(GroupPadding.toPx(), 0f, size.width - GroupPadding.toPx(), 33.dp.toPx(), 16.dp.toPx())
                     }
                     drawBlurredPath(haze, HazeColor, 39.dp.toPx())
                 },

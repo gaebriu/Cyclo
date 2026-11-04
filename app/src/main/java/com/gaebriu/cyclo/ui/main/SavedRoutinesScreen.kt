@@ -1,5 +1,9 @@
 ﻿package com.gaebriu.cyclo.ui.main
 
+import androidx.compose.foundation.layout.offset
+import com.gaebriu.cyclo.ui.effects.staggeredReveal
+import com.gaebriu.cyclo.ui.effects.StaggeredReveal
+import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
@@ -141,7 +145,10 @@ private const val SearchFinishDelayMs = 350L
  *
  * Com a pesquisa aberta ([searchOpen]), a caixa de pesquisa (search-box) aparece no topo da lista
  * e só ficam os cartões com o texto no nome. [onSearchFinished] avisa quando se acaba de escrever
- * (quem mostra decide se a caixa fecha).
+ * (quem mostra decide se a caixa fecha); [onSearchEnter] avisa do Enter e diz se há resultados.
+ *
+ * Sem rotinas nenhumas, mostra o estado vazio do Figma (Saved routines (no routines), 255:40), que
+ * entra de baixo para cima com a cascata do Feed na primeira vez que se vê nesta sessão ([emptyReveal]).
  */
 @Composable
 fun SavedRoutinesScreen(
@@ -150,7 +157,10 @@ fun SavedRoutinesScreen(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearchFinished: () -> Unit,
+    onSearchEnter: (hasResults: Boolean) -> Unit,
     bottomReserve: Dp,
+    emptyReveal: StaggeredReveal,
+    onEmptyShown: () -> Unit,
     onDelete: (Routine) -> Unit,
     onEdit: (Routine) -> Unit,
     onToggleActive: (Routine) -> Unit,
@@ -191,6 +201,7 @@ fun SavedRoutinesScreen(
                     query = query,
                     onQueryChange = onQueryChange,
                     onFinished = onSearchFinished,
+                    onEnter = { onSearchEnter(visible.isNotEmpty()) },
                     open = searchOpen,
                     progress = { search.value },
                 )
@@ -253,8 +264,49 @@ fun SavedRoutinesScreen(
             }
         }
         ShatterOverlay(shatter, Modifier.fillMaxSize())
+        if (routines.isEmpty()) {
+            SavedEmptyState(reveal = emptyReveal, onShown = onEmptyShown)
+        }
     }
 }
+
+/**
+ * Saved routines (no routines), Figma 255:40: "Nothing here just yet" e "Tap the + to create your
+ * first routine", Inter Medium 15, #A3A2A7, centrados, a 27 um do outro (topos a 391 e 418 num
+ * ecrã de 852: o meio do grupo fica 12,5 acima do meio do ecrã). O glow, o mini-menu e a barra de
+ * navegação são os de sempre (fixos). Entra como os blocos do Feed ([StaggeredReveal]), uma só vez
+ * por sessão: [onShown] marca-a como vista quando a cascata começa.
+ */
+@Composable
+private fun SavedEmptyState(reveal: StaggeredReveal, onShown: () -> Unit) {
+    val latestOnShown by rememberUpdatedState(onShown)
+    LaunchedEffect(Unit) {
+        latestOnShown()
+        reveal.play()
+    }
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 24.dp)
+                .offset(y = (-12.5).dp)
+                .semantics(mergeDescendants = true) { },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            BasicText(
+                text = stringResource(R.string.saved_empty_title),
+                style = CycloType.Body,
+                modifier = Modifier.staggeredReveal(reveal, 0),
+            )
+            Spacer(Modifier.height(9.dp))
+            BasicText(
+                text = stringResource(R.string.saved_empty_text),
+                style = CycloType.Body,
+                modifier = Modifier.staggeredReveal(reveal, 1),
+            )
+        }
+    }
+}
+
 
 /**
  * Memória das rotinas apagadas neste ecrã, para que uma que volte (o "Undo") entre com zoom. Não é
@@ -322,6 +374,7 @@ private fun SearchBox(
     query: String,
     onQueryChange: (String) -> Unit,
     onFinished: () -> Unit,
+    onEnter: () -> Unit,
     open: Boolean,
     progress: () -> Float,
 ) {
@@ -363,6 +416,7 @@ private fun SearchBox(
                 placeholder = stringResource(R.string.saved_search_placeholder),
                 lift = false,
                 search = true,
+                onEnter = onEnter,
                 modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin),
             )
             Spacer(Modifier.height(CycloDimens.Spacing))
@@ -446,10 +500,10 @@ private fun RoutineCard(
         Canvas(modifier = Modifier.matchParentSize()) {
             val off = 1f - active
             if (off <= 0f) return@Canvas
-            drawRoundRect(
+            drawPath(
+                smoothRoundRectPath(size.width, size.height, 15.dp.toPx()),
                 color = DeactivatedVeil,
                 alpha = off,
-                cornerRadius = CornerRadius(15.dp.toPx()),
                 blendMode = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver,
             )
         }

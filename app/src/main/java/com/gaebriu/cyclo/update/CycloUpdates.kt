@@ -57,28 +57,29 @@ sealed interface DownloadState {
  * progresso real e entrega-o ao instalador do Android. Não há instalação automática nem tokens:
  * só a API pública do GitHub, sem autenticação, e o instalador do sistema (o utilizador confirma).
  *
- * - Verifica ao abrir a app e ao voltar a ela ([checkIfDue]), no máximo de [CheckIntervalMs] em
- *   [CheckIntervalMs]; o resultado fica guardado (com o ETag do GitHub, para pedidos repetidos não
- *   gastarem o limite da API) e serve até à verificação seguinte. Sem rede, fica o último resultado.
+ * - Verifica uma vez por arranque a frio ([checkIfDue]): um processo novo verifica ao abrir a app;
+ *   voltar do multitarefa ou do segundo plano não é um arranque novo e não volta a verificar. O
+ *   resultado fica guardado (com o ETag do GitHub, para pedidos repetidos não gastarem o limite da
+ *   API) e serve até à verificação seguinte. Sem rede, fica o último resultado.
  * - Lê a lista de releases (não a "latest", que ignora as prereleases: as versões do Cyclo são
- *   alphas) e escolhe a mais recente que não seja rascunho e seja maior do que a instalada.
+ *   alphas/betas) e escolhe a MAIS RECENTE de todas (não a seguinte à instalada): com a Beta 1.3
+ *   instalada e a 1.4 e a 1.5 publicadas, o aviso mostra logo a 1.5 e descarrega o .apk dela.
  * - O download corre no processo (continua com as definições fechadas) e pode ser cancelado.
- * - Dispensar (o X) esconde o aviso durante [DismissMs]; depois, se a atualização continuar
- *   disponível, volta a aparecer.
+ * - Dispensar (o X) esconde o aviso durante [DismissMs] (guardado entre sessões); "Undo" na barra de
+ *   baixo ([undoDismiss]) volta a mostrá-lo logo, sem nova verificação. Passado o intervalo, se a
+ *   atualização continuar disponível, volta a aparecer.
  */
 object CycloUpdates {
     private const val Prefs = "updates"
     private const val KeyLastCheck = "last_check"
     private const val KeyEtag = "etag"
+    private const val KeyCheckedFor = "checked_for"
     private const val KeyRelease = "release"
     private const val KeyDismissedAt = "dismissed_at"
     private const val KeyDismissedTag = "dismissed_tag"
 
-    /** Uma verificação a cada 6 horas, no máximo (o GitHub deixa 60 pedidos por hora sem conta). */
-    const val CheckIntervalMs = 6L * 60 * 60 * 1000
-
     /** Quanto tempo o aviso fica escondido depois de o dispensar. */
-    const val DismissMs = 24L * 60 * 60 * 1000
+    const val DismissMs = 12L * 60 * 60 * 1000
 
     private const val ConnectTimeoutMs = 10_000
     private const val ReadTimeoutMs = 20_000
@@ -102,6 +103,10 @@ object CycloUpdates {
 
     private var loaded = false
 
+    /** Este processo já verificou (ou está a verificar): um arranque a frio, uma verificação. */
+    @Volatile
+    private var checkedThisProcess = false
+
     /** Acabou um download nesta sessão: o instalador abre uma vez, sozinho ([takeAutoInstall]). */
     @Volatile
     private var autoInstall = false
@@ -111,9 +116,11 @@ object CycloUpdates {
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(Prefs, Context.MODE_PRIVATE)
 
-    fun installedVersion(context: Context): AppVersion? = runCatching {
+    private fun installedName(context: Context): String? = runCatching {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
-    }.getOrNull()?.let(AppVersion::parse)
+    }.getOrNull()
+
+    fun installedVersion(context: Context): AppVersion? = installedName(context)?.let(AppVersion::parse)
 
     /** Lê o que ficou guardado (a última release vista e quando foi dispensada). */
     private fun load(context: Context) {
@@ -128,15 +135,18 @@ object CycloUpdates {
         _available.value = prefs.getString(KeyRelease, null)?.let { decode(it) }?.takeIf { isNewer(context, it) }
     }
 
-    /** Verifica, se já passou tempo suficiente desde a última vez. Não bloqueia: corre em fundo. */
+    /**
+     * Verifica uma vez por processo (o arranque a frio); as chamadas seguintes da mesma sessão (voltar
+     * do multitarefa, recriar a atividade) não fazem nada. Não bloqueia: corre em fundo.
+     */
     fun checkIfDue(context: Context, force: Boolean = false) {
         val app = context.applicationContext
         load(app)
         // A instalada pode ter mudado (a app foi atualizada): o que estava guardado deixa de valer.
         _available.value = _available.value?.takeIf { isNewer(app, it) }
-        val last = prefs(app).getLong(KeyLastCheck, 0L)
-        if (!force && System.currentTimeMillis() - last < CheckIntervalMs) return
+        if (!force && checkedThisProcess) return
         if (checkJob?.isActive == true) return
+        checkedThisProcess = true
         checkJob = scope.launch { check(app) }
     }
 
@@ -150,7 +160,11 @@ object CycloUpdates {
                 setRequestProperty("Accept", "application/vnd.github+json")
                 setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
                 setRequestProperty("User-Agent", "Cyclo-Android")
-                prefs.getString(KeyEtag, null)?.let { setRequestProperty("If-None-Match", it) }
+                // O ETag só vale para a versão instalada com que se escolheu a release guardada (uma
+                // versão instalada diferente pode escolher outra release da mesma lista).
+                prefs.getString(KeyEtag, null)
+                    ?.takeIf { prefs.getString(KeyCheckedFor, null) == installedName(context) }
+                    ?.let { setRequestProperty("If-None-Match", it) }
             }
         } catch (e: IOException) {
             return
@@ -167,6 +181,7 @@ object CycloUpdates {
                     prefs.edit()
                         .putLong(KeyLastCheck, System.currentTimeMillis())
                         .putString(KeyEtag, connection.getHeaderField("ETag"))
+                        .putString(KeyCheckedFor, installedName(context))
                         .apply {
                             if (newest != null) putString(KeyRelease, encode(newest)) else remove(KeyRelease)
                         }
@@ -186,7 +201,7 @@ object CycloUpdates {
         }
     }
 
-    /** O X do new-update-group: esconde o aviso durante 24 horas (guardado entre sessões). */
+    /** O X do new-update-group: esconde o aviso durante 12 horas (guardado entre sessões). */
     fun dismiss(context: Context) {
         val now = System.currentTimeMillis()
         prefs(context).edit()
@@ -194,6 +209,15 @@ object CycloUpdates {
             .putString(KeyDismissedTag, _available.value?.tag)
             .apply()
         _dismissedUntil.value = now + DismissMs
+    }
+
+    /** "Undo" depois de dispensar: o aviso volta já, com a release que já se conhecia (sem verificar). */
+    fun undoDismiss(context: Context) {
+        prefs(context).edit()
+            .remove(KeyDismissedAt)
+            .remove(KeyDismissedTag)
+            .apply()
+        _dismissedUntil.value = 0L
     }
 
     /** Começa a descarregar o .apk de [update] (ou recomeça, depois de um erro ou de cancelar). */

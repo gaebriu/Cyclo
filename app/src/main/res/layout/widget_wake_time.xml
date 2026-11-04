@@ -5,10 +5,18 @@
     proporção do Figma; cada uma das seis horas é um ViewFlipper posto por cima no sítio dela, para
     a hora nova rolar quando o tempo para adormecer muda (ver widget/BedtimeWidgets.kt).
 -->
+<!--
+    clipToOutline no @android:id/background: diz ao lançador que o widget trata dos próprios cantos
+    (Launcher3 e derivados só impõem o raio deles quando o fundo não recorta). Sem isto, o lançador
+    recortava o espaço todo com o raio do sistema (16 dp no Pixel, mais na One UI) e, com o cartão a
+    tocar nas bordas, cortava os cantos do cartão (raio 15 à escala, smoothing 60 %). Sem fundo, o
+    contorno é o retângulo do espaço: não recorta nada do desenho.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clipToOutline="true">
 
     <FrameLayout
         android:id="@+id/widget_card"

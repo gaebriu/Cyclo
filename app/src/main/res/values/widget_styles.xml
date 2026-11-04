@@ -1,27 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-        Textos das pré-visualizações na lista de widgets do lançador (TextViews): a fonte do
-        sistema, porque o lançador não carrega as fontes da app nos widgets. Os widgets a sério são
-        desenhados com a Inter (ver widget/WidgetCanvas.kt). Medidas do Figma (Componentes 4).
-    -->
-    <style name="CycloWidgetPreviewText">
-        <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">18dp</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textColor">#FCFCFE</item>
-        <item name="android:textSize">15dp</item>
-        <item name="android:maxLines">1</item>
-        <item name="android:includeFontPadding">false</item>
-    </style>
-
-    <style name="CycloWidgetPreviewIcon">
-        <item name="android:layout_width">15dp</item>
-        <item name="android:layout_height">15dp</item>
-        <item name="android:importantForAccessibility">no</item>
-    </style>
-
     <!-- Uma hora do Wake Time Widget: a nova entra por baixo, a antiga sai por cima. -->
     <style name="CycloWidgetSlot">
         <item name="android:layout_width">40dp</item>

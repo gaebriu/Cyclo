@@ -191,6 +191,10 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     /** O lançador não deixa fixar o widget a partir da app. */
     fun widgetPinUnsupported() = showMessage(string(R.string.widget_pin_unsupported))
 
+    /** O X do new-update-group: "Update dismissed" com "Undo", que o volta a mostrar logo. */
+    fun updateDismissed(undo: () -> Unit) =
+        showMessage(string(R.string.update_dismissed), actionLabel = string(R.string.undo), action = undo)
+
     /** O instalador do Android não abriu (o .apk desapareceu ou não há instalador). */
     fun updateInstallFailed(retry: () -> Unit) =
         showMessage(string(R.string.update_install_failed), actionLabel = string(R.string.try_again), isError = true, action = retry)

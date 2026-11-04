@@ -119,9 +119,7 @@ private fun CycloButtonSurface(
             .cycloPressable(onClick = onClick, enabled = enabled)
             .drawBehind {
                 val radius = style.cornerRadius.toPx()
-                val shape = Path().apply {
-                    addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
-                }
+                val shape = smoothRoundRectPath(size.width, size.height, radius)
 
                 // Fundo. Sem efeitos, a mistura Luminosity passa a normal.
                 val blend = if (style.luminosity && effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
@@ -139,15 +137,7 @@ private fun CycloButtonSurface(
                 val strokeWidth = 1.dp.toPx()
                 val inset = strokeWidth / 2f
                 val borderShape = Path().apply {
-                    addRoundRect(
-                        RoundRect(
-                            inset,
-                            inset,
-                            size.width - inset,
-                            size.height - inset,
-                            CornerRadius(radius - inset),
-                        ),
-                    )
+                    addSmoothRoundRect(inset, inset, size.width - inset, size.height - inset, radius - inset)
                 }
                 drawPath(
                     borderShape,

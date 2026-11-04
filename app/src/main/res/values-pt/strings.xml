@@ -56,6 +56,8 @@
 
     <!-- Rotinas guardadas -->
     <string name="saved_search_placeholder">O que procuras?</string>
+    <string name="saved_empty_title">Ainda não há nada aqui</string>
+    <string name="saved_empty_text">Toca no + para criares a tua primeira rotina</string>
     <string name="saved_state_on">Ligada</string>
     <string name="saved_state_off">Desligada</string>
     <string name="saved_delete">Apagar %1$s</string>
@@ -131,6 +133,7 @@
     <string name="update_failed_storage">Não há espaço suficiente para a atualização</string>
     <string name="update_failed_invalid">Esta atualização não parece estar bem. Tenta mais tarde.</string>
     <string name="update_install_failed">Não conseguimos abrir o instalador</string>
+    <string name="update_dismissed">Atualização dispensada</string>
 
     <!-- action-menu-big-open-github -->
     <string name="github_sheet_title">O Cyclo é open source</string>

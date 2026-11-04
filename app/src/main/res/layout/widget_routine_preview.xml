@@ -1,67 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Pré-visualização do Routine Widget na lista de widgets do lançador: o Figma 244:48 com os valores
-    de exemplo dele ("Routine 1", 06:00, "Show just this once"). TextViews com a fonte do sistema.
+    Pré-visualização na lista de widgets do lançador (Figma 244:48, 345 x 164, valores de exemplo do
+    Figma). É uma imagem desenhada pelo MESMO código do widget real (BedtimeWidgets.previewBitmaps,
+    gerada pelo teste instrumentado WidgetPreviewGenerator): o lançador não corre código da app, e
+    um layout com TextViews saía com a fonte do sistema e ícones diferentes. Só a pré-visualização
+    usa este ficheiro; o widget no ecrã principal é widget_routine.xml.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:clipToOutline="true">
 
-    <FrameLayout
-        android:layout_width="345dp"
-        android:layout_height="164dp"
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:layout_gravity="center"
-        android:background="@drawable/widget_background">
-
-        <TextView
-            style="@style/CycloWidgetPreviewText"
-            android:layout_marginStart="15dp"
-            android:layout_marginTop="15dp"
-            android:fontFamily="sans-serif"
-            android:textStyle="bold"
-            android:text="@string/widget_preview_name" />
-
-        <ImageView
-            style="@style/CycloWidgetPreviewIcon"
-            android:layout_marginStart="15dp"
-            android:layout_marginTop="48dp"
-            android:src="@drawable/widget_ic_sunny" />
-
-        <TextView
-            style="@style/CycloWidgetPreviewText"
-            android:layout_marginStart="36dp"
-            android:layout_marginTop="47dp"
-            android:text="@string/widget_preview_wake" />
-
-        <ImageView
-            style="@style/CycloWidgetPreviewIcon"
-            android:layout_marginStart="15dp"
-            android:layout_marginTop="78dp"
-            android:src="@drawable/widget_ic_calendar" />
-
-        <TextView
-            style="@style/CycloWidgetPreviewText"
-            android:layout_marginStart="36dp"
-            android:layout_marginTop="77dp"
-            android:text="@string/repeat_just_once" />
-
-        <ImageView
-            android:layout_width="39dp"
-            android:layout_height="39dp"
-            android:layout_marginStart="237dp"
-            android:layout_marginTop="110dp"
-            android:background="@drawable/widget_button"
-            android:importantForAccessibility="no"
-            android:src="@drawable/widget_ic_edit" />
-
-        <ImageView
-            android:layout_width="39dp"
-            android:layout_height="39dp"
-            android:layout_marginStart="291dp"
-            android:layout_marginTop="110dp"
-            android:background="@drawable/widget_toggle_on"
-            android:importantForAccessibility="no"
-            android:src="@drawable/widget_ic_active" />
-    </FrameLayout>
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/widget_routine_description"
+        android:src="@drawable/widget_routine_preview_image" />
 </FrameLayout>

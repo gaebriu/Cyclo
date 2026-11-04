@@ -1,5 +1,11 @@
 ﻿package com.gaebriu.cyclo.ui.components
 
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
@@ -67,9 +73,15 @@ fun rememberRoutineNameInput(onNameChange: (String) -> Unit): RoutineNameInputSt
     return remember(dictation) { RoutineNameInputState(dictation, focusRequester, completions) }
 }
 
+/** Quanto tempo, no máximo, se espera que o teclado apareça depois de o pedir (ms). */
+private const val KeyboardWaitMs = 1_500L
+
 /**
  * A caixa do nome com tudo ligado: sobe sozinha para cima do teclado ([KeyboardLift]), o Enter
  * ("Done") fecha o teclado, e o ícone do teclado volta do ditado para a escrita.
+ *
+ * @param onEnter chamado no Enter (tecla do teclado no ecrã ou física), antes de o teclado fechar;
+ *        a pesquisa usa-o para decidir se a caixa fecha. null = só fecha o teclado (o nome da rotina).
  */
 @Composable
 fun RoutineNameInput(
@@ -80,17 +92,26 @@ fun RoutineNameInput(
     placeholder: String? = null,
     lift: Boolean = true,
     search: Boolean = false,
+    onEnter: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
+    val ime = WindowInsets.ime
 
-    // "Voltar ao teclado": deixa de ouvir e, quando a caixa já aceita foco, abre o teclado.
+    // "Voltar ao teclado": deixa de ouvir e, quando a caixa já aceita foco, abre o teclado. O pedido
+    // só acaba quando o teclado está mesmo à vista (ou ao fim de [KeyboardWaitMs]): antes acabava logo,
+    // e no intervalo até o teclado aparecer a caixa não contava como ativa, por isso a pesquisa vazia
+    // fechava-se sozinha quando o teclado demorava mais do que a espera da pesquisa.
     LaunchedEffect(state.pendingKeyboard, state.dictation.isListening) {
         if (state.pendingKeyboard && !state.dictation.isListening) {
             withFrameNanos { } // espera que a caixa volte a estar ativa
             // Se a caixa já tiver saído do ecrã, não há nada a focar.
             runCatching { state.focusRequester.requestFocus() }
             keyboard?.show()
+            withTimeoutOrNull(KeyboardWaitMs) {
+                snapshotFlow { ime.getBottom(density) > 0 }.first { it }
+            }
             state.pendingKeyboard = false
         }
     }
@@ -111,6 +132,7 @@ fun RoutineNameInput(
                 state.pendingKeyboard = true
             },
             onDone = {
+                onEnter?.invoke()
                 focusManager.clearFocus()
                 keyboard?.hide()
             },

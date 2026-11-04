@@ -1,5 +1,6 @@
 ﻿package com.gaebriu.cyclo.ui.screens
 
+import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -200,9 +201,7 @@ private fun AddWidgetButton(onClick: () -> Unit, enabled: Boolean, modifier: Mod
             .cycloPressable(onClick = onClick, enabled = enabled)
             .drawBehind {
                 val radius = CycloDimens.CornerRadius.toPx()
-                val shape = Path().apply {
-                    addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
-                }
+                val shape = smoothRoundRectPath(size.width, size.height, radius)
                 drawPath(shape, color = CycloColors.GlassFill)
                 drawInnerShadow(
                     shape = shape,

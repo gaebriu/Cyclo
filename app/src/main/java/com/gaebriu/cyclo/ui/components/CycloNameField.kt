@@ -249,9 +249,7 @@ private fun BoxScope.NameFieldFill(search: Boolean) {
     }
 }
 
-private fun DrawScope.roundedShape(radius: Float): Path = Path().apply {
-    addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
-}
+private fun DrawScope.roundedShape(radius: Float): Path = smoothRoundRectPath(size.width, size.height, radius)
 
 /** Tudo o que só existe ao ouvir: brilho exterior, borda em gradiente e o texto "Listening...". */
 @Composable
@@ -303,7 +301,8 @@ private fun DrawScope.drawListeningBorder(radius: Float, phase: Float, amount: F
     val color = CycloColors.TextSecondary
     val inset = 0.5.dp.toPx()
     val start = phase * size.width
-    drawRoundRect(
+    drawPath(
+        Path().apply { addSmoothRoundRect(inset, inset, size.width - inset, size.height - inset, radius - inset) },
         brush = Brush.linearGradient(
             0f to color.copy(alpha = 0.24f),
             0.5f to color.copy(alpha = 0.09f),
@@ -312,9 +311,6 @@ private fun DrawScope.drawListeningBorder(radius: Float, phase: Float, amount: F
             end = Offset(start + size.width, 0f),
             tileMode = TileMode.Repeated,
         ),
-        topLeft = Offset(inset, inset),
-        size = Size(size.width - inset * 2f, size.height - inset * 2f),
-        cornerRadius = CornerRadius(radius - inset),
         style = Stroke(width = 1.dp.toPx()),
         alpha = amount,
     )

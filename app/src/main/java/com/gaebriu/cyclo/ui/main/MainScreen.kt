@@ -1,5 +1,6 @@
 ﻿package com.gaebriu.cyclo.ui.main
 
+import com.gaebriu.cyclo.ui.theme.motionSpec
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -123,6 +124,12 @@ private const val SavedPage = 1
  * @param reveal entrada em cascata da primeira vez que o Feed aparece (ver [FeedRevealItems]).
  * @param glow de 0 a 1, o brilho do topo a nascer.
  */
+/** A sessão (o processo) já mostrou a entrada do estado vazio das rotinas guardadas. */
+private object SavedEmptySession {
+    @Volatile
+    var revealed = false
+}
+
 @Composable
 fun MainScreen(
     data: CycloData,
@@ -148,10 +155,24 @@ fun MainScreen(
 
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+
+    // O estado vazio das rotinas guardadas entra em cascata só na primeira vez desta sessão (do
+    // processo: voltar a entrar nas rotinas guardadas, rodar ou recriar a atividade não repete).
+    val savedEmptyReveal = remember { StaggeredReveal(2, startRevealed = SavedEmptySession.revealed) }
+    val onSavedEmptyShown = { SavedEmptySession.revealed = true }
+    val searchAvailable = animateFloatAsState(
+        targetValue = if (data.routines.isNotEmpty()) 1f else 0f,
+        animationSpec = motionSpec(effects.animationsEnabled, CycloSprings.Snappy.float),
+        label = "searchAvailable",
+    )
     fun closeSearch() {
         searchOpen = false
         query = ""
         focusManager.clearFocus()
+    }
+    // A última rotina saiu com a pesquisa aberta: a caixa fecha (já não há o que procurar).
+    LaunchedEffect(data.routines.isEmpty()) {
+        if (data.routines.isEmpty() && searchOpen) closeSearch()
     }
 
     // O frame do Figma tem 24 dp de barra de estado e 48 dp de barra de navegação.
@@ -370,6 +391,13 @@ fun MainScreen(
                                     // Vazia, a caixa desaparece; com texto, fica com os resultados.
                                     if (query.isBlank()) closeSearch() else focusManager.clearFocus()
                                 },
+                                onSearchEnter = { hasResults ->
+                                    // Enter: vazia ou sem resultados, a caixa fecha e voltam todas as
+                                    // rotinas; com resultados, fica aberta com o texto e só eles.
+                                    if (query.isBlank() || !hasResults) closeSearch()
+                                },
+                                emptyReveal = savedEmptyReveal,
+                                onEmptyShown = onSavedEmptyShown,
                                 bottomReserve = bottomReserve,
                                 onDelete = actions.onDeleteRoutine,
                                 onEdit = actions.onEditRoutine,
@@ -397,8 +425,9 @@ fun MainScreen(
                         actions.onOpenSettings()
                     },
                 ),
-                // A lupa só existe nas rotinas guardadas: o mini-menu alarga e ela aparece com a página.
-                firstSlot = { position().coerceIn(0f, 1f) },
+                // A lupa só existe nas rotinas guardadas, e só com rotinas (o estado vazio do Figma,
+                // 255:40, tem só o + e as definições): o mini-menu alarga e ela aparece com a página.
+                firstSlot = { position().coerceIn(0f, 1f) * searchAvailable.value },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = maxOf(MiniMenuTop, statusTop + 24.dp), end = CycloDimens.ScreenMargin)

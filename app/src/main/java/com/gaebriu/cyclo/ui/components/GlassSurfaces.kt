@@ -35,9 +35,8 @@ import com.gaebriu.cyclo.ui.theme.FigmaBlur
  * também durante as animações. Sem desfoque nas definições, ficam cores sólidas.
  */
 
-internal fun roundRectPath(width: Float, height: Float, radius: Float) = Path().apply {
-    addRoundRect(RoundRect(0f, 0f, width, height, CornerRadius(radius)))
-}
+/** A forma de todas as superfícies: raio [radius] com o corner smoothing do Figma (60 %). */
+internal fun roundRectPath(width: Float, height: Float, radius: Float) = smoothRoundRectPath(width, height, radius)
 
 /** Borda em gradiente vertical do vidro: #313233 a 63 %, 39 % ao meio, 63 %. */
 internal fun glassBorderBrush(): Brush = Brush.verticalGradient(
@@ -127,9 +126,7 @@ fun DrawScope.drawInsideBorder(radius: Float, brush: Brush, blend: BlendMode = B
     val strokeWidth = 1.dp.toPx()
     val inset = strokeWidth / 2f
     val border = Path().apply {
-        addRoundRect(
-            RoundRect(inset, inset, size.width - inset, size.height - inset, CornerRadius((radius - inset).coerceAtLeast(0f))),
-        )
+        addSmoothRoundRect(inset, inset, size.width - inset, size.height - inset, (radius - inset).coerceAtLeast(0f))
     }
     drawPath(border, brush = brush, style = Stroke(width = strokeWidth), blendMode = blend)
 }
