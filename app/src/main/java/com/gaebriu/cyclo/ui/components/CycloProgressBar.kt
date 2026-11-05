@@ -44,7 +44,7 @@ fun CycloProgressBar(
             .height(CycloDimens.ProgressBarHeight)
             .semantics { contentDescription = description },
     ) {
-        val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+        val blend = effects.luminosity
         val p = progress().coerceIn(0f, 1f)
         val width = size.width
         val height = size.height

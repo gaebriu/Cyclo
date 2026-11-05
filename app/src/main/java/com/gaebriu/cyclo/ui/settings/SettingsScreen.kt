@@ -101,6 +101,7 @@ import com.gaebriu.cyclo.ui.effects.Backdrop
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSource
+import com.gaebriu.cyclo.ui.effects.keepLiveDuringCrossfade
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.i18n.AppLanguage
@@ -163,6 +164,7 @@ private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Lang
  * - "Export my data" e "Restore my data" abrem o seletor de ficheiros do sistema.
  * - "View on GitHub" mostra primeiro o action-menu-big-open-github.
  * - A língua abre o action-menu-lang (Componentes 4): muda logo a língua da app toda ([onSetLanguage]).
+ * - "Advanced textures" (Performance) liga e desliga o desenho completo ([onSetAdvancedTextures]).
  * - Voltar (botão, gesto) fecha primeiro o menu, a folha ou a caixa da idade, se estiverem abertos.
  *
  * @param reminderOn o interruptor como se vê: ligado nas definições e com autorização.
@@ -180,6 +182,7 @@ fun SettingsScreen(
     onRestore: () -> Unit,
     onOpenGitHub: () -> Unit,
     onSetLanguage: (AppLanguage) -> Unit,
+    onSetAdvancedTextures: (Boolean) -> Unit,
     onClose: () -> Unit,
     update: UpdateUi? = null,
     onUpdateDownload: () -> Unit = {},
@@ -337,6 +340,19 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(SectionGap))
 
+            // Desempenho (performance-group, 256:114): "Advanced textures" e o texto de ajuda.
+            SectionLabel(stringResource(R.string.settings_performance), labelStyle)
+            SwitchRow(
+                label = stringResource(R.string.settings_advanced_textures),
+                on = data.advancedTextures,
+                onToggle = { onSetAdvancedTextures(!data.advancedTextures) },
+                // Durante a passagem do desenho, esta linha fica fora da fotografia (sem fantasma).
+                modifier = Modifier.keepLiveDuringCrossfade(),
+            )
+            Description(stringResource(R.string.settings_advanced_textures_description), labelStyle)
+            // No Figma, deste texto ao título "Data" são 24 dp (e não os 15 dos outros textos).
+            Spacer(Modifier.height(SectionGap))
+
             // Dados.
             SectionLabel(stringResource(R.string.settings_data), labelStyle)
             SettingsButton(stringResource(R.string.settings_export_data), onClick = onExport)
@@ -422,8 +438,10 @@ fun SettingsScreen(
                         compact = true,
                         onItemClick = { index ->
                             menu = SettingsMenu.None
+                            // Escolher no menu é sempre uma escolha explícita, também quando é igual
+                            // ao formato do sistema: daí em diante vale esta, mesmo que o sistema mude.
                             val chosen = index == 0
-                            if (chosen != use24Hour) onSetUse24Hour(chosen)
+                            if (chosen != data.use24Hour) onSetUse24Hour(chosen)
                         },
                     )
                 }
@@ -552,11 +570,11 @@ private fun SettingsRow(
 
 /** A linha "Bedtime" com o interruptor (y/n). Toda a linha liga e desliga. */
 @Composable
-private fun SwitchRow(label: String, on: Boolean, onToggle: () -> Unit) {
+private fun SwitchRow(label: String, on: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     val view = LocalView.current
     val stateText = stringResource(if (on) R.string.saved_state_on else R.string.saved_state_off)
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = CycloDimens.InputHeight)
             .cycloPressable(
@@ -628,7 +646,7 @@ private fun CycloSwitch(on: Boolean, modifier: Modifier = Modifier) {
                     topLeft = Offset(x, inset),
                     size = androidx.compose.ui.geometry.Size(knob + stretch, knob),
                     cornerRadius = radius,
-                    blendMode = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver,
+                    blendMode = effects.luminosity,
                 )
             },
     )

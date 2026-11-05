@@ -2,7 +2,7 @@
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.ClipOp
@@ -28,29 +28,37 @@ import com.gaebriu.cyclo.ui.theme.FigmaBlur
  * #A3A2A7. Sem contorno (a borda de 1 dp foi retirada a pedido). Com o dedo em cima, a luz
  * segue-o ([cycloLightSheen]).
  *
- * O desfoque usa o que está por trás ([LocalBackdrop]); sem desfoque nas definições, fica sólido.
+ * O desfoque usa o que está por trás ([LocalBackdrop]). Sem as texturas avançadas não há desfoque
+ * e o #101011 fica em mistura normal: uma superfície sólida, sem nada transparente.
+ *
+ * @param exactBlur o desfoque 39 com a força exata do Figma (sigma 19,5 dp, ver
+ *                  [com.gaebriu.cyclo.ui.theme.figmaBlurRadiusExact]): action-menu-when-to-show e
+ *                  action-menu-big-choose-days. Os outros menus ficam como estavam.
  */
 @Composable
-fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius): Modifier {
+fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, exactBlur: Boolean = false): Modifier {
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    return backdropSampler(sampler).drawBehind {
+    return backdropSampler(sampler).drawWithCache {
+        // A forma só se refaz quando o tamanho muda (os menus a abrir mudam de tamanho; parados, não).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
-        val edge = CycloColors.TextSecondary
+        onDrawBehind {
+            val edge = CycloColors.TextSecondary
 
-        // Brilho exterior, só fora da forma.
-        clipPath(shape, clipOp = ClipOp.Difference) {
-            drawBlurredPath(shape, edge.copy(alpha = 0.15f), 9.dp.toPx())
+            // Brilho exterior, só fora da forma.
+            clipPath(shape, clipOp = ClipOp.Difference) {
+                drawBlurredPath(shape, edge.copy(alpha = 0.15f), 9.dp.toPx())
+            }
+
+            // Fundo desfocado e preenchimento. Sem as texturas avançadas, a mistura Luminosity passa a normal.
+            if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay, exact = exactBlur)
+            val blend = effects.luminosity
+            drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+
+            // Sombras interiores, em cima e em baixo.
+            drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, -2.dp.toPx()), 2.dp.toPx())
+            drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, 2.dp.toPx()), 2.dp.toPx())
         }
-
-        // Fundo desfocado e preenchimento. Sem efeitos, a mistura Luminosity passa a normal.
-        if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
-        val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
-        drawPath(shape, CycloColors.GlassFill, blendMode = blend)
-
-        // Sombras interiores, em cima e em baixo.
-        drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, -2.dp.toPx()), 2.dp.toPx())
-        drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, 2.dp.toPx()), 2.dp.toPx())
     }.cycloLightSheen(cornerRadius)
 }

@@ -88,7 +88,9 @@ fun CycloActionMenu(
     Column(
         modifier = modifier
             .then(if (isChoice) Modifier.width(MenuWidth) else Modifier.width(IntrinsicSize.Max))
-            .cycloOverlaySurface()
+            // action-menu-when-to-show (a única forma de escolha não compacta): desfoque 39 com a
+            // força exata do Figma (159:291, backdrop-blur 19,5).
+            .cycloOverlaySurface(exactBlur = isChoice)
             .padding(top = 12.dp, bottom = if (isChoice) 18.dp else 12.dp),
     ) {
         items.forEachIndexed { index, item ->

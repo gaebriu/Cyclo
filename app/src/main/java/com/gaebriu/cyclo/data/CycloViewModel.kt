@@ -153,6 +153,9 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setUse24Hour(use24Hour: Boolean) = write { repository.setUse24Hour(use24Hour) }
 
+    /** "Advanced textures" (definições, Performance). */
+    fun setAdvancedTextures(on: Boolean) = write { repository.setAdvancedTextures(on) }
+
     /** Nova ordem das rotinas (arrastar nas rotinas guardadas). */
     fun reorderRoutines(ids: List<Long>) = write { repository.reorderRoutines(ids) }
 

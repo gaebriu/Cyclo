@@ -48,11 +48,14 @@ private val EdgeSteps = listOf(
  * RenderEffect) só se refaz quando a medida ou o desfoque mudam.
  */
 private class EdgeStepLayer(val layer: GraphicsLayer) {
-    private var key: List<Any>? = null
+    // A última chave, em campos simples: compara-se a cada frame sem criar objetos.
+    private var keyWidth = Float.NaN
+    private var keyHeight = Float.NaN
+    private var keySigma = Float.NaN
+    private var keyTop = false
 
     fun update(step: EdgeStep, width: Float, height: Float, sigma: Float, fromTop: Boolean) {
-        val next = listOf(width, height, sigma, fromTop)
-        if (next == key) return
+        if (width == keyWidth && height == keyHeight && sigma == keySigma && fromTop == keyTop) return
         val s = (sigma * step.sigmaFraction).coerceAtLeast(0.5f)
         // Posições da rampa em px: a borda do ecrã é o topo (faixa de cima) ou o fundo (faixa de baixo).
         val start = if (fromTop) height * (1f - step.rampStart) else height * step.rampStart
@@ -67,7 +70,10 @@ private class EdgeStepLayer(val layer: GraphicsLayer) {
             RenderEffect.createBlurEffect(s, s, Shader.TileMode.CLAMP),
             BlendMode.SRC_IN,
         ).asComposeRenderEffect()
-        key = next
+        keyWidth = width
+        keyHeight = height
+        keySigma = sigma
+        keyTop = fromTop
     }
 }
 
@@ -121,7 +127,7 @@ fun ProgressiveBlurEdge(
                 if (a <= 0f) return@drawBehind
                 val self = sampler.coordinates?.takeIf { it.isAttached }
                 sampler.moves
-                if (effects.blurEnabled && self != null && backdrop.layers.isNotEmpty()) {
+                if (effects.textures && self != null && backdrop.layers.isNotEmpty()) {
                     // O desfoque diminui com a quantidade (em degraus pequenos, para não refazer o efeito a cada frame).
                     val sigma = figmaBlurPx(figmaBlur) * (a * 20f).roundToInt() / 20f
                     if (sigma >= 0.5f) {
@@ -145,6 +151,32 @@ fun ProgressiveBlurEdge(
                 val edge = shade.copy(alpha = shade.alpha * a)
                 val inner = shade.copy(alpha = 0f)
                 drawRect(Brush.verticalGradient(if (top) listOf(edge, inner) else listOf(inner, edge)))
+                // Sem as texturas avançadas, o desfoque dá lugar a um gradiente #010101 que faz o
+                // mesmo papel: o conteúdo some-se suavemente a caminho da borda do ecrã.
+                if (!effects.textures) drawRect(fallbackBrush(top, a))
             },
     )
 }
+
+/**
+ * O gradiente #010101 que substitui o desfoque progressivo (Advanced textures desligadas): começa
+ * transparente na borda de dentro e fecha com uma curva suave até [FallbackEdgeAlpha] perto da borda
+ * do ecrã, onde o desfoque do Figma é mais forte (15).
+ */
+private fun fallbackBrush(top: Boolean, amount: Float): Brush {
+    val stops = Array(FallbackSteps + 1) { i ->
+        val u = i / FallbackSteps.toFloat() // 0 = borda de dentro, 1 = borda do ecrã
+        val v = (u / FallbackFullAt).coerceAtMost(1f)
+        val alpha = FallbackEdgeAlpha * amount * v * v * (3f - 2f * v)
+        (if (top) 1f - u else u) to com.gaebriu.cyclo.ui.theme.CycloColors.Background.copy(alpha = alpha)
+    }
+    if (top) stops.reverse()
+    return Brush.verticalGradient(*stops)
+}
+
+/** Opacidade do gradiente de substituição na borda do ecrã. */
+private const val FallbackEdgeAlpha = 1f
+
+/** Onde o gradiente já está inteiro (fração da faixa, a partir da borda de dentro). */
+private const val FallbackFullAt = 0.85f
+private const val FallbackSteps = 8

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -26,6 +27,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.unit.IntSize
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
+import com.gaebriu.cyclo.ui.theme.figmaBlurRadiusExact
 import kotlin.math.ceil
 
 /*
@@ -75,8 +77,19 @@ fun rememberBackdropLayer(): BackdropLayer {
     return remember(layer) { BackdropLayer(layer) }
 }
 
-/** Grava o que este elemento desenha em [layer] (e desenha-o normalmente). */
+/**
+ * Grava o que este elemento desenha em [layer] (e desenha-o normalmente).
+ *
+ * A fonte tem o seu próprio nó de desenho (a graphicsLayer vazia, sem efeito visível: sem alpha,
+ * sem recorte, sem camada fora do ecrã). Sem ele, a fonte desenhava-se no mesmo nó que as
+ * superfícies de vidro irmãs (barra de navegação, faixas das bordas): cada vez que a fonte se
+ * gravava, a versão mudava, as superfícies voltavam a desenhar-se e, com elas, o nó todo, incluindo
+ * a fonte, que se gravava outra vez. Era um ciclo sem fim: com as texturas ligadas, o Feed, as
+ * rotinas guardadas e as definições desenhavam frames sem parar, mesmo parados (até beta-1.3).
+ * Agora a fonte só se volta a gravar quando o que tem dentro muda.
+ */
 fun Modifier.backdropSource(layer: BackdropLayer): Modifier = this
+    .graphicsLayer { }
     .onPlaced { layer.coordinates = it }
     .drawWithContent {
         layer.layer.record { this@drawWithContent.drawContent() }
@@ -111,12 +124,18 @@ fun Modifier.backdropSampler(sampler: BackdropSampler): Modifier = onGloballyPos
  * Desenha o fundo por baixo desta superfície, recortado a [clip].
  *
  * @param figmaBlur desfoque de fundo do Figma (0 = sem desfoque, só para a mistura Luminosity).
+ * @param exact o desfoque com a força exata do Figma ([figmaBlurRadiusExact]); sem ele fica o
+ *              valor de sempre ([figmaBlurPx], mais suave), para o resto da app não mudar.
  */
-fun DrawScope.drawBackdrop(sampler: BackdropSampler, backdrop: Backdrop, clip: Path, figmaBlur: Float = 0f) {
+fun DrawScope.drawBackdrop(sampler: BackdropSampler, backdrop: Backdrop, clip: Path, figmaBlur: Float = 0f, exact: Boolean = false) {
     if (backdrop.layers.isEmpty()) return
     sampler.moves // relê a posição quando a superfície se move
     val self = sampler.coordinates?.takeIf { it.isAttached } ?: return
-    val sigma = if (figmaBlur > 0f) figmaBlurPx(figmaBlur) else 0f
+    val sigma = when {
+        figmaBlur <= 0f -> 0f
+        exact -> figmaBlurRadiusExact(figmaBlur)
+        else -> figmaBlurPx(figmaBlur)
+    }
     clipPath(clip) {
         if (sigma <= 0f) {
             drawLayers(backdrop, self)

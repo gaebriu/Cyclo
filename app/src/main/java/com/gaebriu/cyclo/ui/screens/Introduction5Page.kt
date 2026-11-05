@@ -218,7 +218,7 @@ private fun AddWidgetButton(onClick: () -> Unit, enabled: Boolean, modifier: Mod
                 .padding(top = WidgetIconTop)
                 .size(24.dp),
         ) {
-            val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+            val blend = effects.luminosity
             val pxPerDp = density
             withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
                 drawPath(path = icon, color = CycloColors.TextSecondary, blendMode = blend)

@@ -90,7 +90,7 @@ fun IntroIconHeader(
                 .offset(y = 32.dp)
                 .size(63.dp)
                 .drawBehind {
-                    val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+                    val blend = effects.luminosity
                     val pxPerDp = density
                     val degrees = rotation()
                     val pivot = Offset(IconCenter, IconCenter) +

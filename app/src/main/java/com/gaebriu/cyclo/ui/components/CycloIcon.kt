@@ -31,7 +31,7 @@ fun CycloIcon(
     val effects = LocalVisualEffects.current
     val icon = remember(path) { PathParser().parsePathString(path).toPath() }
     Canvas(modifier = modifier.size(size)) {
-        val blend = if (luminosity && effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+        val blend = if (luminosity && effects.textures) BlendMode.Luminosity else BlendMode.SrcOver
         val pxPerDp = density
         withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
             drawPath(path = icon, color = tint, alpha = alpha().coerceIn(0f, 1f), blendMode = blend)

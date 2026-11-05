@@ -24,7 +24,6 @@ class BackupTest {
             caffeineTimes = listOf(1_793_300_000_000L, 1_793_310_000_000L),
             factorTimes = mapOf(SleepFactor.LongLateNap to 1_793_320_000_000L),
         ),
-        use24Hour = false,
         age = 29,
         chronotype = Chronotype.NightOwl,
         fallAsleep = FallAsleepTime.ThirtyOrMore,
@@ -41,7 +40,6 @@ class BackupTest {
         val c = valid(buildBackupJson(data, exportedAt, "alpha-0.8.0"))
         assertEquals(data.routines, c.routines)
         assertEquals(data.dailyLog, c.dailyLog) // o registo de outro dia também volta
-        assertEquals(false, c.use24Hour)
         assertEquals(29, c.age)
         assertEquals(Chronotype.NightOwl, c.chronotype)
         assertEquals(FallAsleepTime.ThirtyOrMore, c.fallAsleep)
@@ -63,11 +61,34 @@ class BackupTest {
     }
 
     @Test
-    fun systemTimeFormatAndNoAgeRoundTrip() {
-        val c = valid(buildBackupJson(data.copy(use24Hour = null, age = null, dailyLog = null), exportedAt, "x"))
-        assertNull(c.use24Hour)
+    fun noAgeRoundTrip() {
+        val c = valid(buildBackupJson(data.copy(age = null, dailyLog = null), exportedAt, "x"))
         assertNull(c.age)
         assertNull(c.dailyLog)
+    }
+
+    /** Formato das horas, língua e "Advanced textures" são do aparelho: nunca vão na cópia. */
+    @Test
+    fun devicePreferencesAreNotExported() {
+        val json = buildBackupJson(data.copy(use24Hour = true, advancedTextures = false), exportedAt, "x")
+        val settings = org.json.JSONObject(json).getJSONObject("data").getJSONObject("settings")
+        for (key in listOf("use24Hour", "use_24_hour", "timeFormat", "language", "locale", "advancedTextures", "advanced_textures")) {
+            assertTrue("$key não pode ir na cópia", !settings.has(key))
+        }
+        assertTrue(!json.contains("use24"))
+        assertTrue(!json.contains("exture"))
+    }
+
+    /** Cópias antigas (beta-1.3 e anteriores) trazem "use24Hour": continuam válidas e o resto entra. */
+    @Test
+    fun oldBackupWithTimeFormatStillRestoresTheRest() {
+        val old = buildBackupJson(data, exportedAt, "beta-1.3")
+            .replace("\"settings\": {", "\"settings\": {\n      \"use24Hour\": false,")
+        assertTrue(old.contains("\"use24Hour\": false"))
+        val c = valid(old)
+        assertEquals(29, c.age)
+        assertEquals(Chronotype.NightOwl, c.chronotype)
+        assertEquals(data.routines, c.routines)
     }
 
     @Test

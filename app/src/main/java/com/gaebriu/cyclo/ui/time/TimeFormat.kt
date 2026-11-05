@@ -1,9 +1,20 @@
 ﻿package com.gaebriu.cyclo.ui.time
 
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.gaebriu.cyclo.ui.i18n.rememberAppLocale
 import androidx.compose.ui.platform.LocalContext
@@ -24,14 +35,12 @@ val LocalTimeFormat = staticCompositionLocalOf {
 
 /**
  * Dá o formato das horas a [content]: o escolhido nas definições ([use24Hour]) ou, sem escolha,
- * o do sistema operativo.
+ * o do sistema operativo, que se segue em tempo real (ver [rememberSystem24Hour]).
  */
 @Composable
 fun ProvideTimeFormat(use24Hour: Boolean?, content: @Composable () -> Unit) {
-    val context = LocalContext.current
     val locale = rememberAppLocale()
-    // O do sistema lê-se de cada vez que a configuração muda (ex.: ao voltar das definições do Android).
-    val system = DateFormat.is24HourFormat(context)
+    val system = rememberSystem24Hour()
     val is24 = use24Hour ?: system
     val format = remember(is24, locale) {
         CycloTimeFormat(
@@ -40,6 +49,40 @@ fun ProvideTimeFormat(use24Hour: Boolean?, content: @Composable () -> Unit) {
         )
     }
     CompositionLocalProvider(LocalTimeFormat provides format, content = content)
+}
+
+/**
+ * O formato 12/24 h do sistema, sempre atual. Mudar "Usar formato de 24 horas" nas definições do
+ * Android não é uma mudança de configuração (a Activity não sabe de nada): segue-se a definição do
+ * sistema ([Settings.System.TIME_12_24]) com um observador e volta a ler-se ao regressar à app e
+ * quando a configuração muda (a língua do sistema também decide o formato quando não há escolha).
+ * Nada disto se guarda: sem escolha no Cyclo, vale sempre o do sistema.
+ */
+@Composable
+private fun rememberSystem24Hour(): Boolean {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val state = remember(context) { mutableStateOf(DateFormat.is24HourFormat(context)) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(context, lifecycle) {
+        val resolver = context.contentResolver
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                state.value = DateFormat.is24HourFormat(context)
+            }
+        }
+        resolver.registerContentObserver(Settings.System.getUriFor(Settings.System.TIME_12_24), false, observer)
+        val resume = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) state.value = DateFormat.is24HourFormat(context)
+        }
+        lifecycle.addObserver(resume)
+        onDispose {
+            resolver.unregisterContentObserver(observer)
+            lifecycle.removeObserver(resume)
+        }
+    }
+    LaunchedEffect(configuration) { state.value = DateFormat.is24HourFormat(context) }
+    return state.value
 }
 
 /**

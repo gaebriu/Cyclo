@@ -9,6 +9,24 @@ import androidx.compose.ui.unit.Density
  */
 fun Density.figmaBlurPx(figmaRadius: Float): Float = figmaRadius / 2f * density
 
+/**
+ * O raio a dar ao BlurEffect / RenderEffect para o desfoque do Figma ficar com a MESMA força.
+ *
+ * O Figma (como o CSS) mede o desfoque pelo desvio-padrão: 39 no Figma = backdrop-filter
+ * blur(19,5 px) = sigma de 19,5 dp. O Android recebe um raio e converte-o em sigma
+ * (HWUI, Blur::convertRadiusToSigma: sigma = 0,57735 × raio + 0,5 px). Por isso [figmaBlurPx]
+ * dado diretamente ao BlurEffect sai com cerca de 58 % do sigma do Figma; aqui inverte-se a
+ * conversão. Usado pelos menus que têm de ter o desfoque exato do Figma
+ * (action-menu-when-to-show e action-menu-big-choose-days, beta-1.4).
+ */
+fun Density.figmaBlurRadiusExact(figmaRadius: Float): Float {
+    val sigma = figmaRadius / 2f * density
+    return if (sigma <= 0.5f) 0f else (sigma - 0.5f) / BlurSigmaScale
+}
+
+/** A constante do Android para passar de raio a sigma (1 / √3, HWUI Blur.cpp). */
+private const val BlurSigmaScale = 0.57735f
+
 /** Valores de desfoque tal como estão no Figma. */
 object FigmaBlur {
     /** Brilho do topo do Introduction 0 (elipse "gradient with blur"). */

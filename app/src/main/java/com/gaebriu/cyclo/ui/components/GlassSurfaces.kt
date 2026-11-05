@@ -2,7 +2,7 @@
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
@@ -55,20 +55,24 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    return backdropSampler(sampler).drawBehind {
+    return backdropSampler(sampler).drawWithCache {
+        // A forma e a borda só se refazem quando o tamanho muda (antes, a cada desenho).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
-        val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+        val border = glassBorderBrush()
+        onDrawBehind {
+            val blend = effects.luminosity
 
-        // Sombra exterior, só fora da forma.
-        clipPath(shape, clipOp = ClipOp.Difference) {
-            translate(top = 4.dp.toPx()) {
-                drawBlurredPath(shape, Color.Black.copy(alpha = 0.24f), 39.dp.toPx())
+            // Sombra exterior, só fora da forma.
+            clipPath(shape, clipOp = ClipOp.Difference) {
+                translate(top = 4.dp.toPx()) {
+                    drawBlurredPath(shape, Color.Black.copy(alpha = 0.24f), 39.dp.toPx())
+                }
             }
+            if (effects.textures) drawBackdrop(sampler, backdrop, shape, figmaBlur)
+            drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+            drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx()), 15.dp.toPx())
+            drawInsideBorder(cornerRadius.toPx(), border, blend)
         }
-        if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape, figmaBlur)
-        drawPath(shape, CycloColors.GlassFill, blendMode = blend)
-        drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx()), 15.dp.toPx())
-        drawInsideBorder(cornerRadius.toPx(), glassBorderBrush(), blend)
     }.cycloLightSheen(cornerRadius, strength = 0.8f)
 }
 
@@ -89,20 +93,23 @@ fun Modifier.cycloCard(
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    return backdropSampler(sampler).drawBehind {
+    return backdropSampler(sampler).drawWithCache {
+        // A forma só se refaz quando o tamanho muda (antes, a cada desenho: no scroll, a cada frame).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
-        val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
-        if (shadowColor != null) {
-            clipPath(shape, clipOp = ClipOp.Difference) {
-                translate(top = 4.dp.toPx()) {
-                    drawBlurredPath(shape, shadowColor, shadowBlur.toPx())
+        onDrawBehind {
+            val blend = effects.luminosity
+            if (shadowColor != null) {
+                clipPath(shape, clipOp = ClipOp.Difference) {
+                    translate(top = 4.dp.toPx()) {
+                        drawBlurredPath(shape, shadowColor, shadowBlur.toPx())
+                    }
                 }
             }
+            if (effects.textures) drawBackdrop(sampler, backdrop, shape)
+            // O que fica entre o fundo e o vidro (ex.: o brilho roxo do new-update-group).
+            if (underFill != null) clipPath(shape) { underFill() }
+            drawPath(shape, CycloColors.GlassFill, blendMode = blend)
         }
-        if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape)
-        // O que fica entre o fundo e o vidro (ex.: o brilho roxo do new-update-group).
-        if (underFill != null) clipPath(shape) { underFill() }
-        drawPath(shape, CycloColors.GlassFill, blendMode = blend)
     }
 }
 

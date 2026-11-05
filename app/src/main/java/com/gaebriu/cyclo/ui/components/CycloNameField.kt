@@ -231,11 +231,11 @@ private fun BoxScope.NameFieldFill(search: Boolean) {
         val radius = CycloDimens.InputRadius.toPx()
         val shape = roundedShape(radius)
         val edge = CycloColors.TextSecondary
-        val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+        val blend = effects.luminosity
         clipPath(shape, clipOp = ClipOp.Difference) {
             drawBlurredPath(shape, edge.copy(alpha = 0.15f), 9.dp.toPx())
         }
-        if (effects.blurEnabled) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
+        if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
         drawPath(shape, CycloColors.GlassFill, blendMode = blend)
         drawInsideBorder(
             radius,

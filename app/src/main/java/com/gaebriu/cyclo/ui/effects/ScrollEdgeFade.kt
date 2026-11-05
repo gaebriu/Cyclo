@@ -76,7 +76,7 @@ half4 main(float2 p) {
  * - Cada borda só se esbate quando há conteúdo escondido desse lado; o efeito entra por completo
  *   nos primeiros [EdgeStrengthRamp] de scroll. Parado no topo, o título fica nítido e sem fade.
  * - O fade deixa o conteúdo transparente, por isso o fundo #010101 mantém-se igual.
- * - Com [VisualEffects.blurEnabled], o desfoque progressivo e o fade saem de um só efeito (o
+ * - Com as texturas avançadas ([VisualEffects.textures]), o desfoque progressivo e o fade saem de um só efeito (o
  *   shader), na mesma camada que o conteúdo com scroll: acompanham o movimento no mesmo frame.
  *   Sem desfoque (ou se o shader não compilar) fica só o fade, como máscara.
  * - As quantidades de cada borda calculam-se num só sítio e só mudam perto das pontas; a meio do
@@ -98,7 +98,7 @@ fun Modifier.scrollEdgeFade(state: ScrollState, length: Dp, figmaBlur: Float): M
     val vertical = remember { runCatching { RuntimeShader(ProgressiveBlurShader) }.getOrNull() }
     val horizontal = remember { runCatching { RuntimeShader(ProgressiveBlurShader) }.getOrNull() }
 
-    if (effects.blurEnabled && vertical != null && horizontal != null) {
+    if (effects.textures && vertical != null && horizontal != null) {
         val cache = remember { EdgeEffectCache(vertical, horizontal) }
         return graphicsLayer {
             val e = edges

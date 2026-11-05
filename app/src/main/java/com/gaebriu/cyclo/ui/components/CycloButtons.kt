@@ -122,7 +122,7 @@ private fun CycloButtonSurface(
                 val shape = smoothRoundRectPath(size.width, size.height, radius)
 
                 // Fundo. Sem efeitos, a mistura Luminosity passa a normal.
-                val blend = if (style.luminosity && effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+                val blend = if (style.luminosity && effects.textures) BlendMode.Luminosity else BlendMode.SrcOver
                 drawPath(shape, color = style.fill, blendMode = blend)
 
                 // Sombra interior: 0, ±6, desfoque 15, preto a 15 %.

@@ -504,7 +504,7 @@ private fun RoutineCard(
                 smoothRoundRectPath(size.width, size.height, 15.dp.toPx()),
                 color = DeactivatedVeil,
                 alpha = off,
-                blendMode = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver,
+                blendMode = effects.luminosity,
             )
         }
 
@@ -584,7 +584,7 @@ private fun RoundActionButton(iconPath: String, description: String, onClick: ()
     val effects = LocalVisualEffects.current
     ActionButtonFrame(description = description, onClick = onClick, role = Role.Button) {
         Canvas(modifier = Modifier.size(ActionButtonSize)) {
-            val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+            val blend = effects.luminosity
             val radius = size.width / 2f
             val circle = Path().apply { addOval(Rect(Offset(radius, radius), radius)) }
             drawPath(circle, CycloColors.TextSecondary.copy(alpha = 0.15f), blendMode = blend)
@@ -625,7 +625,7 @@ private fun ActiveToggleButton(active: () -> Float, isActive: Boolean, descripti
     ) {
         Canvas(modifier = Modifier.size(ActionButtonSize)) {
             val a = active().coerceIn(0f, 1f)
-            val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+            val blend = effects.luminosity
             val radius = size.width / 2f
             val circle = Path().apply { addOval(Rect(Offset(radius, radius), radius)) }
             val offFill = CycloColors.TextSecondary.copy(alpha = 0.24f)

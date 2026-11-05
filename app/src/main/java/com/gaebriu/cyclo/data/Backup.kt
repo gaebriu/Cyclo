@@ -22,7 +22,7 @@ import java.time.format.DateTimeParseException
  *     "onboarded": true,
  *     "routines": [ { "id", "name", "wakeHour", "wakeMinute", "repeat", "daysMask", "active", "anchor" } ],
  *     "dailyLog": { "date", "caffeine", "factors": [], "mood", "caffeineTimes": [ms], "factorTimes": { nome: ms } } | null,
- *     "settings": { "use24Hour": true | null, "age": 30 | null, "chronotype", "fallAsleep", "bedtimeReminder",
+ *     "settings": { "age": 30 | null, "chronotype", "fallAsleep", "bedtimeReminder",
  *                   "feedOrder": ["Caffeine", "SleepFactors", "Feeling"] }
  *   }
  * }
@@ -32,6 +32,10 @@ import java.time.format.DateTimeParseException
  * a versão do formato não mudou. O mesmo para "feedOrder" (a ordem dos blocos do Feed, alpha-0.7.3).
  * Os enums vão pelo nome, como no DataStore. Ao mudar o formato, sobe-se [BackupFormatVersion] e
  * [parseBackup] passa a saber ler as versões antigas.
+ *
+ * As preferências do aparelho ficam de fora: o formato das horas, a língua (guardada pelo Android)
+ * e "Advanced textures" (beta-1.4). As cópias antigas trazem "use24Hour": continuam válidas e esse
+ * valor é ignorado ao repor.
  */
 const val BackupFormatVersion = 1
 private const val FormatName = "cyclo-backup"
@@ -43,7 +47,6 @@ const val MaxBackupBytes = 2 * 1024 * 1024
 data class BackupContents(
     val routines: List<Routine>,
     val dailyLog: DailyLog?,
-    val use24Hour: Boolean?,
     val age: Int?,
     val chronotype: Chronotype?,
     val fallAsleep: FallAsleepTime?,
@@ -70,7 +73,6 @@ sealed interface BackupParseResult {
 /** Transforma os dados num JSON de cópia, legível e com a versão do formato. */
 fun buildBackupJson(data: CycloData, exportedAt: Instant, appVersion: String): String {
     val settings = JSONObject()
-        .put("use24Hour", data.use24Hour ?: JSONObject.NULL)
         .put("age", data.age ?: JSONObject.NULL)
         .put("chronotype", data.chronotype.name)
         .put("fallAsleep", data.fallAsleep.name)
@@ -129,7 +131,6 @@ fun parseBackup(text: String): BackupParseResult {
             BackupContents(
                 routines = routines,
                 dailyLog = dailyLog,
-                use24Hour = if (settings.has("use24Hour") && !settings.isNull("use24Hour")) settings.getBoolean("use24Hour") else null,
                 age = age,
                 chronotype = enumOrNull<Chronotype>(settings.optString("chronotype")),
                 fallAsleep = enumOrNull<FallAsleepTime>(settings.optString("fallAsleep")),

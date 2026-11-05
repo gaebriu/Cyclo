@@ -181,11 +181,11 @@ object CycloMotion {
      * Bola do medidor de emoções a assentar num ponto depois de a largar: parte com a velocidade do
      * dedo e assenta com um ressalto curto. PROPOSTA.
      */
-    val MoodSettleSpring = spring<Float>(dampingRatio = 0.68f, stiffness = 360f)
+    val MoodSettleSpring = CycloSprings.MoodSettle.float
 
     /** A bola do medidor cresce um pouco enquanto se segura (e volta com uma mola). */
     const val MoodBallHeldScale = 1.2f
-    val MoodBallScaleSpring = spring<Float>(dampingRatio = 0.6f, stiffness = 500f)
+    val MoodBallScaleSpring = CycloSprings.MoodHold.float
 
     /** Quanto o lançamento conta para escolher o ponto (segundos de movimento projetado). */
     const val MoodFlingProjectionS = 0.12f

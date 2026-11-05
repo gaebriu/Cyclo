@@ -28,6 +28,9 @@ private val DailyLogKey = stringPreferencesKey("daily_log")
 /** Sem valor guardado, as horas seguem o formato do sistema. */
 private val Use24HourKey = booleanPreferencesKey("use_24_hour")
 
+/** "Advanced textures"; sem valor guardado, ligadas. */
+private val AdvancedTexturesKey = booleanPreferencesKey("advanced_textures")
+
 // Perfil de sono e lembretes (definições). Sem valor guardado, valem os de omissão do Figma.
 private val AgeKey = intPreferencesKey("age")
 private val ChronotypeKey = stringPreferencesKey("chronotype")
@@ -61,6 +64,7 @@ class CycloRepository(context: Context) {
                 routines = prefs[RoutinesKey]?.let(::parseRoutines).orEmpty(),
                 dailyLog = prefs[DailyLogKey]?.let(::parseDailyLog),
                 use24Hour = prefs[Use24HourKey],
+                advancedTextures = prefs[AdvancedTexturesKey] ?: true,
                 age = prefs[AgeKey]?.takeIf { it in AgeRange },
                 chronotype = prefs[ChronotypeKey]
                     ?.let { name -> Chronotype.entries.firstOrNull { it.name == name } }
@@ -77,6 +81,10 @@ class CycloRepository(context: Context) {
     /** Guarda o formato das horas escolhido nas definições (fica até ser mudado outra vez). */
     suspend fun setUse24Hour(use24Hour: Boolean) {
         store.edit { prefs -> prefs[Use24HourKey] = use24Hour }
+    }
+
+    suspend fun setAdvancedTextures(on: Boolean) {
+        store.edit { prefs -> prefs[AdvancedTexturesKey] = on }
     }
 
     suspend fun setAge(age: Int) {
@@ -120,6 +128,7 @@ class CycloRepository(context: Context) {
      * Repõe uma cópia já validada ([parseBackup]), numa só escrita: ou entra tudo, ou nada.
      * Substitui as rotinas e o registo do dia; as definições que a cópia não traz ficam como estão.
      * O tutorial fica dado como feito (quem repõe já está dentro da app).
+     * As preferências do aparelho (formato das horas, língua, "Advanced textures") nunca mudam aqui.
      */
     suspend fun restore(contents: BackupContents) {
         store.edit { prefs ->
@@ -127,7 +136,6 @@ class CycloRepository(context: Context) {
             prefs.setRoutines(contents.routines)
             val log = contents.dailyLog
             if (log != null) prefs[DailyLogKey] = log.toJson() else prefs.remove(DailyLogKey)
-            contents.use24Hour?.let { prefs[Use24HourKey] = it }
             contents.age?.let { prefs[AgeKey] = it }
             contents.chronotype?.let { prefs[ChronotypeKey] = it.name }
             contents.fallAsleep?.let { prefs[FallAsleepKey] = it.name }

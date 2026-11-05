@@ -14,21 +14,35 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * Estado dos efeitos visuais, segundo as definições do Android.
+ * Estado dos efeitos visuais.
  *
- * - blurEnabled: se os desfoques e as misturas Luminosity se desenham. Quando é falso, a app
- *   tira os desfoques e as misturas passam a normais.
+ * - blurEnabled: se o aparelho desenha desfoques (segundo o Android; hoje sempre verdadeiro). Vale
+ *   para os desfoques que fazem parte das animações (letras a aparecer, ecrã que recua, números a
+ *   rolar, menus a abrir) e para o loading-data.
  * - animationsEnabled: falso quando as animações do sistema estão desligadas. Quando é
  *   falso, os movimentos passam a fades com a mesma duração.
+ * - textures: "Advanced textures" (definições, Performance). Ligadas, o desenho completo do Figma:
+ *   desfoques de fundo das superfícies de vidro, desfoque progressivo das bordas e misturas
+ *   Luminosity. Desligadas, o desenho simplificado: sem desfoque de fundo (exceto o loading-data),
+ *   o desfoque progressivo dá lugar a um gradiente #010101, e as misturas Luminosity passam a
+ *   normais. Os movimentos, as molas e os tempos são os mesmos nos dois casos. Use [textures].
  */
 @Immutable
 data class VisualEffects(
     val blurEnabled: Boolean = true,
     val animationsEnabled: Boolean = true,
-)
+    val advancedTextures: Boolean = true,
+) {
+    /** Se as texturas avançadas (desfoque de fundo, desfoque progressivo, Luminosity) se desenham. */
+    val textures: Boolean get() = blurEnabled && advancedTextures
+
+    /** A mistura de um elemento que no Figma está em Luminosity: normal sem as texturas avançadas. */
+    val luminosity: BlendMode get() = if (textures) BlendMode.Luminosity else BlendMode.SrcOver
+}
 
 val LocalVisualEffects = staticCompositionLocalOf { VisualEffects() }
 

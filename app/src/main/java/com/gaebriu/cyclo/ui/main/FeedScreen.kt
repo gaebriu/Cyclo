@@ -1,6 +1,7 @@
 ﻿package com.gaebriu.cyclo.ui.main
 
 import com.gaebriu.cyclo.ui.theme.CycloSprings
+import com.gaebriu.cyclo.ui.theme.rubberBand
 import kotlin.math.exp
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.Job
@@ -534,7 +535,7 @@ private fun Separator() {
             end = Offset(size.width, size.height / 2f),
             strokeWidth = size.height,
             cap = StrokeCap.Round,
-            blendMode = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver,
+            blendMode = effects.luminosity,
         )
     }
 }
@@ -656,7 +657,7 @@ private fun SquareButton(iconPath: String, description: String, enabled: Boolean
                 modifier = Modifier
                     .size(33.dp)
                     .drawBehind {
-                        drawCardControl(9.dp.toPx(), if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver)
+                        drawCardControl(9.dp.toPx(), effects.luminosity)
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -721,7 +722,7 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
             .semantics { toggleableState = ToggleableState(isSelected) }
             .drawBehind {
                 val radius = CycloDimens.InputRadius.toPx()
-                val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+                val blend = effects.luminosity
                 val shape = smoothRoundRectPath(size.width, size.height, radius)
                 if (on > 0f) {
                     // Brilho de cima, só fora da forma.
@@ -869,8 +870,11 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
         }
     }
 
-    /** A posição da bola enquanto o dedo arrasta. */
-    fun dragPosition(): Float = rubberBandFraction(dragFinger + grabOffset)
+    /**
+     * A posição da bola enquanto o dedo arrasta: o dedo com o encaixe suave dos pontos
+     * ([moodDetent]) mais o que falta fechar da distância inicial, com resistência para lá das pontas.
+     */
+    fun dragPosition(): Float = rubberBandFraction(moodDetent(dragFinger, last) + grabOffset)
 
     val ballInset = with(density) { 11.5.dp.toPx() }
 
@@ -925,7 +929,8 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
                         val shown = if (dragging) dragPosition() else ball.value
                         val finger = rawFractionAt(start.position.x)
                         dragFinger = finger
-                        grabOffset = shown - finger
+                        // Medida a partir do dedo já com o encaixe: a bola não salta no primeiro frame.
+                        grabOffset = shown - moodDetent(finger, last)
                         dragging = true
                         grabJob?.cancel()
                         grabJob = if (effects.animationsEnabled) {
@@ -951,7 +956,7 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
                     }
                 },
         ) {
-            val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+            val blend = effects.luminosity
             // emotion-meter-background: gradiente a 39 %, de violeta a menta.
             drawRoundRect(
                 brush = Brush.horizontalGradient(
@@ -983,12 +988,40 @@ private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
 /** Quanto tempo uma escolha feita no medidor manda sobre valores guardados diferentes (ms). */
 private const val PendingMoodMs = 2_000L
 
-/** Para lá das pontas, a bola só anda uma parte do que o dedo anda, até um máximo. */
+/**
+ * Para lá das pontas, a bola anda cada vez menos do que o dedo (a resistência do iOS, [rubberBand]):
+ * começa com [CycloMotion.MoodRubberBand] do movimento e aproxima-se de [CycloMotion.MoodRubberBandMax]
+ * sem nunca bater num limite seco (antes parava de repente no máximo, como contra uma parede).
+ */
 private fun rubberBandFraction(f: Float): Float = when {
-    f < 0f -> -minOf(-f * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
-    f > 1f -> 1f + minOf((f - 1f) * CycloMotion.MoodRubberBand, CycloMotion.MoodRubberBandMax)
+    f < 0f -> rubberBand(f, CycloMotion.MoodRubberBandMax, CycloMotion.MoodRubberBand)
+    f > 1f -> 1f + rubberBand(f - 1f, CycloMotion.MoodRubberBandMax, CycloMotion.MoodRubberBand)
     else -> f
 }
+
+/**
+ * Encaixe suave nos cinco pontos enquanto se arrasta: perto de um ponto a bola anda um pouco menos
+ * do que o dedo (até [MoodDetentPull] da distância, a [MoodDetentReach] de um passo), e longe deles
+ * acompanha-o por inteiro. A curva é contínua e sempre a subir (a bola nunca anda para trás nem
+ * salta): o dedo sente os pontos sem a bola deixar de o seguir. [f] é a posição do dedo (0 a 1,
+ * pode passar das pontas) e [last] o índice do último ponto.
+ */
+private fun moodDetent(f: Float, last: Int): Float {
+    val s = f * last
+    val nearest = s.roundToInt().coerceIn(0, last)
+    val d = s - nearest
+    val u = (kotlin.math.abs(d) / MoodDetentReach).coerceIn(0f, 1f)
+    val smooth = u * u * (3f - 2f * u)
+    // Junto ao ponto anda (1 - pull) do dedo; ao afastar-se volta, suavemente, a andar com ele.
+    val eased = d * (1f - MoodDetentPull * (1f - smooth))
+    return (nearest + eased) / last
+}
+
+/** Quanto do movimento o encaixe segura junto a um ponto (0 = nada). */
+private const val MoodDetentPull = 0.35f
+
+/** Até onde chega o encaixe, em frações de um passo entre pontos. */
+private const val MoodDetentReach = 0.28f
 
 /**
  * Fecha a distância entre a bola e o dedo no início de um arrasto: uma mola crítica (sem passar

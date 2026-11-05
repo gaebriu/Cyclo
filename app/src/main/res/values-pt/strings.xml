@@ -107,6 +107,9 @@
     <!-- action-menu-lang (Componentes 4): o nome de cada língua -->
     <string name="language_english">Inglês</string>
     <string name="language_portuguese">Português</string>
+    <string name="settings_performance">Desempenho</string>
+    <string name="settings_advanced_textures">Texturas avançadas</string>
+    <string name="settings_advanced_textures_description">Desfruta de efeitos visuais mais ricos com as texturas avançadas. Desliga-as para uma experiência mais rápida</string>
     <string name="settings_data">Dados</string>
     <string name="settings_export_data">Exportar os meus dados</string>
     <string name="settings_restore_data">Restaurar os meus dados</string>

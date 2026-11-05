@@ -55,7 +55,7 @@ fun CycloCircleButton(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.size(CycloDimens.CircleButtonSize)) {
-            val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+            val blend = effects.luminosity
             val center = Offset(size.width / 2f, size.height / 2f)
             val radius = 19.dp.toPx()
             val edge = CycloColors.GlassBorder

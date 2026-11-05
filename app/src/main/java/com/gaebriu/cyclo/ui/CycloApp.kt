@@ -63,7 +63,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.gaebriu.cyclo.ui.effects.Backdrop
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.ScreenCrossfade
+import com.gaebriu.cyclo.ui.effects.ScreenCrossfadeOverlay
+import com.gaebriu.cyclo.ui.effects.LocalScreenCrossfade
 import com.gaebriu.cyclo.ui.effects.backdropSource
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.settings.SettingsScreen
 import com.gaebriu.cyclo.ui.settings.UpdateUi
@@ -319,6 +324,33 @@ fun CycloApp(viewModel: CycloViewModel) {
     // loading-data: o ecrã por baixo dele desfoca-se a si próprio, em tempo real, com o véu.
     val loadingData = rememberLoadingDataState(restoring)
 
+    // "Advanced textures" e língua: o ecrã antigo dissolve-se no novo (ver ScreenCrossfade).
+    val crossfade = remember { ScreenCrossfade() }
+    // O desenho que está a valer. O interruptor segue a preferência guardada; o desenho muda por
+    // baixo da fotografia do ecrã, e o interruptor fica fora dela (keepLive): continua a deslizar, vivo.
+    var appliedTextures by remember { mutableStateOf(data.advancedTextures) }
+    LaunchedEffect(data.advancedTextures) {
+        val target = data.advancedTextures
+        if (target == appliedTextures) return@LaunchedEffect
+        crossfade.run(screens, keepLive = true) { appliedTextures = target }
+    }
+    val appEffects = remember(effects, appliedTextures) { effects.copy(advancedTextures = appliedTextures) }
+
+    // A língua dos textos que se veem: a mudança de língua espera por ela antes de desvanecer.
+    val localeTag by rememberUpdatedState(stringResource(R.string.locale_tag))
+    fun changeLanguage(language: com.gaebriu.cyclo.ui.i18n.AppLanguage) {
+        scope.launch {
+            // Primeiro o menu acaba de fechar; a fotografia é do ecrã das definições parado.
+            if (effects.animationsEnabled) delay((MenuCloseSettleMs * animatorScale(context)).toLong())
+            val before = localeTag
+            crossfade.run(
+                screens,
+                ready = { withTimeoutOrNull(LanguageChangeTimeoutMs) { snapshotFlow { localeTag }.first { it != before } } },
+            ) { com.gaebriu.cyclo.ui.i18n.AppLanguage.set(context, language) }
+        }
+    }
+
+    CompositionLocalProvider(LocalVisualEffects provides appEffects, LocalScreenCrossfade provides crossfade) {
     ProvideTimeFormat(data.use24Hour) {
     Box(modifier = Modifier.fillMaxSize().background(CycloColors.Background)) {
         Box(
@@ -433,7 +465,8 @@ fun CycloApp(viewModel: CycloViewModel) {
                                 viewModel.gitHubOpenFailed()
                             }
                         },
-                        onSetLanguage = { com.gaebriu.cyclo.ui.i18n.AppLanguage.set(context, it) },
+                        onSetLanguage = ::changeLanguage,
+                        onSetAdvancedTextures = viewModel::setAdvancedTextures,
                         onClose = { overlayOpen = false },
                         update = updateUi,
                         onUpdateDownload = {
@@ -480,6 +513,10 @@ fun CycloApp(viewModel: CycloViewModel) {
 
         }
 
+        // A fotografia do ecrã durante a passagem das texturas ou da língua (por baixo da barra de
+        // baixo, das folhas e do loading-data, que continuam vivos).
+        ScreenCrossfadeOverlay(crossfade)
+
         // Barra de baixo (undo-action): por cima da barra de navegação, ou do Next/Done quando o
         // tutorial ou o editor estão por cima. Desfoca o que está por trás.
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(screens)) {
@@ -524,7 +561,18 @@ fun CycloApp(viewModel: CycloViewModel) {
         }
     }
     }
+    }
 }
+
+/** Quanto um menu das definições leva a fechar antes da fotografia da mudança de língua. */
+private const val MenuCloseSettleMs = 320L
+
+/** A escala de animações do sistema: as esperas acompanham as molas, que também escalam. */
+private fun animatorScale(context: android.content.Context): Float =
+    android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+
+/** Se a língua nova não chegar a tempo (não devia), a fotografia desvanece na mesma. */
+private const val LanguageChangeTimeoutMs = 1_500L
 
 /**
  * O id que a próxima rotina nova vai ter (o repositório dá o maior + 1). O "Add as a widget" do

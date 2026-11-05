@@ -104,6 +104,10 @@
     <!-- action-menu-lang (Componentes 4): o nome de cada língua -->
     <string name="language_english">English</string>
     <string name="language_portuguese">Portuguese</string>
+    <!-- performance-group (Settings, 256:114). O texto de ajuda é o do Figma, sem ponto final. -->
+    <string name="settings_performance">Performance</string>
+    <string name="settings_advanced_textures">Advanced textures</string>
+    <string name="settings_advanced_textures_description">Enjoy richer visual effects with advanced textures. Turn it off for a faster experience</string>
     <string name="settings_data">Data</string>
     <string name="settings_export_data">Export my data</string>
     <string name="settings_restore_data">Restore my data</string>

@@ -150,6 +150,15 @@ object CycloSprings {
 
     /** Menus (action-menu) a fechar na altura: recolhem um pouco antes da largura. */
     val MenuRetract = fromStiffness(900f, Spring.DampingRatioNoBouncy)
+
+    /**
+     * A bola do medidor de emoções a assentar num ponto depois de a largar (beta-1.4): parte com a
+     * velocidade do dedo e assenta com um ressalto curto e amortecido, sem tremer.
+     */
+    val MoodSettle = CycloSpring(response = 0.34f, dampingFraction = 0.72f)
+
+    /** A bola do medidor a crescer quando se segura e a voltar ao largar: rápida, um toque de gel. */
+    val MoodHold = CycloSpring(response = 0.24f, dampingFraction = 0.66f)
 }
 
 /**

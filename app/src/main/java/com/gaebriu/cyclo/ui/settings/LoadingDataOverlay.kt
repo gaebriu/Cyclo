@@ -169,6 +169,8 @@ fun rememberLoadingDataState(visible: Boolean): LoadingDataState {
  * overlay. É o próprio conteúdo a desfocar-se na GPU, por isso é em tempo real (o que muda por
  * baixo, como os dados repostos, vê-se a mudar) e cresce e diminui com o véu, sem imagens
  * congeladas nem cópias do ecrã. Fechado, não há efeito nenhum.
+ *
+ * É a exceção às "Advanced textures": desligadas, este desfoque continua (lê só [VisualEffects.blurEnabled]).
  */
 fun Modifier.loadingDataBlur(state: LoadingDataState, effects: VisualEffects): Modifier = graphicsLayer {
     val v = state.veil.value
@@ -204,7 +206,9 @@ fun LoadingDataOverlay(state: LoadingDataState, modifier: Modifier = Modifier) {
                     val v = state.veil.value.coerceIn(0f, 1f)
                     if (v <= 0f) return@drawBehind
                     if (effects.blurEnabled) {
-                        drawRect(CycloColors.GlassFill.copy(alpha = VeilAlpha * v), blendMode = BlendMode.Luminosity)
+                        // O desfoque por baixo fica sempre (também sem as texturas avançadas, a
+                        // exceção do loading-data); só a mistura passa a normal sem elas.
+                        drawRect(CycloColors.GlassFill.copy(alpha = VeilAlpha * v), blendMode = effects.luminosity)
                     } else {
                         drawRect(CycloColors.GlassFill.copy(alpha = 0.9f * v))
                     }

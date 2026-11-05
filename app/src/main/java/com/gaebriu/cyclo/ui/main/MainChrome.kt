@@ -270,7 +270,7 @@ fun MainNavigationBar(
             .cycloGlassPill(NavigationBarRadius)
             .drawBehind {
                 // feed-icon-background: #313233 a 39 % em Luminosity.
-                val blend = if (effects.blurEnabled) BlendMode.Luminosity else BlendMode.SrcOver
+                val blend = effects.luminosity
                 val p = pagePosition().coerceIn(0f, 1f)
                 val x = lerp(IndicatorInset.toPx(), SecondIndicatorStart.toPx(), p)
                 // A meio caminho entre os dois separadores, a pílula estica-se na largura e afina

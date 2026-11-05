@@ -61,7 +61,8 @@ fun CycloDaysSheet(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .cycloOverlaySurface()
+            // Desfoque 39 com a força exata do Figma (178:98, backdrop-blur 19,5).
+            .cycloOverlaySurface(exactBlur = true)
             .padding(horizontal = 15.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

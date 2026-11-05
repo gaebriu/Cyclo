@@ -159,8 +159,18 @@ data class CycloData(
     val onboarded: Boolean,
     val routines: List<Routine>,
     val dailyLog: DailyLog?,
-    /** Formato das horas escolhido nas definições: true = 24 h, false = 12 h (AM/PM), null = o do sistema. */
+    /**
+     * Formato das horas escolhido nas definições: true = 24 h, false = 12 h (AM/PM), null = o do
+     * sistema (e segue-o quando muda). Só se guarda quando o utilizador escolhe no menu. É uma
+     * preferência do aparelho: não vai nas cópias.
+     */
     val use24Hour: Boolean? = null,
+    /**
+     * "Advanced textures" (definições, Performance): ligadas = o desenho completo (desfoques de fundo,
+     * desfoque progressivo, misturas Luminosity); desligadas = o desenho simplificado. Ligadas de
+     * omissão. Preferência do aparelho: não vai nas cópias.
+     */
+    val advancedTextures: Boolean = true,
     /** Idade (5 a 100); null = ainda por escrever ("Tap to write"). */
     val age: Int? = null,
     val chronotype: Chronotype = Chronotype.Hummingbird,
