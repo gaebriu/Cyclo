@@ -56,13 +56,10 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, ex
             if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay, exact = exactBlur)
             val blend = effects.luminosity
             when {
-                // Menus de vidro (beta-1.4.1): o #101011 deixa passar parte do fundo desfocado, para o
-                // desfoque se ver. A 100 %, a mistura Luminosity troca o brilho de cada píxel pelo do
-                // #101011 e, sobre o fundo neutro da app, o desfoque ficava invisível (um cinzento liso).
-                exactBlur && effects.textures ->
-                    drawPath(shape, CycloColors.GlassFill, alpha = FrostedFillAlpha, blendMode = blend)
-                // Sem as texturas avançadas: sólido, com o gradiente #010101 por cima (mais escuro em baixo).
-                exactBlur -> {
+                // Com as texturas avançadas, os menus de vidro são como os outros: cor sólida #101011 em
+                // Luminosity sobre o desfoque 39 (o do Figma, 159:291 e 178:98). Sem elas: a mesma cor
+                // sólida em mistura normal, com o gradiente #010101 por cima (mais escuro em baixo).
+                exactBlur && !effects.textures -> {
                     drawPath(shape, CycloColors.GlassFill, blendMode = blend)
                     drawPath(
                         shape,
@@ -79,12 +76,6 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, ex
     }.cycloLightSheen(cornerRadius)
 }
 
-/**
- * Opacidade do #101011 nos menus de vidro (action-menu-when-to-show, action-menu-big-choose-days):
- * o resto é o conteúdo por trás, desfocado (39 do Figma, sigma exato). Escolhida à vista no
- * emulador: o que está por trás lê-se como formas desfocadas e o texto do menu continua legível.
- */
-private const val FrostedFillAlpha = 0.45f
 
 /** Gradiente #010101 desses menus sem as texturas avançadas (transparente em cima, até isto em baixo). */
 private const val FallbackGradientAlpha = 0.5f

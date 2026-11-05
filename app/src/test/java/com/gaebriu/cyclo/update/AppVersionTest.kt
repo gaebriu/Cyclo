@@ -44,6 +44,8 @@ class AppVersionTest {
         assertTrue(v("beta-1.4.1") > v("beta-1.4"))
         assertTrue(v("beta-1.4.1") > v("beta-1.3"))
         assertEquals("Beta 1.4.1", v("beta-1.4.1").label())
+        assertTrue(v("beta-1.4.2") > v("beta-1.4.1"))
+        assertEquals("Beta 1.4.2", v("beta-1.4.2").label())
     }
 
     @Test
