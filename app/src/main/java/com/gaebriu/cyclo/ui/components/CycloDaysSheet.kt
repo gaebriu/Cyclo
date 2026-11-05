@@ -3,10 +3,8 @@
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +25,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -35,6 +34,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gaebriu.cyclo.R
@@ -47,6 +47,7 @@ import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.CycloType
+import kotlin.math.roundToInt
 
 /**
  * action-menu-big-choose-days (Componentes 2, 178:97): a folha para escolher os dias da semana.
@@ -55,7 +56,7 @@ import com.gaebriu.cyclo.ui.theme.CycloType
  * - pega swipe-to-close-b: 39 x 2, #FCFCFE a 15 %, pontas redondas, 22 dp abaixo do topo;
  * - 15 dp, título "Choose days" (Inter Semi Bold 15, #FCFCFE, ao centro);
  * - 15 dp, descrição (Inter Medium 15, #A3A2A7, ao centro);
- * - 15 dp, os sete dias (domingo primeiro), círculos de 39 dp com 7 dp entre eles;
+ * - 15 dp, os sete dias (domingo primeiro), círculos de 39 dp com 7 dp entre eles (ver [DaysRow]);
  * - 15 dp, done-b (o botão roxo compacto, 315 x 48) e 15 dp até à borda de baixo.
  *
  * O fundo é o [repeatMenuSurface].
@@ -90,10 +91,7 @@ fun CycloDaysSheet(
         )
 
         Spacer(Modifier.height(Gap))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(DayGap, Alignment.CenterHorizontally),
-        ) {
+        DaysRow(modifier = Modifier.fillMaxWidth()) {
             Weekday.values().forEach { day ->
                 DayChip(day = day, selected = selectedMask.hasDay(day), onToggle = { onToggleDay(day) })
             }
@@ -106,6 +104,41 @@ fun CycloDaysSheet(
             size = CycloButtonSize.Compact,
         )
         Spacer(Modifier.height(Gap))
+    }
+}
+
+/**
+ * A fila "days" (178:157): sete círculos iguais com espaços iguais.
+ *
+ * No Figma (ecrã de 393 dp) a fila tem 315 dp, exatamente a largura do conteúdo da folha:
+ * 7 x 39 + 6 x 7. Em ecrãs mais estreitos sobra menos do que isso, e um `spacedBy(7.dp)` dava os
+ * 39 dp aos primeiros dias e o resto ao sábado, que ficava espremido com o "S" fora do círculo.
+ * Aqui a fila mede a largura que tem: com 315 dp ou mais é a do Figma (39 / 7, ao centro); com
+ * menos, círculos e espaços encolhem juntos na proporção 39 : 7 e a fila ocupa a largura toda.
+ */
+@Composable
+private fun DaysRow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val count = measurables.size
+        val figmaDay = DaySize.toPx()
+        val figmaGap = DayGap.toPx()
+        val figmaRow = figmaDay * count + figmaGap * (count - 1)
+        val available = if (constraints.hasBoundedWidth) constraints.maxWidth.toFloat() else figmaRow
+        val scale = (available / figmaRow).coerceAtMost(1f)
+
+        val day = (figmaDay * scale).toInt().coerceAtLeast(1)
+        // O que sobra dos círculos (já arredondados) é repartido por igual entre eles.
+        val rowWidth = (figmaRow * scale).coerceAtMost(available)
+        val gap = if (count > 1) (rowWidth - day * count) / (count - 1) else 0f
+        val placeables = measurables.map { it.measure(Constraints.fixed(day, day)) }
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else rowWidth.roundToInt()
+        val start = (width - rowWidth) / 2f
+
+        layout(width, day) {
+            placeables.forEachIndexed { index, placeable ->
+                placeable.place((start + index * (day + gap)).roundToInt(), 0)
+            }
+        }
     }
 }
 
@@ -139,8 +172,8 @@ private fun DayChip(day: Weekday, selected: Boolean, onToggle: () -> Unit) {
     )
 
     Box(
+        // O tamanho vem da [DaysRow] (39 dp, ou menos em ecrãs estreitos).
         modifier = Modifier
-            .size(DaySize)
             .cycloPressable(
                 onClick = {
                     // Ligar / desligar tem o seu próprio háptico.
