@@ -78,5 +78,5 @@
     <string name="day_thursday_plural">Thursdays</string>
     <string name="day_friday_plural">Fridays</string>
     <string name="day_saturday_plural">Saturdays</string>
-    <string name="days_summary_separator">, </string>
+    <string name="days_summary_separator">", "</string>
 </resources>

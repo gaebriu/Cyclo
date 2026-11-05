@@ -32,7 +32,7 @@
     <string name="introduction_3_title">Dá-lhe um nome</string>
     <string name="introduction_3_subtitle">Assim guardas a tua hora de acordar para a teres sempre à mão</string>
     <string name="introduction_3_placeholder">Toca para escrever</string>
-    <string name="introduction_3_listening">A ouvir...</string>
+    <string name="introduction_3_listening">A ouvir…</string>
     <string name="introduction_3_dictate">Escrever por voz</string>
     <string name="introduction_3_switch_to_keyboard">Mudar para o teclado</string>
     <string name="routine_default_name">Rotina %1$d</string>
@@ -79,5 +79,5 @@
     <string name="day_thursday_plural">Quintas</string>
     <string name="day_friday_plural">Sextas</string>
     <string name="day_saturday_plural">Sábados</string>
-    <string name="days_summary_separator">, </string>
+    <string name="days_summary_separator">", "</string>
 </resources>

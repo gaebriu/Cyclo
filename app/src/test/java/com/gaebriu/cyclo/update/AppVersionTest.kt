@@ -1,6 +1,7 @@
 ﻿package com.gaebriu.cyclo.update
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -70,5 +71,23 @@ class AppVersionTest {
         // O .apk da beta-1.0 (versionName beta-1.0.0) continua a ser a versão da tag beta-1.0.
         assertEquals(0, v("beta-1.0.0").compareTo(v("beta-1.0")))
         assertEquals(0, v("beta-1.1").compareTo(v("beta-1.1.0")))
+    }
+
+    /** A série estável: "release-1.0" mostra-se "1.0" e é mais recente do que qualquer beta. */
+    @Test
+    fun stableSeries() {
+        assertEquals("1.0", v("release-1.0").label())
+        assertEquals("1.0.1", v("release-1.0.1").label())
+        assertFalse(v("release-1.0").isPrerelease)
+        assertTrue(v("release-1.0") > v("beta-1.4.5"))
+        assertTrue(v("release-1.0") > v("1.4.4"))
+        assertTrue(v("release-1.1") > v("release-1.0"))
+        assertTrue(v("release-1.1-beta.1").isPrerelease)
+        assertTrue(v("release-1.1-beta.1") > v("release-1.0"))
+        assertTrue(v("release-1.1") > v("release-1.1-beta.1"))
+        // O .apk tem versionName = tag: tem de ser a mesma versão que a release.
+        assertEquals(0, v("release-1.0").compareTo(v("release-1.0.0")))
+        assertTrue(v("beta-1.4.5") > v("beta-1.4.4"))
+        assertEquals("Beta 1.4.5", v("beta-1.4.5").label())
     }
 }

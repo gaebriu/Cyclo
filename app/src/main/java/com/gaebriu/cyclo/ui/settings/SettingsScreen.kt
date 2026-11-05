@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -59,6 +58,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -80,6 +80,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp as lerpFloat
@@ -534,7 +535,7 @@ private fun SettingsRow(
     }
     // O nome à esquerda e o valor (e a seta) à direita, lado a lado: com letra grande, cada um
     // passa para a linha seguinte e a linha cresce, em vez de se sobreporem.
-    Row(
+    LabelValueRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = CycloDimens.InputHeight)
@@ -547,23 +548,60 @@ private fun SettingsRow(
             }
             .cycloCard(shadowColor = null)
             .padding(horizontal = RowInset, vertical = RowTextVertical),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BasicText(text = label, style = CycloType.CardTitle, modifier = Modifier.weight(1f, fill = false).padding(end = RowLabelGap))
-        // O valor e a seta juntos, encostados à direita.
-        Row(modifier = Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
-            if (value != null) {
-                BasicText(
-                    text = value,
-                    style = CycloType.InputHint.copy(textAlign = TextAlign.End),
-                    modifier = Modifier.weight(1f, fill = false),
-                )
+        label = {
+            BasicText(text = label, style = CycloType.CardTitle, modifier = Modifier.padding(end = RowLabelGap))
+        },
+        value = {
+            // O valor e a seta juntos, encostados à direita.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (value != null) {
+                    BasicText(
+                        text = value,
+                        style = CycloType.InputHint.copy(textAlign = TextAlign.End),
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+                if (arrow) {
+                    Spacer(Modifier.width(ValueEndWithArrow - RowInset - 24.dp))
+                    CycloIcon(path = CycloIconPaths.DropDown, size = 24.dp, tint = CycloColors.TextPrimary, luminosity = false)
+                }
             }
-            if (arrow) {
-                Spacer(Modifier.width(ValueEndWithArrow - RowInset - 24.dp))
-                CycloIcon(path = CycloIconPaths.DropDown, size = 24.dp, tint = CycloColors.TextPrimary, luminosity = false)
-            }
+        },
+    )
+}
+
+/**
+ * O nome à esquerda e o valor à direita, centrados na vertical.
+ *
+ * Cada um fica com a largura de que precisa; quando não há espaço para os dois numa linha (ecrã
+ * estreito ou letra grande), o valor (curto: "Hummingbird", "15 min") fica inteiro e é o nome que
+ * passa para a linha seguinte, pelas palavras. Só se nem assim couber é que o valor também quebra,
+ * sempre entre palavras enquanto a palavra mais longa couber. Antes, cada lado tinha metade da
+ * linha: a 320 dp "Hummingbird" partia-se a meio ("Hummingbir / d").
+ */
+@Composable
+private fun LabelValueRow(
+    label: @Composable () -> Unit,
+    value: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Layout(contents = listOf(label, value), modifier = modifier) { (labels, values), constraints ->
+        val labelMeasurable = labels.first()
+        val valueMeasurable = values.first()
+        val available = constraints.maxWidth
+        val valueMax = valueMeasurable.maxIntrinsicWidth(Constraints.Infinity)
+        val valueMin = valueMeasurable.minIntrinsicWidth(Constraints.Infinity)
+        val labelMin = labelMeasurable.minIntrinsicWidth(Constraints.Infinity)
+        // O valor inteiro, se o nome ainda couber pela palavra mais longa; senão, o que sobrar
+        // (mas nunca menos do que a palavra mais longa do valor).
+        val valueWidth = minOf(valueMax, maxOf(valueMin, available - labelMin), available).coerceAtLeast(0)
+        val valuePlaceable = valueMeasurable.measure(Constraints(maxWidth = valueWidth))
+        val labelPlaceable = labelMeasurable.measure(Constraints(maxWidth = (available - valuePlaceable.width).coerceAtLeast(0)))
+        val height = maxOf(labelPlaceable.height, valuePlaceable.height, constraints.minHeight)
+        // O mesmo centro que uma Row com CenterVertically (arredondado da mesma maneira).
+        layout(available, height) {
+            labelPlaceable.place(0, Alignment.CenterVertically.align(labelPlaceable.height, height))
+            valuePlaceable.place(available - valuePlaceable.width, Alignment.CenterVertically.align(valuePlaceable.height, height))
         }
     }
 }

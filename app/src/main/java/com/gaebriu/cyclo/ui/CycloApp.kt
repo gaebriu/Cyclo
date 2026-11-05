@@ -228,7 +228,16 @@ fun CycloApp(viewModel: CycloViewModel) {
     }
     val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         notificationsAllowed = BedtimeReminder.isPermitted(context)
-        if (granted && notificationsAllowed) viewModel.setBedtimeReminder(true) else viewModel.notificationsDenied()
+        if (granted && notificationsAllowed) {
+            viewModel.setBedtimeReminder(true)
+            // A preferência costuma já estar ligada (é o valor por omissão): gravar o mesmo valor não
+            // muda o DataStore e o CycloSync não reagendava. E este resultado chega antes do ON_RESUME,
+            // que por isso também já não via diferença. Agenda-se aqui o lembrete desta noite (se a
+            // preferência estava desligada, a escrita acima também reagenda, pelo CycloSync).
+            CycloSync.refresh(context)
+        } else {
+            viewModel.notificationsDenied()
+        }
     }
     val reminderOn = data.bedtimeReminder && notificationsAllowed
     fun toggleReminder() {

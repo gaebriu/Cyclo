@@ -62,6 +62,21 @@ class NewestReleaseTest {
         assertNull(CycloUpdates.newestRelease(json, installed))
     }
 
+    /**
+     * A ponte para a 1.0: a beta-1.4.5 vê a release-1.0 como mais recente, apesar de 1.0 < 1.4.5;
+     * a release-1.0 instalada ignora as betas e recebe a release-1.1.
+     */
+    @Test
+    fun stableSeriesIsNewerThanEveryBeta() {
+        val all = "[${release("release-1.0")}, ${release("beta-1.4.5")}, ${release("beta-1.4.4")}]"
+        assertEquals("release-1.0", CycloUpdates.newestRelease(all, AppVersion.parse("beta-1.4.5"))!!.tag)
+        assertEquals("release-1.0", CycloUpdates.newestRelease(all, AppVersion.parse("beta-1.4.4"))!!.tag)
+        assertNull(CycloUpdates.newestRelease(all, AppVersion.parse("release-1.0")))
+        val later = "[${release("release-1.1-beta.1")}, ${release("beta-1.4.6")}, ${release("release-1.0")}]"
+        assertNull(CycloUpdates.newestRelease(later, AppVersion.parse("release-1.0")))
+        assertEquals("release-1.1", CycloUpdates.newestRelease("[${release("release-1.1")}, ${release("release-1.0")}]", AppVersion.parse("release-1.0"))!!.tag)
+    }
+
     @Test
     fun betaGetsTheNextBetaAndTheFinal() {
         val beta = AppVersion.parse("beta-1.0.0")

@@ -4,16 +4,27 @@
  * Uma versão do Cyclo, como as tags do GitHub e o versionName: "alpha-0.7.3", "beta-1.0.0",
  * "rc-1.0.0" ou "1.0.0" (também aceita um "v" no início e "-alpha.2" à moda do semver).
  *
- * A ordem: primeiro os números (0.7.3 < 0.7.10 < 1.0.0) e, com os mesmos números, a fase
- * (alpha < beta < rc < final). Uma alpha nova (alpha-0.8.0) é mais recente do que uma final antiga
- * (0.7.0), como no histórico de tags do projeto.
+ * A ordem: primeiro a série, depois os números (0.7.3 < 0.7.10 < 1.0.0) e, com os mesmos números,
+ * a fase (alpha < beta < rc < final). Uma alpha nova (alpha-0.8.0) é mais recente do que uma final
+ * antiga (0.7.0), como no histórico de tags do projeto.
+ *
+ * Séries: as versões estáveis chamam-se "release-1.0", "release-1.1"… (série 1) e são sempre mais
+ * recentes do que as da série 0 (tudo o que veio antes: alpha-0.x, beta-1.0 … beta-1.4.5), cujos
+ * números já passavam de 1.0. Sem isto a release-1.0 seria "mais antiga" do que a beta-1.4.4.
+ * Uma prerelease depois da 1.0 também leva o prefixo ("release-1.1-beta.1").
  */
-data class AppVersion(val numbers: List<Int>, val stage: Stage, val stageNumber: Int = 0) : Comparable<AppVersion> {
+data class AppVersion(
+    val numbers: List<Int>,
+    val stage: Stage,
+    val stageNumber: Int = 0,
+    val series: Int = 0,
+) : Comparable<AppVersion> {
     enum class Stage { Alpha, Beta, ReleaseCandidate, Final }
 
     val isPrerelease: Boolean get() = stage != Stage.Final
 
     override fun compareTo(other: AppVersion): Int {
+        if (series != other.series) return series.compareTo(other.series)
         val size = maxOf(numbers.size, other.numbers.size)
         for (i in 0 until size) {
             val a = numbers.getOrElse(i) { 0 }
@@ -45,7 +56,9 @@ data class AppVersion(val numbers: List<Int>, val stage: Stage, val stageNumber:
 
         /** null se [text] não for uma versão (ex.: uma tag "docs"). */
         fun parse(text: String): AppVersion? {
-            val clean = text.trim().removePrefix("v").removePrefix("V").lowercase()
+            val trimmed = text.trim().removePrefix("v").removePrefix("V").lowercase()
+            val series = if (trimmed.startsWith(StablePrefix)) 1 else 0
+            val clean = trimmed.removePrefix(StablePrefix)
             val match = Numbers.find(clean) ?: return null
             val numbers = match.value.split('.').map { it.toIntOrNull() ?: return null }
             val rest = (clean.substring(0, match.range.first) + " " + clean.substring(match.range.last + 1))
@@ -58,7 +71,10 @@ data class AppVersion(val numbers: List<Int>, val stage: Stage, val stageNumber:
             // "1.0.0-beta.2": o número da fase.
             val stageNumber = Regex("""(?:alpha|beta|rc)[.\-]?(\d+)""").find(clean.substring(match.range.last + 1))
                 ?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            return AppVersion(numbers, stage, stageNumber)
+            return AppVersion(numbers, stage, stageNumber, series)
         }
+
+        /** O prefixo das versões estáveis ("release-1.0"), a série 1. */
+        private const val StablePrefix = "release-"
     }
 }

@@ -3,7 +3,7 @@
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicText
@@ -54,7 +54,7 @@ fun CycloDropdownField(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(CycloDimens.InputHeight)
+            .heightIn(min = CycloDimens.InputHeight)
             // A posição mede-se ANTES do zoom do toque, para o menu não "tremer" ao carregar.
             .onGloballyPositioned { coordinates[0] = it }
             .cycloPressable(
@@ -77,7 +77,12 @@ fun CycloDropdownField(
             style = CycloType.Input,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 15.dp, end = 54.dp),
+                // Numa linha fica com os 48 dp do Figma; com o texto em duas linhas (ecrã estreito ou letra
+                // grande) o campo cresce, em vez de o texto sair dele.
+                // À direita: a seta (24 dp a 15 dp da borda) e pelo menos 8 dp entre o texto e ela. No
+                // Figma o texto abraça o conteúdo e a seta fica encostada à direita (campo de 215 dp num
+                // ecrã de 393 dp); com 15 dp de folga, "Show just this once" já quebrava a 384 dp.
+                .padding(start = 15.dp, end = 15.dp + 24.dp + 8.dp, top = 12.dp, bottom = 12.dp),
         )
         Canvas(
             modifier = Modifier

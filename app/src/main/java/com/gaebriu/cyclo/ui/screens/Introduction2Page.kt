@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -132,76 +133,92 @@ fun Introduction2Page(
 
             Spacer(Modifier.height(63.dp))
 
-            // "hour" e "min" por cima das caixas (nada por cima do AM/PM, como no Figma).
-            Row {
-                BasicText(
-                    text = stringResource(R.string.introduction_2_hour),
-                    style = CycloType.Body,
-                    modifier = Modifier.width(PickerWidth),
-                )
-                Spacer(Modifier.width(PickerGap))
-                BasicText(
-                    text = stringResource(R.string.introduction_2_minute),
-                    style = CycloType.Body,
-                    modifier = Modifier.width(PickerWidth),
-                )
-                if (!use24Hour) Spacer(Modifier.width(PeriodGap + PickerWidth))
-            }
+            // As medidas do Figma (ecrã de 393 dp): 24 h = 79 + 45 + 79 = 203 dp; 12 h = 203 + 24 + 79
+            // = 306 dp. Num ecrã mais estreito do que isso (ex.: 320 dp), uma Row com larguras fixas
+            // espremia a última caixa (o AM/PM ficava com 45 dp). Aqui caixas e espaços encolhem
+            // juntos, na proporção do Figma, até caberem; com espaço, ficam exatamente as do Figma.
+            BoxWithConstraints {
+                val figmaRow = PickerWidth * (if (use24Hour) 2 else 3) + PickerGap + (if (use24Hour) 0.dp else PeriodGap)
+                val fit = if (maxWidth < figmaRow) maxWidth / figmaRow else 1f
+                val boxWidth = PickerWidth * fit
+                val gap = PickerGap * fit
+                val periodGap = PeriodGap * fit
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // "hour" e "min" por cima das caixas (nada por cima do AM/PM, como no Figma).
+                    Row {
+                        BasicText(
+                            text = stringResource(R.string.introduction_2_hour),
+                            style = CycloType.Body,
+                            modifier = Modifier.width(boxWidth),
+                        )
+                        Spacer(Modifier.width(gap))
+                        BasicText(
+                            text = stringResource(R.string.introduction_2_minute),
+                            style = CycloType.Body,
+                            modifier = Modifier.width(boxWidth),
+                        )
+                        if (!use24Hour) Spacer(Modifier.width(periodGap + boxWidth))
+                    }
 
-            Spacer(Modifier.height(CycloDimens.Spacing))
+                    Spacer(Modifier.height(CycloDimens.Spacing))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Uma caixa nova ao mudar de formato (outro número de valores).
-                key(use24Hour) {
-                    CycloTimeUnitPicker(
-                        value = shownHour,
-                        valueCount = hourCount,
-                        contentDescription = stringResource(R.string.introduction_2_hour),
-                        onValueChange = {
-                            turnSun(lastHour, it, hourCount)
-                            lastHour = it
-                            onHourChange(if (use24Hour) it else it + if (pm) 12 else 0)
-                        },
-                        label = if (use24Hour) TwoDigits else ::hour12Label,
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .width(PickerGap)
-                        .height(PickerHeight),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    // No Figma os dois pontos ficam 2 dp abaixo do centro das caixas.
-                    BasicText(
-                        text = ":",
-                        style = CycloType.PickerColon,
-                        modifier = Modifier.offset(y = 2.dp),
-                    )
-                }
-                CycloTimeUnitPicker(
-                    value = wakeMinute,
-                    valueCount = 60,
-                    contentDescription = stringResource(R.string.introduction_2_minute),
-                    onValueChange = {
-                        turnSun(lastMinute, it, 60)
-                        lastMinute = it
-                        onMinuteChange(it)
-                    },
-                    manyChoices = true,
-                )
-                if (!use24Hour) {
-                    Spacer(Modifier.width(PeriodGap))
-                    // AM-PM-Slider: 0 = AM, 1 = PM; muda só a metade do dia (as horas e os minutos ficam).
-                    CycloTimeUnitPicker(
-                        value = if (pm) 1 else 0,
-                        valueCount = 2,
-                        contentDescription = stringResource(R.string.introduction_2_period),
-                        onValueChange = { period ->
-                            val hour = wakeHour % 12 + period * 12
-                            if (hour != wakeHour) onHourChange(hour)
-                        },
-                        label = { if (it == 1) "PM" else "AM" },
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Uma caixa nova ao mudar de formato (outro número de valores).
+                        key(use24Hour) {
+                            CycloTimeUnitPicker(
+                                value = shownHour,
+                                valueCount = hourCount,
+                                contentDescription = stringResource(R.string.introduction_2_hour),
+                                onValueChange = {
+                                    turnSun(lastHour, it, hourCount)
+                                    lastHour = it
+                                    onHourChange(if (use24Hour) it else it + if (pm) 12 else 0)
+                                },
+                                label = if (use24Hour) TwoDigits else ::hour12Label,
+                                modifier = Modifier.width(boxWidth),
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .width(gap)
+                                .height(PickerHeight),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            // No Figma os dois pontos ficam 2 dp abaixo do centro das caixas.
+                            BasicText(
+                                text = ":",
+                                style = CycloType.PickerColon,
+                                modifier = Modifier.offset(y = 2.dp),
+                            )
+                        }
+                        CycloTimeUnitPicker(
+                            value = wakeMinute,
+                            valueCount = 60,
+                            contentDescription = stringResource(R.string.introduction_2_minute),
+                            onValueChange = {
+                                turnSun(lastMinute, it, 60)
+                                lastMinute = it
+                                onMinuteChange(it)
+                            },
+                            manyChoices = true,
+                            modifier = Modifier.width(boxWidth),
+                        )
+                        if (!use24Hour) {
+                            Spacer(Modifier.width(periodGap))
+                            // AM-PM-Slider: 0 = AM, 1 = PM; muda só a metade do dia (as horas e os minutos ficam).
+                            CycloTimeUnitPicker(
+                                value = if (pm) 1 else 0,
+                                valueCount = 2,
+                                contentDescription = stringResource(R.string.introduction_2_period),
+                                onValueChange = { period ->
+                                    val hour = wakeHour % 12 + period * 12
+                                    if (hour != wakeHour) onHourChange(hour)
+                                },
+                                label = { if (it == 1) "PM" else "AM" },
+                                modifier = Modifier.width(boxWidth),
+                            )
+                        }
+                    }
                 }
             }
 

@@ -181,8 +181,15 @@ class CycloRepository(context: Context) {
     /** Volta a pôr uma rotina apagada no mesmo lugar (o "Undo"). */
     suspend fun restoreRoutine(routine: Routine, index: Int) {
         store.edit { prefs ->
-            val routines = prefs.routines().filterNot { it.id == routine.id }.toMutableList()
-            routines.add(index.coerceIn(0, routines.size), routine)
+            val current = prefs.routines()
+            val sameId = current.firstOrNull { it.id == routine.id }
+            // Já lá está (dois "Undo" seguidos): nada a fazer.
+            if (sameId == routine) return@edit
+            // Entretanto criou-se outra rotina com o mesmo id (os ids novos são o maior + 1): a
+            // apagada volta com um id novo, em vez de substituir a nova.
+            val restored = if (sameId != null) routine.copy(id = (current.maxOf { it.id }) + 1L) else routine
+            val routines = current.toMutableList()
+            routines.add(index.coerceIn(0, routines.size), restored)
             prefs.setRoutines(routines)
         }
     }
