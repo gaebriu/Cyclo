@@ -4,8 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.unit.Dp
@@ -23,21 +21,19 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 
 /**
- * Fundo dos menus, das folhas e da barra de baixo (undo-action, e os derivados action-menu,
- * action-menu-when-to-show e action-menu-big): #101011 em Luminosity sobre o desfoque de fundo
- * 39, brilho exterior (0, 0, desfoque 9) e duas sombras interiores (0, ±2, desfoque 2), todos em
- * #A3A2A7. Sem contorno (a borda de 1 dp foi retirada a pedido). Com o dedo em cima, a luz
- * segue-o ([cycloLightSheen]).
+ * Fundo dos menus, das folhas e da barra de baixo (undo-action, action-menu, action-menu-big):
+ * #101011 em Luminosity sobre o desfoque de fundo 39, brilho exterior (0, 0, desfoque 9) e duas
+ * sombras interiores (0, ±2, desfoque 2), todos em #A3A2A7. Sem contorno (a borda de 1 dp foi
+ * retirada a pedido). Com o dedo em cima, a luz segue-o ([cycloLightSheen]).
  *
  * O desfoque usa o que está por trás ([LocalBackdrop]). Sem as texturas avançadas não há desfoque
  * e o #101011 fica em mistura normal: uma superfície sólida, sem nada transparente.
  *
- * @param exactBlur o desfoque 39 com a força exata do Figma (sigma 19,5 dp, ver
- *                  [com.gaebriu.cyclo.ui.theme.figmaBlurRadiusExact]): action-menu-when-to-show e
- *                  action-menu-big-choose-days. Os outros menus ficam como estavam.
+ * Os menus da repetição (action-menu-when-to-show e action-menu-big-choose-days) têm a sua própria
+ * superfície ([repeatMenuSurface]).
  */
 @Composable
-fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, exactBlur: Boolean = false): Modifier {
+fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius): Modifier {
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
@@ -53,21 +49,8 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, ex
             }
 
             // Fundo desfocado e preenchimento. Sem as texturas avançadas, a mistura Luminosity passa a normal.
-            if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay, exact = exactBlur)
-            val blend = effects.luminosity
-            when {
-                // Com as texturas avançadas, os menus de vidro são como os outros: cor sólida #101011 em
-                // Luminosity sobre o desfoque 39 (o do Figma, 159:291 e 178:98). Sem elas: a mesma cor
-                // sólida em mistura normal, com o gradiente #010101 por cima (mais escuro em baixo).
-                exactBlur && !effects.textures -> {
-                    drawPath(shape, CycloColors.GlassFill, blendMode = blend)
-                    drawPath(
-                        shape,
-                        Brush.verticalGradient(listOf(CycloColors.Background.copy(alpha = 0f), CycloColors.Background.copy(alpha = FallbackGradientAlpha))),
-                    )
-                }
-                else -> drawPath(shape, CycloColors.GlassFill, blendMode = blend)
-            }
+            if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
+            drawPath(shape, CycloColors.GlassFill, blendMode = effects.luminosity)
 
             // Sombras interiores, em cima e em baixo.
             drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, -2.dp.toPx()), 2.dp.toPx())
@@ -76,6 +59,3 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, ex
     }.cycloLightSheen(cornerRadius)
 }
 
-
-/** Gradiente #010101 desses menus sem as texturas avançadas (transparente em cima, até isto em baixo). */
-private const val FallbackGradientAlpha = 0.5f

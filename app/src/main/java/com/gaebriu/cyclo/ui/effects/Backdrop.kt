@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -27,7 +28,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.unit.IntSize
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
-import com.gaebriu.cyclo.ui.theme.figmaBlurRadiusExact
 import kotlin.math.ceil
 
 /*
@@ -124,18 +124,12 @@ fun Modifier.backdropSampler(sampler: BackdropSampler): Modifier = onGloballyPos
  * Desenha o fundo por baixo desta superfície, recortado a [clip].
  *
  * @param figmaBlur desfoque de fundo do Figma (0 = sem desfoque, só para a mistura Luminosity).
- * @param exact o desfoque com a força exata do Figma ([figmaBlurRadiusExact]); sem ele fica o
- *              valor de sempre ([figmaBlurPx], mais suave), para o resto da app não mudar.
  */
-fun DrawScope.drawBackdrop(sampler: BackdropSampler, backdrop: Backdrop, clip: Path, figmaBlur: Float = 0f, exact: Boolean = false) {
+fun DrawScope.drawBackdrop(sampler: BackdropSampler, backdrop: Backdrop, clip: Path, figmaBlur: Float = 0f) {
     if (backdrop.layers.isEmpty()) return
     sampler.moves // relê a posição quando a superfície se move
     val self = sampler.coordinates?.takeIf { it.isAttached } ?: return
-    val sigma = when {
-        figmaBlur <= 0f -> 0f
-        exact -> figmaBlurRadiusExact(figmaBlur)
-        else -> figmaBlurPx(figmaBlur)
-    }
+    val sigma = if (figmaBlur <= 0f) 0f else figmaBlurPx(figmaBlur)
     clipPath(clip) {
         if (sigma <= 0f) {
             drawLayers(backdrop, self)
@@ -155,6 +149,54 @@ fun DrawScope.drawBackdrop(sampler: BackdropSampler, backdrop: Backdrop, clip: P
             }
             translate(-margin, -margin) { drawLayer(layer) }
         }
+    }
+}
+
+/**
+ * O fundo desfocado de uma superfície que tem de ser OPACA: [base] por baixo de tudo, as camadas
+ * de [backdrop] por cima, e só depois o desfoque, recortado a [clip].
+ *
+ * As fontes do fundo ([backdropSource]) não têm fundo próprio: gravadas sozinhas, são
+ * transparentes à volta do conteúdo, e desfocadas ficam meio transparentes (o texto e os botões
+ * espalham-se para o transparente). Desenhadas assim, deixavam ver por baixo o ecrã verdadeiro,
+ * nítido: o vidro mostrava duas camadas, a desfocada e a nítida (o Done roxo por trás da folha dos
+ * dias, até beta-1.4.2). Com [base] primeiro, o que se desfoca é uma imagem opaca, e o resultado
+ * tapa por completo o que está por baixo.
+ *
+ * @param base a cor que está por baixo das fontes no ecrã (o fundo #010101 da app).
+ * @param blurRadius o raio a dar ao [BlurEffect], em píxeis (ver figmaBlurRadiusExact).
+ */
+fun DrawScope.drawOpaqueBackdrop(
+    sampler: BackdropSampler,
+    backdrop: Backdrop,
+    clip: Path,
+    base: Color,
+    blurRadius: Float,
+) {
+    sampler.moves // relê a posição quando a superfície se move
+    val self = sampler.coordinates?.takeIf { it.isAttached }
+    clipPath(clip) {
+        if (self == null || backdrop.layers.isEmpty() || blurRadius <= 0f) {
+            drawRect(base)
+            if (self != null) drawLayers(backdrop, self)
+            return@clipPath
+        }
+        val layer = sampler.blurLayer
+        if (sampler.sigma != blurRadius) {
+            layer.renderEffect = BlurEffect(blurRadius, blurRadius, TileMode.Clamp)
+            sampler.sigma = blurRadius
+        }
+        // A margem guarda o que fica à volta da forma, para a borda desfocar com o que lá está.
+        val margin = ceil(blurRadius * 3f)
+        val recordSize = IntSize(
+            (size.width + margin * 2f).toInt().coerceAtLeast(1),
+            (size.height + margin * 2f).toInt().coerceAtLeast(1),
+        )
+        layer.record(recordSize) {
+            drawRect(base)
+            translate(margin, margin) { drawLayers(backdrop, self) }
+        }
+        translate(-margin, -margin) { drawLayer(layer) }
     }
 }
 

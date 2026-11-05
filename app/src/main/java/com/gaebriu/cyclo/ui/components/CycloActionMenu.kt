@@ -1,7 +1,6 @@
 ﻿package com.gaebriu.cyclo.ui.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -25,35 +24,31 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloType
 
-/** Uma opção do menu; [hint] é o texto pequeno por baixo (ex.: "Choose days"). */
+/** Uma opção do menu. */
 @Immutable
-class ActionMenuItem(val label: String, val hint: String? = null)
+class ActionMenuItem(val label: String)
 
-// Medidas do Figma (action-menu-when-to-show: 224 x 254 dp).
-private val MenuWidth = 224.dp
+// Medidas do Figma (action-menu, 80:727, e os compactos de Componentes 3).
 private val RowHeight = 42.dp
-private val RowWithHintHeight = 56.dp
 private val TextStart = 24.dp
-private val TextEnd = 15.dp
 private val CheckGap = 9.dp
 
 /**
- * Menu de ações, em três formas do Figma:
- * - action-menu-when-to-show (224 dp de largura): as opções com um visto na escolhida. É o menu da
- *   repetição do Introduction 4.
+ * Menu de ações, em duas formas do Figma:
  * - action-menu ("Edit" / "Remove"): sem escolha ([selectedIndex] = -1), com a largura do texto
  *   mais 24 dp de cada lado.
  * - Com [compact] (action-menu-chronotype, -time-format, -time-to-fall-asleep, Componentes 3):
  *   escolha com a largura da opção mais comprida, 24 dp à esquerda, o lugar do visto (9 + 15 dp)
  *   em todas as linhas e 24 dp à direita; 12 dp em cima e em baixo. Ex.: o do formato tem 132 x 108.
  *
- * @param selectedIndex a opção com o visto; -1 para um menu de ações simples.
+ * O menu da repetição (action-menu-when-to-show) é outro componente: [WhenToShowMenu].
+ *
+ * @param selectedIndex a opção com o visto ([compact]); -1 para um menu de ações simples.
  */
 @Composable
 fun CycloActionMenu(
@@ -63,10 +58,8 @@ fun CycloActionMenu(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
-    val check = remember { PathParser().parsePathString(CycloIconPaths.Check).toPath() }
-    val isChoice = selectedIndex >= 0
-
     if (compact) {
+        val check = remember { PathParser().parsePathString(CycloIconPaths.Check).toPath() }
         Column(
             modifier = modifier
                 .width(IntrinsicSize.Max)
@@ -87,21 +80,12 @@ fun CycloActionMenu(
 
     Column(
         modifier = modifier
-            .then(if (isChoice) Modifier.width(MenuWidth) else Modifier.width(IntrinsicSize.Max))
-            // action-menu-when-to-show (a única forma de escolha não compacta): desfoque 39 com a
-            // força exata do Figma (159:291, backdrop-blur 19,5).
-            .cycloOverlaySurface(exactBlur = isChoice)
-            .padding(top = 12.dp, bottom = if (isChoice) 18.dp else 12.dp),
+            .width(IntrinsicSize.Max)
+            .cycloOverlaySurface()
+            .padding(vertical = 12.dp),
     ) {
         items.forEachIndexed { index, item ->
-            ActionMenuRow(
-                item = item,
-                isSelected = index == selectedIndex,
-                check = check,
-                textEnd = if (isChoice) TextEnd else TextStart,
-                role = if (isChoice) Role.RadioButton else Role.Button,
-                onClick = { onItemClick(index) },
-            )
+            ActionMenuRow(label = item.label, onClick = { onItemClick(index) })
         }
     }
 }
@@ -130,56 +114,23 @@ private fun CompactChoiceRow(label: String, isSelected: Boolean, check: Path, on
     }
 }
 
+/** Uma ação: o texto com 24 dp de cada lado, numa faixa de 42 dp. */
 @Composable
-private fun ActionMenuRow(
-    item: ActionMenuItem,
-    isSelected: Boolean,
-    check: Path,
-    textEnd: Dp,
-    role: Role,
-    onClick: () -> Unit,
-) {
-    Box(
+private fun ActionMenuRow(label: String, onClick: () -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (item.hint != null) RowWithHintHeight else RowHeight)
-            .cycloPressable(onClick = onClick, pressedScale = 0.97f, role = role)
-            .then(if (role == Role.RadioButton) Modifier.semantics { selected = isSelected } else Modifier),
+            .height(RowHeight)
+            .cycloPressable(onClick = onClick, pressedScale = 0.97f, role = Role.Button)
+            .padding(horizontal = TextStart),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // O texto e, na opção escolhida, o visto 9 dp a seguir ao fim do texto (como no Figma).
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(RowHeight)
-                .padding(start = TextStart, end = textEnd),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            BasicText(
-                text = item.label,
-                style = CycloType.MenuItem,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (isSelected) {
-                Spacer(Modifier.width(CheckGap))
-                Canvas(modifier = Modifier.size(15.dp)) {
-                    val pxPerDp = density
-                    withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
-                        drawPath(path = check, color = CycloColors.TextPrimary)
-                    }
-                }
-            }
-        }
-        if (item.hint != null) {
-            // Nunca passa da margem de 15 dp da caixa: o que não couber acaba em reticências.
-            BasicText(
-                text = item.hint,
-                style = CycloType.MenuHint,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = TextStart, end = TextEnd, top = 39.dp),
-            )
-        }
+        BasicText(
+            text = label,
+            style = CycloType.MenuItem,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }

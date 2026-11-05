@@ -10,11 +10,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import com.gaebriu.cyclo.R
-import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
 import com.gaebriu.cyclo.ui.components.BottomSheetHost
-import com.gaebriu.cyclo.ui.components.CycloActionMenu
 import com.gaebriu.cyclo.ui.components.CycloDaysSheet
+import com.gaebriu.cyclo.ui.components.WhenToShowItem
+import com.gaebriu.cyclo.ui.components.WhenToShowMenu
 import com.gaebriu.cyclo.ui.routine.RepeatOption
 import com.gaebriu.cyclo.ui.routine.RepeatSelection
 import com.gaebriu.cyclo.ui.routine.Weekday
@@ -37,7 +37,7 @@ fun RepeatOverlays(
     modifier: Modifier = Modifier,
 ) {
     val items = RepeatOption.values().map { option ->
-        ActionMenuItem(
+        WhenToShowItem(
             label = stringResource(option.label),
             hint = if (option == RepeatOption.SelectedDays) selectedDaysHint(selection) else null,
         )
@@ -50,10 +50,10 @@ fun RepeatOverlays(
         bottomMargin = bottomMargin,
         modifier = modifier,
     ) {
-        CycloActionMenu(
+        WhenToShowMenu(
             items = items,
             selectedIndex = selection.option.ordinal,
-            onItemClick = { index ->
+            onSelect = { index ->
                 val option = RepeatOption.values()[index]
                 selection.isMenuOpen = false
                 if (option == RepeatOption.SelectedDays) {
