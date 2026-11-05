@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.unit.Dp
@@ -54,7 +55,22 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, ex
             // Fundo desfocado e preenchimento. Sem as texturas avançadas, a mistura Luminosity passa a normal.
             if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay, exact = exactBlur)
             val blend = effects.luminosity
-            drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+            when {
+                // Menus de vidro (beta-1.4.1): o #101011 deixa passar parte do fundo desfocado, para o
+                // desfoque se ver. A 100 %, a mistura Luminosity troca o brilho de cada píxel pelo do
+                // #101011 e, sobre o fundo neutro da app, o desfoque ficava invisível (um cinzento liso).
+                exactBlur && effects.textures ->
+                    drawPath(shape, CycloColors.GlassFill, alpha = FrostedFillAlpha, blendMode = blend)
+                // Sem as texturas avançadas: sólido, com o gradiente #010101 por cima (mais escuro em baixo).
+                exactBlur -> {
+                    drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+                    drawPath(
+                        shape,
+                        Brush.verticalGradient(listOf(CycloColors.Background.copy(alpha = 0f), CycloColors.Background.copy(alpha = FallbackGradientAlpha))),
+                    )
+                }
+                else -> drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+            }
 
             // Sombras interiores, em cima e em baixo.
             drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, -2.dp.toPx()), 2.dp.toPx())
@@ -62,3 +78,13 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius, ex
         }
     }.cycloLightSheen(cornerRadius)
 }
+
+/**
+ * Opacidade do #101011 nos menus de vidro (action-menu-when-to-show, action-menu-big-choose-days):
+ * o resto é o conteúdo por trás, desfocado (39 do Figma, sigma exato). Escolhida à vista no
+ * emulador: o que está por trás lê-se como formas desfocadas e o texto do menu continua legível.
+ */
+private const val FrostedFillAlpha = 0.45f
+
+/** Gradiente #010101 desses menus sem as texturas avançadas (transparente em cima, até isto em baixo). */
+private const val FallbackGradientAlpha = 0.5f

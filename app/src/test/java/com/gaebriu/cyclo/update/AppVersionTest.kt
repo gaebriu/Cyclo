@@ -38,6 +38,14 @@ class AppVersionTest {
         assertTrue(v("beta-1.0.0") > v("alpha-0.7.3"))
     }
 
+    /** beta-1.4.1: patch depois de beta-1.4 (o atualizador tem de a ver como mais recente). */
+    @Test
+    fun patchAfterTwoPartTag() {
+        assertTrue(v("beta-1.4.1") > v("beta-1.4"))
+        assertTrue(v("beta-1.4.1") > v("beta-1.3"))
+        assertEquals("Beta 1.4.1", v("beta-1.4.1").label())
+    }
+
     @Test
     fun newerAlphaBeatsOlderFinal() = assertTrue(v("alpha-0.8.0") > v("0.7.0"))
 
