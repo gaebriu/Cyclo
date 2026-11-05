@@ -12,12 +12,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -33,6 +33,8 @@ data class AvailableUpdate(
     /** O .apk da release (null = a release não tem; "Download now" abre a página). */
     val apkUrl: String?,
     val apkSize: Long,
+    /** Marcada como prerelease no GitHub (canal beta). */
+    val beta: Boolean = false,
 )
 
 /** O estado do download, para o new-update-group. */
@@ -64,6 +66,10 @@ sealed interface DownloadState {
  * - Lê a lista de releases (não a "latest", que ignora as prereleases: as versões do Cyclo são
  *   alphas/betas) e escolhe a MAIS RECENTE de todas (não a seguinte à instalada): com a Beta 1.3
  *   instalada e a 1.4 e a 1.5 publicadas, o aviso mostra logo a 1.5 e descarrega o .apk dela.
+ * - Dois canais (release-1.1): sem as atualizações beta só contam as estáveis; com elas, também as
+ *   prereleases, mas uma estável elegível ganha sempre (ver [ReleaseSelection]). Guardam-se as duas
+ *   candidatas (a melhor estável e, com a beta ligada, a melhor beta), por isso desligar a beta passa
+ *   logo para a estável (ou esconde o aviso) sem rede. Ligar a beta verifica logo ([setBetaEnabled]).
  * - O download corre no processo (continua com as definições fechadas) e pode ser cancelado.
  * - Dispensar (o X) esconde o aviso durante [DismissMs] (guardado entre sessões); "Undo" na barra de
  *   baixo ([undoDismiss]) volta a mostrá-lo logo, sem nova verificação. Passado o intervalo, se a
@@ -74,7 +80,14 @@ object CycloUpdates {
     private const val KeyLastCheck = "last_check"
     private const val KeyEtag = "etag"
     private const val KeyCheckedFor = "checked_for"
-    private const val KeyRelease = "release"
+    /** O formato antigo (até à release-1.0): uma só release. Apaga-se ao ler. */
+    private const val KeyLegacyRelease = "release"
+    private const val KeyStable = "release_stable"
+    private const val KeyBeta = "release_beta"
+    private const val KeyBetaEnabled = "beta_enabled"
+
+    /** Com que valor das atualizações beta se fez a última verificação (o ETag só vale para ele). */
+    private const val KeyCheckedBeta = "checked_beta"
     private const val KeyDismissedAt = "dismissed_at"
     private const val KeyDismissedTag = "dismissed_tag"
 
@@ -89,6 +102,26 @@ object CycloUpdates {
     private var downloadJob: Job? = null
 
     private val _available = MutableStateFlow<AvailableUpdate?>(null)
+
+    /** As candidatas da última verificação: a melhor estável e (com a beta ligada) a melhor beta. */
+    @Volatile
+    private var stable: AvailableUpdate? = null
+
+    @Volatile
+    private var beta: AvailableUpdate? = null
+
+    private val _betaEnabled = MutableStateFlow(false)
+
+    /** "Beta updates" nas definições (desligado por omissão; fica no aparelho, fora das cópias). */
+    val betaEnabled: StateFlow<Boolean> = _betaEnabled.asStateFlow()
+
+    /** A tag do que está a descarregar ou descarregado (para o largar se deixar de ser elegível). */
+    @Volatile
+    private var downloadTag: String? = null
+
+    /** A tag dispensada com o X (uma beta nova, diferente, volta a aparecer). */
+    @Volatile
+    private var dismissedTag: String? = null
 
     /** A atualização disponível (null = nenhuma, ou a instalada já é a mais recente). */
     val available: StateFlow<AvailableUpdate?> = _available.asStateFlow()
@@ -120,8 +153,6 @@ object CycloUpdates {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull()
 
-    fun installedVersion(context: Context): AppVersion? = installedName(context)?.let(AppVersion::parse)
-
     /** Lê o que ficou guardado (a última release vista e quando foi dispensada). */
     private fun load(context: Context) {
         if (loaded) return
@@ -132,7 +163,67 @@ object CycloUpdates {
         File(context.cacheDir, "updates").listFiles()?.forEach { it.delete() }
         val dismissedAt = prefs.getLong(KeyDismissedAt, 0L)
         _dismissedUntil.value = if (dismissedAt > 0) dismissedAt + DismissMs else 0L
-        _available.value = prefs.getString(KeyRelease, null)?.let { decode(it) }?.takeIf { isNewer(context, it) }
+        dismissedTag = prefs.getString(KeyDismissedTag, null)
+        _betaEnabled.value = prefs.getBoolean(KeyBetaEnabled, false)
+        // As candidatas guardadas só valem para a versão instalada com que foram escolhidas.
+        val sameInstall = prefs.getString(KeyCheckedFor, null) == installedName(context)
+        stable = prefs.getString(KeyStable, null)?.takeIf { sameInstall }?.let { decode(it) }
+        beta = prefs.getString(KeyBeta, null)?.takeIf { sameInstall && _betaEnabled.value }?.let { decode(it) }
+        prefs.edit().remove(KeyLegacyRelease).apply()
+        publish()
+    }
+
+    /** O aviso segue as candidatas e a preferência: a estável primeiro, a beta só com ela ligada. */
+    @Synchronized
+    private fun publish(context: Context? = null) {
+        val next = ReleaseSelection.Candidates(stable, beta).pick(_betaEnabled.value)
+        // Uma beta nova (outra tag que não a dispensada) aparece mesmo com o aviso dispensado.
+        if (context != null && next != null && next.beta && _betaEnabled.value && next.tag != dismissedTag &&
+            _dismissedUntil.value > System.currentTimeMillis()
+        ) {
+            undoDismiss(context)
+        }
+        _available.value = next
+    }
+
+    /**
+     * Liga ou desliga as atualizações beta. Ligar (depois de confirmar o action-menu-beta-program)
+     * guarda logo e verifica já no GitHub (sem esperar pelo próximo arranque); nunca descarrega nem
+     * instala nada sozinho. Desligar tira logo a beta do estado (memória e cache): o aviso passa à
+     * estável elegível ou desaparece, e um download dessa beta (a decorrer ou acabado) é cancelado e
+     * apagado.
+     */
+    fun setBetaEnabled(context: Context, enabled: Boolean) {
+        val app = context.applicationContext
+        load(app)
+        if (_betaEnabled.value == enabled) return
+        // Mudar de canal invalida o ETag: um 304 diria "nada mudou" e a beta, apagada ao desligar,
+        // não voltava ao ligar outra vez (ligar → desligar → ligar).
+        val edit = prefs(app).edit().putBoolean(KeyBetaEnabled, enabled).remove(KeyEtag)
+        synchronized(this) {
+            _betaEnabled.value = enabled
+            if (!enabled) {
+                beta = null
+                edit.remove(KeyBeta)
+            }
+            edit.apply()
+            publish(app)
+        }
+        if (!enabled) dropIneligibleDownload(app)
+        // Uma verificação nova (sem o ETag da anterior, que era do outro canal).
+        checkJob?.cancel()
+        checkJob = null
+        if (enabled) checkIfDue(app, force = true)
+    }
+
+    /** O que está a descarregar (ou descarregado) deixou de ser a atualização disponível: larga-se. */
+    private fun dropIneligibleDownload(context: Context) {
+        val tag = downloadTag ?: return
+        if (tag == _available.value?.tag) return
+        cancelDownload()
+        autoInstall = false
+        downloadTag = null
+        File(context.cacheDir, "updates").listFiles()?.forEach { it.delete() }
     }
 
     /**
@@ -142,8 +233,6 @@ object CycloUpdates {
     fun checkIfDue(context: Context, force: Boolean = false) {
         val app = context.applicationContext
         load(app)
-        // A instalada pode ter mudado (a app foi atualizada): o que estava guardado deixa de valer.
-        _available.value = _available.value?.takeIf { isNewer(app, it) }
         if (!force && checkedThisProcess) return
         if (checkJob?.isActive == true) return
         checkedThisProcess = true
@@ -153,17 +242,22 @@ object CycloUpdates {
     private suspend fun check(context: Context) {
         val prefs = prefs(context)
         val repo = repositoryPath(context) ?: return
+        // O canal com que esta verificação começou; se mudar a meio, o resultado já não serve.
+        val withBeta = _betaEnabled.value
         val connection = try {
-            (URL("https://api.github.com/repos/$repo/releases?per_page=20").openConnection() as HttpURLConnection).apply {
+            (URL("https://api.github.com/repos/$repo/releases?per_page=100").openConnection() as HttpURLConnection).apply {
                 connectTimeout = ConnectTimeoutMs
                 readTimeout = ReadTimeoutMs
                 setRequestProperty("Accept", "application/vnd.github+json")
                 setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
                 setRequestProperty("User-Agent", "Cyclo-Android")
-                // O ETag só vale para a versão instalada com que se escolheu a release guardada (uma
-                // versão instalada diferente pode escolher outra release da mesma lista).
+                // O ETag só vale para a versão instalada e o canal com que se escolheram as candidatas
+                // guardadas (outra versão ou ligar a beta pode escolher outra release da mesma lista).
                 prefs.getString(KeyEtag, null)
-                    ?.takeIf { prefs.getString(KeyCheckedFor, null) == installedName(context) }
+                    ?.takeIf {
+                        prefs.getString(KeyCheckedFor, null) == installedName(context) &&
+                            prefs.getBoolean(KeyCheckedBeta, false) == withBeta
+                    }
                     ?.let { setRequestProperty("If-None-Match", it) }
             }
         } catch (e: IOException) {
@@ -177,16 +271,25 @@ object CycloUpdates {
                 }
                 HttpURLConnection.HTTP_OK -> {
                     val body = connection.inputStream.bufferedReader().use { it.readText() }
-                    val newest = newestRelease(body, installedVersion(context))
-                    prefs.edit()
-                        .putLong(KeyLastCheck, System.currentTimeMillis())
-                        .putString(KeyEtag, connection.getHeaderField("ETag"))
-                        .putString(KeyCheckedFor, installedName(context))
-                        .apply {
-                            if (newest != null) putString(KeyRelease, encode(newest)) else remove(KeyRelease)
-                        }
-                        .apply()
-                    _available.value = newest
+                    val found = ReleaseSelection.select(body, installedName(context))
+                    currentCoroutineContext().ensureActive()
+                    synchronized(this) {
+                        // A preferência mudou entretanto: este resultado é do outro canal.
+                        if (_betaEnabled.value != withBeta) return
+                        stable = found.stable
+                        beta = found.beta.takeIf { withBeta }
+                        prefs.edit()
+                            .putLong(KeyLastCheck, System.currentTimeMillis())
+                            .putString(KeyEtag, connection.getHeaderField("ETag"))
+                            .putString(KeyCheckedFor, installedName(context))
+                            .putBoolean(KeyCheckedBeta, withBeta)
+                            .apply {
+                                stable?.let { putString(KeyStable, encode(it)) } ?: remove(KeyStable)
+                                beta?.let { putString(KeyBeta, encode(it)) } ?: remove(KeyBeta)
+                            }
+                            .apply()
+                        publish(context)
+                    }
                 }
                 // 404 (repositório privado ou sem releases), 403 (limite da API), erros do servidor:
                 // fica o último resultado e tenta-se na próxima vez.
@@ -208,6 +311,7 @@ object CycloUpdates {
             .putLong(KeyDismissedAt, now)
             .putString(KeyDismissedTag, _available.value?.tag)
             .apply()
+        dismissedTag = _available.value?.tag
         _dismissedUntil.value = now + DismissMs
     }
 
@@ -217,6 +321,7 @@ object CycloUpdates {
             .remove(KeyDismissedAt)
             .remove(KeyDismissedTag)
             .apply()
+        dismissedTag = null
         _dismissedUntil.value = 0L
     }
 
@@ -225,6 +330,7 @@ object CycloUpdates {
         val url = update.apkUrl ?: return
         val app = context.applicationContext
         if (downloadJob?.isActive == true) return
+        downloadTag = update.tag
         _download.value = DownloadState.Running(0L, update.apkSize)
         downloadJob = scope.launch {
             val dir = File(app.cacheDir, "updates").apply { mkdirs() }
@@ -327,10 +433,16 @@ object CycloUpdates {
         }
     }
 
-    /** O .apk em [file] é deste pacote e tem a versão de [update] (lido do próprio ficheiro). */
+    /**
+     * O .apk em [file] é deste pacote, tem a versão de [update] e um versionCode MAIOR do que o
+     * instalado (lido do próprio ficheiro): o Android recusa instalar uma versão anterior.
+     */
     private fun matches(context: Context, file: File, update: AvailableUpdate): Boolean {
         val info = runCatching { context.packageManager.getPackageArchiveInfo(file.path, 0) }.getOrNull() ?: return false
         if (info.packageName != context.packageName) return false
+        val installedCode = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode }
+            .getOrNull() ?: return false
+        if (info.longVersionCode <= installedCode) return false
         val version = info.versionName?.let(AppVersion::parse) ?: return false
         return version.compareTo(update.version) == 0
     }
@@ -342,52 +454,12 @@ object CycloUpdates {
             .trim('/')
             .takeIf { it.count { c -> c == '/' } == 1 }
 
-    private fun isNewer(context: Context, update: AvailableUpdate): Boolean {
-        val installed = installedVersion(context) ?: return false
-        return update.version > installed
-    }
-
-    /** A release mais recente do que [installed], entre as publicadas (sem rascunhos). */
-    internal fun newestRelease(json: String, installed: AppVersion?): AvailableUpdate? {
-        if (installed == null) return null
-        val releases = JSONArray(json)
-        // Uma versão final instalada só recebe versões finais; uma alpha/beta/rc recebe qualquer
-        // versão mais recente (incluindo a final que a segue).
-        val acceptPrereleases = installed.isPrerelease
-        var best: AvailableUpdate? = null
-        for (i in 0 until releases.length()) {
-            val release = releases.optJSONObject(i) ?: continue
-            if (release.optBoolean("draft")) continue
-            val tag = release.optString("tag_name")
-            val version = AppVersion.parse(tag) ?: continue
-            if (version <= installed) continue
-            if (version.isPrerelease && !acceptPrereleases) continue
-            if (best != null && version <= best.version) continue
-            val assets = release.optJSONArray("assets") ?: JSONArray()
-            // O .apk da release (com.gaebriu.cyclo.apk; havendo mais do que um, o que tem a tag no nome).
-            var apk: JSONObject? = null
-            for (j in 0 until assets.length()) {
-                val asset = assets.optJSONObject(j) ?: continue
-                val name = asset.optString("name")
-                if (!name.endsWith(".apk", ignoreCase = true)) continue
-                if (apk == null || name.contains(tag, ignoreCase = true)) apk = asset
-            }
-            best = AvailableUpdate(
-                tag = tag,
-                version = version,
-                pageUrl = release.optString("html_url"),
-                apkUrl = apk?.optString("browser_download_url")?.takeIf { it.startsWith("https://") },
-                apkSize = apk?.optLong("size", 0L) ?: 0L,
-            )
-        }
-        return best
-    }
-
     private fun encode(update: AvailableUpdate): String = JSONObject()
         .put("tag", update.tag)
         .put("page", update.pageUrl)
         .put("apk", update.apkUrl ?: JSONObject.NULL)
         .put("size", update.apkSize)
+        .put("beta", update.beta)
         .toString()
 
     private fun decode(text: String): AvailableUpdate? = runCatching {
@@ -399,6 +471,7 @@ object CycloUpdates {
             pageUrl = o.getString("page"),
             apkUrl = if (o.isNull("apk")) null else o.getString("apk"),
             apkSize = o.optLong("size", 0L),
+            beta = o.optBoolean("beta", false),
         )
     }.getOrNull()
 

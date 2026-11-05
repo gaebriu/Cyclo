@@ -1,0 +1,36 @@
+Cyclo
+Copyright (c) 2026 Gabriel Martinho. All rights reserved.
+Proprietary software; see LICENSE.
+
+This repository and the Cyclo application include third-party materials.
+They are not owned by the Cyclo copyright holder and remain under their own
+licenses, which the Cyclo LICENSE does not replace or restrict.
+
+-------------------------------------------------------------------------------
+Inter typeface
+  Files:     app/src/main/res/font/inter_*.ttf (bundled in the app)
+  Copyright: Copyright (c) 2016 The Inter Project Authors
+             (https://github.com/rsms/inter)
+  License:   SIL Open Font License, Version 1.1
+             Full text: licenses/Inter-OFL.txt
+
+-------------------------------------------------------------------------------
+Gradle Wrapper
+  Files:     gradlew, gradlew.bat, gradle/wrapper/ (build tooling, not
+             bundled in the app)
+  License:   Apache License, Version 2.0
+             https://www.apache.org/licenses/LICENSE-2.0
+             (see the headers of gradlew and gradlew.bat)
+
+-------------------------------------------------------------------------------
+Runtime libraries bundled in the app
+  AndroidX (Core, Activity, Lifecycle, DataStore), Jetpack Compose
+  (UI, Graphics, Material 3) and the Kotlin standard library.
+  Copyright: their respective authors (The Android Open Source Project,
+             JetBrains s.r.o. and contributors)
+  License:   Apache License, Version 2.0
+             https://www.apache.org/licenses/LICENSE-2.0
+  Versions:  gradle/libs.versions.toml
+
+Libraries used only for building and testing (for example JUnit, Espresso
+and org.json) are not distributed in the app and keep their own licenses.

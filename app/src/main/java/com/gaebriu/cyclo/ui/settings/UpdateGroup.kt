@@ -56,6 +56,8 @@ import kotlin.math.roundToInt
 
 /** O que o new-update-group mostra (vem de [com.gaebriu.cyclo.update.CycloUpdates]). */
 class UpdateUi(
+    /** A tag da release (identifica o aviso: outra tag é outro aviso). */
+    val tag: String,
     /** A versão nova como se mostra ("Beta 1.0"). */
     val versionLabel: String,
     val download: DownloadState,

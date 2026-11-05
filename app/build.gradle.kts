@@ -13,9 +13,9 @@ android {
         applicationId = "com.gaebriu.cyclo"
         minSdk = 33
         targetSdk = 37
-        // versionName = a tag do GitHub ("release-1.0"; prerelease: "beta-1.4.5"). Mostra-se "Cyclo 1.0".
-        versionCode = 26
-        versionName = "release-1.0"
+        // versionName = a tag do GitHub ("release-1.1"; beta: "beta-2.0", marcada prerelease). Mostra-se "Cyclo 1.1".
+        versionCode = 27
+        versionName = "release-1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

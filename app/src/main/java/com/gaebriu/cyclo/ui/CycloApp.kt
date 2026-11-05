@@ -300,7 +300,8 @@ fun CycloApp(viewModel: CycloViewModel) {
     val updateDownload by CycloUpdates.download.collectAsState()
     val updateUi = availableUpdate
         ?.takeIf { updateDownload != DownloadState.Idle || System.currentTimeMillis() >= dismissedUntil }
-        ?.let { UpdateUi(it.version.label(), updateDownload, canDownload = it.apkUrl != null) }
+        ?.let { UpdateUi(it.tag, it.version.label(), updateDownload, canDownload = it.apkUrl != null) }
+    val betaUpdates by CycloUpdates.betaEnabled.collectAsState()
 
     // Instalar: o instalador nativo do Android (o utilizador confirma lá). Se não abrir, a barra de
     // baixo diz e "Try again" tenta outra vez.
@@ -478,6 +479,8 @@ fun CycloApp(viewModel: CycloViewModel) {
                         onSetAdvancedTextures = viewModel::setAdvancedTextures,
                         onClose = { overlayOpen = false },
                         update = updateUi,
+                        betaUpdates = betaUpdates,
+                        onSetBetaUpdates = { CycloUpdates.setBetaEnabled(context, it) },
                         onUpdateDownload = {
                             availableUpdate?.let { update ->
                                 if (update.apkUrl != null) {

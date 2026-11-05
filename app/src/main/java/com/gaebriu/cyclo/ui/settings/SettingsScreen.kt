@@ -1,7 +1,11 @@
 ﻿package com.gaebriu.cyclo.ui.settings
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -37,10 +41,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -122,6 +129,7 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
 import com.gaebriu.cyclo.ui.time.LocalTimeFormat
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 // Medidas do Figma (Settings, frame de 393 x 852).
@@ -150,6 +158,15 @@ private val RowTextVertical = 6.dp
 
 /** Onde o valor acaba quando há seta (a seta de 24 dp fica a 15 dp da direita, 9 dp depois do valor). */
 private val ValueEndWithArrow = 48.dp
+
+/**
+ * Depois de ligar ou desligar "Beta updates", quanto tempo uma mudança do aviso de atualização ainda
+ * faz a página subir até ele (a verificação no GitHub pode demorar uns segundos).
+ */
+private const val BetaRevealWindowMs = 15_000L
+
+/** A essa distância do topo, o aviso já pode entrar ou sair enquanto a página acaba de subir. */
+private val RevealNearTop = 4.dp
 
 /** Os menus das definições (só um aberto de cada vez). */
 private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Language }
@@ -186,6 +203,8 @@ fun SettingsScreen(
     onSetAdvancedTextures: (Boolean) -> Unit,
     onClose: () -> Unit,
     update: UpdateUi? = null,
+    betaUpdates: Boolean = false,
+    onSetBetaUpdates: (Boolean) -> Unit = {},
     onUpdateDownload: () -> Unit = {},
     onUpdateCancel: () -> Unit = {},
     onUpdateInstall: () -> Unit = {},
@@ -205,9 +224,14 @@ fun SettingsScreen(
     var menu by remember { mutableStateOf(SettingsMenu.None) }
     var menuAnchor by remember { mutableStateOf(Rect.Zero) }
     var githubOpen by remember { mutableStateOf(false) }
+    var betaSheetOpen by remember { mutableStateOf(false) }
     var ageEditing by remember { mutableStateOf(false) }
     val content = rememberBackdropLayer()
     val scroll = rememberScrollState()
+    val animationsEnabled = LocalVisualEffects.current.animationsEnabled
+    val latestUpdate by rememberUpdatedState(update)
+    // Até quando (uptime) uma mudança do aviso, depois de mexer em "Beta updates", sobe a página até ele.
+    var revealUntil by remember { mutableLongStateOf(0L) }
     // No fim da página a faixa de baixo some (nos últimos 48 dp de scroll), para não tapar a versão.
     val rampPx = with(density) { BottomFadeRamp.toPx() }
     val bottomAmount by remember(scroll, rampPx) {
@@ -255,11 +279,39 @@ fun SettingsScreen(
             Spacer(Modifier.height(TitleToContent))
 
             // new-update-group: só com uma versão nova no GitHub (e não dispensada há menos de
-            // 24 h). Entra e sai com zoom, fade e o lugar a abrir e a fechar.
+            // 12 h). Entra e sai com zoom, fade e o lugar a abrir e a fechar. O que se vê ([shownTag])
+            // segue a atualização disponível; depois de mexer em "Beta updates" (lá em baixo), a
+            // página sobe primeiro até ao topo (fechada a folha) e só então o aviso entra, sai ou
+            // troca, à vista e sem empurrar as linhas debaixo do dedo. Um aviso que deixou de ser o
+            // disponível nunca responde, mesmo enquanto sai.
+            var shownTag by remember { mutableStateOf(update?.tag) }
             var shownUpdate by remember { mutableStateOf(update) }
-            if (update != null) shownUpdate = update
+            if (update != null && update.tag == shownTag) shownUpdate = update
+            LaunchedEffect(update?.tag) {
+                val target = latestUpdate?.tag
+                if (target == shownTag) return@LaunchedEffect
+                if (SystemClock.uptimeMillis() < revealUntil) {
+                    snapshotFlow { betaSheetOpen }.first { !it }
+                    if (scroll.value > 0) {
+                        if (animationsEnabled) {
+                            // O aviso começa a mexer quando a página já está a chegar (a cauda da
+                            // mola, os últimos píxeis, não o atrasa).
+                            val climb = launch { scroll.animateScrollTo(0, CycloSprings.Page.float) }
+                            val near = with(density) { RevealNearTop.roundToPx() }
+                            // Se o dedo interromper a subida, o aviso muda na mesma (sem ficar à espera).
+                            snapshotFlow { scroll.value <= near || !climb.isActive }.first { it }
+                        } else {
+                            scroll.scrollTo(0)
+                        }
+                    }
+                    revealUntil = 0L
+                }
+                shownTag = target
+                latestUpdate?.let { shownUpdate = it }
+            }
+            fun forShown(tag: String, action: () -> Unit): () -> Unit = { if (latestUpdate?.tag == tag) action() }
             AnimatedVisibility(
-                visible = update != null,
+                visible = shownTag != null,
                 enter = if (LocalVisualEffects.current.animationsEnabled) {
                     fadeIn(CycloSprings.Enter.float) + scaleIn(CycloSprings.Enter.float, initialScale = CycloMotion.MenuStartScale) +
                         expandVertically(CycloSprings.Enter.intSize, expandFrom = Alignment.Top)
@@ -273,16 +325,34 @@ fun SettingsScreen(
                     fadeOut(CycloMotion.FadeSpring)
                 },
             ) {
-                shownUpdate?.let { shown ->
-                    Column {
-                        UpdateGroup(
-                            update = shown,
-                            onDownload = onUpdateDownload,
-                            onCancel = onUpdateCancel,
-                            onInstall = onUpdateInstall,
-                            onDismiss = onUpdateDismiss,
-                        )
-                        Spacer(Modifier.height(SectionGap))
+                shownUpdate?.let { first ->
+                    // Outra versão no lugar da que se via (ex.: a beta dá lugar à estável): o
+                    // conteúdo funde-se e a altura acompanha. O mesmo aviso (progresso do download)
+                    // não anima: a chave é a tag.
+                    AnimatedContent(
+                        targetState = first,
+                        contentKey = { it.tag },
+                        transitionSpec = {
+                            if (animationsEnabled) {
+                                (fadeIn(CycloSprings.Enter.float) togetherWith fadeOut(CycloSprings.Exit.float))
+                                    .using(SizeTransform(clip = false) { _, _ -> CycloSprings.Enter.intSize })
+                            } else {
+                                fadeIn(CycloMotion.FadeSpring) togetherWith fadeOut(CycloMotion.FadeSpring)
+                            }
+                        },
+                        label = "update",
+                    ) { state ->
+                        val shown = shownUpdate?.takeIf { it.tag == state.tag } ?: state
+                        Column {
+                            UpdateGroup(
+                                update = shown,
+                                onDownload = forShown(shown.tag, onUpdateDownload),
+                                onCancel = forShown(shown.tag, onUpdateCancel),
+                                onInstall = forShown(shown.tag, onUpdateInstall),
+                                onDismiss = forShown(shown.tag, onUpdateDismiss),
+                            )
+                            Spacer(Modifier.height(SectionGap))
+                        }
                     }
                 }
             }
@@ -366,6 +436,23 @@ fun SettingsScreen(
             SectionLabel(stringResource(R.string.settings_about), labelStyle)
             SettingsButton(stringResource(R.string.settings_github), onClick = { githubOpen = true })
             Description(stringResource(R.string.settings_version, rememberVersionLabel()), labelStyle)
+            // beta-updates (2006:691): a 15 dp da versão. Ligar pede primeiro o
+            // action-menu-beta-program (só liga ao confirmar); desligar é logo, sem aviso.
+            Spacer(Modifier.height(RowGap))
+            SwitchRow(
+                label = stringResource(R.string.settings_beta_updates),
+                on = betaUpdates,
+                toggleHaptic = betaUpdates,
+                onToggle = {
+                    if (betaUpdates) {
+                        revealUntil = SystemClock.uptimeMillis() + BetaRevealWindowMs
+                        onSetBetaUpdates(false)
+                    } else {
+                        betaSheetOpen = true
+                    }
+                },
+            )
+            Description(stringResource(R.string.settings_beta_updates_description), labelStyle)
         }
 
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(content)) {
@@ -466,14 +553,39 @@ fun SettingsScreen(
                     },
                 )
             }
+
+            // action-menu-beta-program (Componentes 5, 2007:111): a mesma folha que a do GitHub.
+            // "Continue" liga as atualizações beta (e verifica logo); fechar a folha deixa-as desligadas.
+            BottomSheetHost(
+                visible = betaSheetOpen,
+                onDismiss = { betaSheetOpen = false },
+                bottomMargin = bottomInset,
+            ) {
+                CycloBigSheet(
+                    title = stringResource(R.string.beta_sheet_title),
+                    texts = listOf(
+                        stringResource(R.string.beta_sheet_text_1),
+                        stringResource(R.string.beta_sheet_text_2),
+                        stringResource(R.string.beta_sheet_text_3),
+                        stringResource(R.string.beta_sheet_text_4),
+                    ),
+                    buttonText = stringResource(R.string.beta_sheet_continue),
+                    onButtonClick = {
+                        betaSheetOpen = false
+                        revealUntil = SystemClock.uptimeMillis() + BetaRevealWindowMs
+                        onSetBetaUpdates(true)
+                    },
+                )
+            }
         }
     }
 
     // Vem depois do voltar de quem mostra as definições: fecha primeiro o que estiver aberto.
-    BackHandler(enabled = menu != SettingsMenu.None || githubOpen || ageEditing) {
+    BackHandler(enabled = menu != SettingsMenu.None || githubOpen || betaSheetOpen || ageEditing) {
         when {
             menu != SettingsMenu.None -> menu = SettingsMenu.None
             githubOpen -> githubOpen = false
+            betaSheetOpen -> betaSheetOpen = false
             else -> ageEditing = false
         }
     }
@@ -606,9 +718,19 @@ private fun LabelValueRow(
     }
 }
 
-/** A linha "Bedtime" com o interruptor (y/n). Toda a linha liga e desliga. */
+/**
+ * A linha "Bedtime" com o interruptor (y/n). Toda a linha liga e desliga.
+ * [toggleHaptic] false: o toque não muda já o interruptor (abre uma confirmação), por isso tem o
+ * háptico de botão e não o de ligar.
+ */
 @Composable
-private fun SwitchRow(label: String, on: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
+private fun SwitchRow(
+    label: String,
+    on: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    toggleHaptic: Boolean = true,
+) {
     val view = LocalView.current
     val stateText = stringResource(if (on) R.string.saved_state_on else R.string.saved_state_off)
     Box(
@@ -617,10 +739,10 @@ private fun SwitchRow(label: String, on: Boolean, onToggle: () -> Unit, modifier
             .heightIn(min = CycloDimens.InputHeight)
             .cycloPressable(
                 onClick = {
-                    CycloHaptics.toggle(view, !on)
+                    if (toggleHaptic) CycloHaptics.toggle(view, !on)
                     onToggle()
                 },
-                haptic = false,
+                haptic = !toggleHaptic,
                 role = Role.Switch,
             )
             .semantics(mergeDescendants = true) {

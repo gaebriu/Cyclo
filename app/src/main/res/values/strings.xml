@@ -116,6 +116,9 @@
     <string name="settings_github">View on GitHub</string>
     <!-- Ex.: "Cyclo Alpha 0.7.3" (a fase e o número, do versionName "alpha-0.7.3") -->
     <string name="settings_version">Cyclo %1$s</string>
+    <!-- beta-updates (Cyclo-2 2006:691) e o texto de ajuda por baixo -->
+    <string name="settings_beta_updates">Beta updates</string>
+    <string name="settings_beta_updates_description">Get early access to new features and improvements. Beta versions may contain bugs or unfinished features</string>
 
     <!-- new-update-group (Definições): uma versão nova no GitHub -->
     <!-- Ex.: "Cyclo Alpha 0.7.4 is here" -->
@@ -143,6 +146,14 @@
     <string name="github_sheet_text_1">Anyone can see how Cyclo is made</string>
     <string name="github_sheet_text_2">You can take a look, report a bug, or suggest an idea</string>
     <string name="github_sheet_open">Open GitHub</string>
+
+    <!-- action-menu-beta-program (Cyclo-2, Componentes 5, 2007:111) -->
+    <string name="beta_sheet_title">Before continuing, please keep in mind</string>
+    <string name="beta_sheet_text_1">Once you install a beta version, you cannot return to a previous stable version without uninstalling the app</string>
+    <string name="beta_sheet_text_2">Some data may be incompatible with older stable versions</string>
+    <string name="beta_sheet_text_3">Regular updates will continue as usual, including future stable releases</string>
+    <string name="beta_sheet_text_4">These limitations apply once you update to a beta version</string>
+    <string name="beta_sheet_continue">Continue</string>
     <string name="github_url" translatable="false">https://github.com/gaebriu/Cyclo</string>
     <string name="github_open_failed">Couldn\'t open GitHub</string>
 

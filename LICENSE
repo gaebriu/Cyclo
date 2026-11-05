@@ -1,0 +1,212 @@
+Cyclo — Proprietary Software License (All Rights Reserved)
+
+Copyright (c) 2026 Gabriel Martinho. All rights reserved.
+
+Cyclo is proprietary software. It is NOT open-source software and is not
+released under MIT, Apache, GPL, LGPL, AGPL, BSD, Creative Commons or any
+other open-source or public license. The source code is publicly visible on
+GitHub so that people can read it, review it, discuss it and learn from it.
+Public visibility does not, by itself, grant any permission to reuse it.
+
+
+1. DEFINITIONS
+
+"Copyright Holder" means Gabriel Martinho.
+
+"Cyclo" or "the Software" means the Cyclo application and the materials in
+this repository and in its official releases that were created for Cyclo,
+including, to the extent they are protected by law:
+
+  (a) the source code and object code, and the original expression of the
+      application's architecture and implementations;
+  (b) the user interface and the original interface designs;
+  (c) original icons, illustrations, animations and other visual assets;
+  (d) original texts, in-app copy and documentation;
+  (e) any other original creative material associated with the project.
+
+"Official Release" means an APK file published by the Copyright Holder as a
+release asset of the official Cyclo repository (https://github.com/gaebriu/Cyclo),
+or delivered by the in-app updater from that repository.
+
+"Third-Party Materials" means anything in this repository or in an Official
+Release that was not created by the Copyright Holder (see Section 8).
+
+
+2. RESERVATION OF RIGHTS
+
+Cyclo is protected by copyright, including the law on the legal protection
+of computer programs (in Portugal, Decree-Law No. 252/94, which transposed
+the European rules now codified in Directive 2009/24/EC) and the Portuguese
+Code of Copyright and Related Rights (Código do Direito de Autor e dos
+Direitos Conexos) for the non-software materials.
+
+All rights not expressly granted in this License are reserved by the
+Copyright Holder. No right or license is granted by implication, estoppel or
+otherwise. Nothing in this License transfers ownership of Cyclo or of any of
+its materials.
+
+What is NOT claimed: in line with Article 1(2) of Directive 2009/24/EC,
+copyright protects the expression of a program, not the ideas and principles
+behind it. This License does not claim exclusive rights over ideas,
+principles, algorithms, functionality, programming languages, data or file
+formats, the sleep-cycle method, or the published research Cyclo relies on.
+Protection of each material applies only to the extent that it is the
+author's own intellectual creation and is protected by applicable law.
+
+
+3. WHAT YOU MAY DO
+
+Without asking for permission, you may:
+
+  (a) view the public repository and read and inspect the source code;
+  (b) make local copies of the repository (for example, by cloning it) solely
+      for your own personal inspection, study and review of how Cyclo works,
+      without redistributing them and without using them to build, publish or
+      distribute any other software or product;
+  (c) discuss Cyclo publicly, and publish reviews, articles, technical
+      analyses, screenshots and videos of the application;
+  (d) quote short excerpts of the source code or texts where the law allows
+      it (for example, for criticism, review, teaching or research), with
+      attribution to Cyclo and its author;
+  (e) mention the Cyclo name to refer to the actual project;
+  (f) download, install and use Official Releases on your own devices for
+      their intended purpose, including receiving updates through the in-app
+      updater.
+
+
+4. WHAT REQUIRES PRIOR WRITTEN AUTHORIZATION
+
+Except as allowed in Section 3, in Section 5 or by applicable law, you may
+not, without the prior written authorization of the Copyright Holder:
+
+  (a) reproduce or copy the source code, in whole or in part, outside the
+      permissions in Section 3 and Section 5;
+  (b) modify, adapt, translate or otherwise alter the Software;
+  (c) create derivative applications or other derivative works based on
+      Cyclo;
+  (d) redistribute Official Release APK files (for example, re-hosting them
+      on other websites or app stores);
+  (e) publish modified, rebuilt or repackaged APKs or other builds of Cyclo;
+  (f) incorporate Cyclo's code or other proprietary materials into other
+      software, products or services;
+  (g) commercially exploit the Software or its proprietary materials;
+  (h) use Cyclo's original assets (icons, illustrations, animations, interface
+      designs, texts) in other products or projects.
+
+These restrictions apply to the extent permitted by applicable law. Ordinary
+use of an Official Release is never restricted by this Section.
+
+
+5. PLATFORM PERMISSIONS (GITHUB)
+
+This repository is hosted on GitHub and is intentionally public (among other
+reasons, the in-app updater relies on its public releases). Under the GitHub
+Terms of Service (section D.5, "License Grant to Other Users"), making a
+repository public grants other GitHub users a nonexclusive, worldwide license
+to use, display, perform and reproduce (by forking) its content "through the
+Service as permitted by GitHub's functionality". This License does not and
+cannot remove those platform permissions.
+
+This License grants nothing beyond them. A fork on GitHub is a copy within
+the GitHub service; it does not authorize anyone to build, modify,
+redistribute, publish or commercially exploit Cyclo, or any part of it,
+outside what Sections 3 and 4 allow. Content uploaded to GitHub is also
+subject to the rights GitHub obtains under its own Terms of Service, which
+are a matter between each user and GitHub.
+
+
+6. MANDATORY RIGHTS AND STATUTORY EXCEPTIONS
+
+Nothing in this License limits any right or exception that applicable law
+grants and that cannot be excluded by contract or license, including, where
+they apply, the rights of a lawful user of a computer program under
+Articles 5 and 6 of Directive 2009/24/EC and the corresponding Portuguese
+provisions (for example, making a back-up copy where necessary for use,
+observing, studying or testing the functioning of the program to determine
+its underlying ideas and principles, and decompilation for interoperability
+under the conditions set by law), as well as the exceptions and limitations
+to copyright for quotation, criticism, review, teaching and research. Under
+Article 8 of that Directive, contractual provisions contrary to Article 6 or
+to Article 5(2) and (3) are null and void; this License is to be read so
+that it never conflicts with them.
+
+If any provision of this License is held to be invalid or unenforceable, it
+is limited to the minimum extent necessary and the rest of the License
+remains in effect.
+
+
+7. TEXT AND DATA MINING
+
+To the extent permitted by Article 4(3) of Directive (EU) 2019/790 and the
+Portuguese provisions that transpose it, the Copyright Holder expressly
+reserves the use of Cyclo's materials for text and data mining, including
+for training machine-learning or artificial-intelligence models. This
+reservation does not affect the exceptions that cannot be reserved (such as
+text and data mining for scientific research under Article 3 of that
+Directive), nor any rights GitHub obtains under its Terms of Service.
+
+
+8. THIRD-PARTY MATERIALS
+
+The Copyright Holder does not claim ownership of Third-Party Materials. They
+remain subject to their own licenses and copyright notices, which this
+License does not replace, override or restrict. They include:
+
+  - the Inter typeface (app/src/main/res/font/), licensed under the SIL Open
+    Font License 1.1 (see licenses/Inter-OFL.txt);
+  - the Gradle Wrapper (gradlew, gradlew.bat, gradle/wrapper/), licensed
+    under the Apache License 2.0;
+  - the libraries Cyclo depends on (for example AndroidX, Jetpack Compose,
+    DataStore and the Kotlin standard library), each under its own license.
+
+See the NOTICE file for more detail.
+
+
+9. NAME, LOGO AND VISUAL IDENTITY
+
+The name "Cyclo", its logo, app icon and visual identity identify the
+official project. This License does not claim, and should not be read as
+implying, that "Cyclo" is a registered trademark; trademark registration is
+a separate legal matter. Independently of registration:
+
+  (a) you may freely mention Cyclo, refer to it as the original project and
+      use its name in reviews, articles, screenshots and videos;
+  (b) you may not present an unofficial, modified or repackaged version as an
+      official Cyclo release;
+  (c) you may not imply any official affiliation with, endorsement by, or
+      authorization from the Copyright Holder without written permission;
+  (d) reusing the Cyclo logo, app icon or branding in another product or
+      project requires written authorization.
+
+
+10. COMMERCIAL AND OTHER LICENSES
+
+Companies, developers and other interested parties may contact the Copyright
+Holder to request a commercial license or any other permission not granted
+here, through the GitHub account https://github.com/gaebriu. A permission
+exists only if the Copyright Holder grants it expressly and in writing; no
+commercial permission is granted automatically, by silence, or by this
+License.
+
+
+11. CONTRIBUTIONS
+
+Contributions are accepted by invitation only. See CONTRIBUTING.md.
+
+
+12. NO WARRANTY
+
+To the extent permitted by applicable law, Cyclo is provided "as is",
+without warranties of any kind. Cyclo gives general sleep-planning
+suggestions and is not medical advice. Nothing in this Section limits any
+liability or consumer right that cannot be limited or excluded under
+applicable law.
+
+
+13. GOVERNING LAW
+
+This License is governed by Portuguese law, without prejudice to mandatory
+consumer-protection rules and other mandatory rules of the country where a
+user lives.
+
+This document is not a legal opinion and has not been reviewed by a lawyer.
