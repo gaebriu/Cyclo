@@ -29,23 +29,36 @@ fun DrawScope.drawGaussianGlow(
     sigmaX: Float,
     sigmaY: Float,
     peakAlpha: Float,
+    blendMode: androidx.compose.ui.graphics.BlendMode = DrawScope.DefaultBlendMode,
 ) {
     if (peakAlpha <= 0f || sigmaX <= 0f || sigmaY <= 0f) return
-
-    val stops = Array(GlowStops + 1) { i ->
-        val t = i / GlowStops.toFloat()
-        val d = t * GlowReach
-        t to color.copy(alpha = (peakAlpha * exp(-d * d / 2f)).coerceIn(0f, 1f))
-    }
+    // O gradiente é sempre o mesmo (um círculo de raio 1 com o perfil gaussiano): faz-se uma vez por
+    // cor e escala-se aqui. Antes refazia-se a cada desenho (25 cores), e um brilho animado refazia-o
+    // a cada fotograma. O pico entra pela opacidade do desenho (sempre ≤ 1 nestes brilhos).
+    val brush = unitGlowBrush(color)
     val radius = GlowReach * sigmaX
     withTransform({
         translate(center.x, center.y)
-        scale(1f, sigmaY / sigmaX, Offset.Zero)
+        scale(radius, radius * sigmaY / sigmaX, Offset.Zero)
     }) {
         drawCircle(
-            brush = Brush.radialGradient(*stops, center = Offset.Zero, radius = radius),
-            radius = radius,
+            brush = brush,
+            radius = 1f,
             center = Offset.Zero,
+            alpha = peakAlpha.coerceIn(0f, 1f),
+            blendMode = blendMode,
         )
     }
+}
+
+private val glowBrushes = HashMap<Color, Brush>()
+
+/** O perfil gaussiano num círculo de raio 1 (opaco no centro), para [color]. */
+private fun unitGlowBrush(color: Color): Brush = glowBrushes.getOrPut(color) {
+    val stops = Array(GlowStops + 1) { i ->
+        val t = i / GlowStops.toFloat()
+        val d = t * GlowReach
+        t to color.copy(alpha = exp(-d * d / 2f))
+    }
+    Brush.radialGradient(*stops, center = Offset.Zero, radius = 1f)
 }

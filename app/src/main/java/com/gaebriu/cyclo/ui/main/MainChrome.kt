@@ -40,6 +40,8 @@ import com.gaebriu.cyclo.ui.components.cycloPressable
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.ProgressiveBlurEdge
 import com.gaebriu.cyclo.ui.effects.drawGaussianGlow
+import com.gaebriu.cyclo.ui.effects.drawFigmaNoise
+import com.gaebriu.cyclo.ui.effects.rememberFigmaNoise
 import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
@@ -49,9 +51,9 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlin.math.sqrt
 
 // Medidas do Figma (frame de 393 x 852).
-/** Altura da barra de navegação (navigation-bar: 177 x 72 dp, raio 39). */
+/** Altura da barra de navegação (navigation-bar, Cyclo-2 2001:124: 264 x 72 dp, raio 39). */
 val NavigationBarHeight = 72.dp
-private val NavigationBarWidth = 177.dp
+private val NavigationBarWidth = 264.dp
 private val NavigationBarRadius = 39.dp
 
 /** Pílula do botão escolhido (feed-icon-background): 72 x 54 dp, a 9 dp das pontas. */
@@ -59,8 +61,8 @@ private val IndicatorWidth = 72.dp
 private val IndicatorHeight = 54.dp
 private val IndicatorInset = 9.dp
 
-/** Os dois botões da barra: as pílulas estão a 9 e a 96 dp da esquerda. */
-private val SecondIndicatorStart = 96.dp
+/** Os três botões da barra (Feed, rotinas guardadas, Tracking): as pílulas estão a 9, 96 e 183 dp da esquerda. */
+private val IndicatorPitch = 87.dp
 
 /** Mini-menu (mini-menu-group): 39 dp de altura, raio 24; os ícones de 15 dp estão a 39 dp uns dos outros. */
 val MiniMenuTop = 48.dp
@@ -88,8 +90,8 @@ private const val SavedFillMiddle = 0.39f
 private const val GlowPulseShape = 0.86f
 private const val GlowPulseIntensity = 0.55f
 
-/** Os dois separadores principais. */
-enum class MainTab { Feed, Saved }
+/** Os três separadores principais, pela ordem das páginas (e da barra de navegação). */
+enum class MainTab { Feed, Saved, Tracking }
 
 /**
  * Brilho do topo do Feed e das rotinas guardadas, desenhado só com gradientes (ver
@@ -110,6 +112,7 @@ fun FeedTopGlow(
     modifier: Modifier = Modifier,
 ) {
     val effects = LocalVisualEffects.current
+    val noise = rememberFigmaNoise()
     Spacer(
         modifier = modifier
             .fillMaxSize()
@@ -138,16 +141,29 @@ fun FeedTopGlow(
                 val c = sky()
                 val edgeFill = lerp(FeedFill, SavedFillEdge, s)
                 val middleFill = lerp(FeedFill, SavedFillMiddle, s)
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        0f to c.top.copy(alpha = edgeFill),
-                        0.5f to c.top.copy(alpha = middleFill),
-                        1f to c.base.copy(alpha = edgeFill),
-                        startY = 0f,
-                        endY = b * 2f,
-                    ),
-                    blendMode = BlendMode.SrcIn,
+                val fill = Brush.verticalGradient(
+                    0f to c.top.copy(alpha = edgeFill),
+                    0.5f to c.top.copy(alpha = middleFill),
+                    1f to c.base.copy(alpha = edgeFill),
+                    startY = 0f,
+                    endY = b * 2f,
                 )
+                drawRect(brush = fill, blendMode = BlendMode.SrcIn)
+                // Noise do Figma (Cyclo-2: MONOTONE 2, #FCFCFE a 39 %), só dentro do brilho: a opacidade
+                // da elipse desfocada (a mancha vezes o preenchimento) recorta o grão. É textura:
+                // desligada com as "Advanced textures".
+                if (effects.textures) {
+                    drawFigmaNoise(noise.value) {
+                        drawGaussianGlow(
+                            color = Color.White,
+                            center = Offset(size.width / 2f, b),
+                            sigmaX = sigmaX,
+                            sigmaY = sigmaY,
+                            peakAlpha = GlowGroupAlpha * a * b / (2f * sigmaX * sigmaY) * intensity,
+                        )
+                        drawRect(brush = fill, blendMode = BlendMode.DstIn)
+                    }
+                }
             },
     )
 }
@@ -196,16 +212,22 @@ class MiniMenuAction(val iconPath: String, val description: String, val onClick:
  * zonas das vizinhas sobrepõem-se 9 dp (aí ganha a da direita). As zonas saem 4,5 dp por cima e
  * por baixo da pílula, sem a empurrar.
  *
- * @param firstSlot de 0 a 1: quanto do primeiro botão existe. A 0 fica escondido e o menu mais
- *                  curto (a lupa só existe nas rotinas guardadas); pelo meio, alarga e aparece.
+ * Só com o último botão (a roda dentada, na Tracking, 2001:255) é um círculo de 39 dp: as pontas de
+ * 3 dp somem com os outros botões.
+ *
+ * @param slot de 0 a 1, para cada botão: quanto dele existe. A 0 fica escondido e o menu mais curto
+ *             (a lupa só existe nas rotinas guardadas, o "+" não existe na Tracking); pelo meio,
+ *             alarga e aparece. Segue a posição contínua das páginas.
  */
 @Composable
-fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, firstSlot: () -> Float = { 1f }) {
-    val first = firstSlot().coerceIn(0f, 1f)
+fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot: (Int) -> Float = { 1f }) {
+    val amounts = actions.indices.map { slot(it).coerceIn(0f, 1f) }
+    // As pontas de 3 dp só existem com mais de um botão (sozinha, a roda dentada é um círculo).
+    val edge = amounts.dropLast(1).maxOrNull() ?: 0f
     Box(
         modifier = modifier
             .height(MiniMenuHeight)
-            .width(MiniMenuEdge * 2 + MiniMenuSlot * (actions.size - 1) + MiniMenuSlot * first)
+            .width(MiniMenuEdge * 2 * edge + MiniMenuSlot * amounts.sum())
             .cycloGlassPill(MiniMenuRadius, FigmaBlur.MiniMenu),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -213,12 +235,12 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, first
         // ficava cortada a 39 dp e deslocada, e os ícones apareciam 4,5 dp acima do centro.
         Row(
             modifier = Modifier
-                .padding(horizontal = MiniMenuEdge)
+                .padding(horizontal = MiniMenuEdge * edge)
                 .requiredHeight(CycloDimens.TouchTarget),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             actions.forEachIndexed { index, action ->
-                val amount = if (index == 0) first else 1f
+                val amount = amounts[index]
                 if (amount <= 0f) return@forEachIndexed
                 Box(
                     modifier = Modifier.size(width = MiniMenuSlot * amount, height = CycloDimens.TouchTarget),
@@ -248,19 +270,19 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, first
 }
 
 /**
- * Barra de navegação (navigation-bar): Feed e rotinas guardadas. A pílula do botão escolhido
- * acompanha a página: segue o dedo durante o swipe e a mola da página ao tocar; o ícone escolhido
- * é branco e o outro cinzento.
+ * Barra de navegação (navigation-bar, Cyclo-2 2001:124): Feed, rotinas guardadas e Tracking. A
+ * pílula do botão escolhido acompanha a página: segue o dedo durante o swipe e a mola da página ao
+ * tocar; o ícone escolhido é branco e os outros cinzentos.
  *
- * @param pagePosition de 0 (Feed) a 1 (rotinas guardadas), a posição contínua das páginas.
+ * @param pagePosition de 0 (Feed) a 2 (Tracking), a posição contínua das páginas.
+ * @param descriptions o nome de cada separador (TalkBack), pela ordem de [MainTab].
  */
 @Composable
 fun MainNavigationBar(
     selected: MainTab,
     pagePosition: () -> Float,
     onSelect: (MainTab) -> Unit,
-    feedDescription: String,
-    savedDescription: String,
+    descriptions: List<String>,
     modifier: Modifier = Modifier,
 ) {
     val effects = LocalVisualEffects.current
@@ -271,12 +293,13 @@ fun MainNavigationBar(
             .drawBehind {
                 // feed-icon-background: #313233 a 39 % em Luminosity.
                 val blend = effects.luminosity
-                val p = pagePosition().coerceIn(0f, 1f)
-                val x = lerp(IndicatorInset.toPx(), SecondIndicatorStart.toPx(), p)
-                // A meio caminho entre os dois separadores, a pílula estica-se na largura e afina
-                // na altura (uma gota a passar de um lado para o outro); nos separadores tem a
-                // forma do Figma. Segue a mesma posição contínua (dedo, toque, voltar).
-                val stretch = if (effects.animationsEnabled) kotlin.math.sin(p * kotlin.math.PI.toFloat()) else 0f
+                val p = pagePosition().coerceIn(0f, (MainTab.entries.size - 1).toFloat())
+                val x = IndicatorInset.toPx() + IndicatorPitch.toPx() * p
+                // A meio caminho entre dois separadores, a pílula estica-se na largura e afina na
+                // altura (uma gota a passar de um lado para o outro); nos separadores tem a forma do
+                // Figma. Segue a mesma posição contínua (dedo, toque, voltar), separador a separador.
+                val between = p - kotlin.math.floor(p)
+                val stretch = if (effects.animationsEnabled) kotlin.math.sin(between * kotlin.math.PI.toFloat()) else 0f
                 val width = IndicatorWidth.toPx() * (1f + IndicatorStretchX * stretch)
                 val height = IndicatorHeight.toPx() * (1f - IndicatorSquashY * stretch)
                 val left = x + (IndicatorWidth.toPx() - width) / 2f
@@ -292,21 +315,21 @@ fun MainNavigationBar(
             },
     ) {
         Row(modifier = Modifier.padding(start = IndicatorInset, top = IndicatorInset)) {
-            NavigationItem(
-                iconPath = CycloAppIconPaths.Home,
-                description = feedDescription,
-                amount = { 1f - pagePosition().coerceIn(0f, 1f) },
-                isSelected = selected == MainTab.Feed,
-                onClick = { onSelect(MainTab.Feed) },
-            )
-            Spacer(Modifier.width(SecondIndicatorStart - IndicatorInset - IndicatorWidth))
-            NavigationItem(
-                iconPath = CycloAppIconPaths.Bookmark,
-                description = savedDescription,
-                amount = { pagePosition().coerceIn(0f, 1f) },
-                isSelected = selected == MainTab.Saved,
-                onClick = { onSelect(MainTab.Saved) },
-            )
+            MainTab.entries.forEach { tab ->
+                if (tab.ordinal > 0) Spacer(Modifier.width(IndicatorPitch - IndicatorWidth))
+                NavigationItem(
+                    iconPath = when (tab) {
+                        MainTab.Feed -> CycloAppIconPaths.Home
+                        MainTab.Saved -> CycloAppIconPaths.Bookmark
+                        MainTab.Tracking -> CycloAppIconPaths.BarChart
+                    },
+                    description = descriptions[tab.ordinal],
+                    // O ícone acende à medida que a pílula chega a ele.
+                    amount = { (1f - kotlin.math.abs(pagePosition() - tab.ordinal)).coerceIn(0f, 1f) },
+                    isSelected = selected == tab,
+                    onClick = { onSelect(tab) },
+                )
+            }
         }
     }
 }

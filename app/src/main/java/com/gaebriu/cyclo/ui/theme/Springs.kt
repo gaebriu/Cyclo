@@ -159,6 +159,22 @@ object CycloSprings {
 
     /** A bola do medidor a crescer quando se segura e a voltar ao largar: rápida, um toque de gel. */
     val MoodHold = CycloSpring(response = 0.24f, dampingFraction = 0.66f)
+
+    /*
+     * Gráficos da Tracking (Beta 2.0). As colunas e os blocos crescem da base na primeira entrada da
+     * sessão, em cascata, todos a partir do MESMO relógio ([springProgress]); depois, quando um valor
+     * muda (o sono de hoje registado, um café a mais), a coluna ou o bloco vai para o novo valor com
+     * [ChartChange].
+     */
+
+    /** Uma coluna ou um bloco a crescer da base: assenta com um ressalto quase invisível. */
+    val ChartGrow = CycloSpring(response = 0.6f, dampingFraction = 0.82f)
+
+    /** Um valor do gráfico a mudar: mais rápido do que a entrada, sem tremer. */
+    val ChartChange = CycloSpring(response = 0.42f, dampingFraction = 0.9f)
+
+    /** O sleep-evaluation-prompt a sair (registado ou fechado): encolhe sem ressalto, mais rápido do que entra. */
+    val CardCollapse = CycloSpring(response = 0.38f, dampingFraction = 1f)
 }
 
 /**

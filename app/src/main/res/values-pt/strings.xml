@@ -19,6 +19,7 @@
     <!-- Barra de navegação e mini-menu -->
     <string name="main_tab_feed">Feed</string>
     <string name="main_tab_saved">Rotinas guardadas</string>
+    <string name="main_tab_tracking">Registos</string>
     <string name="main_search">Procurar rotinas</string>
     <string name="main_add_routine">Adicionar rotina</string>
     <string name="main_settings">Definições</string>
@@ -118,8 +119,6 @@
     <string name="settings_github">Ver no GitHub</string>
     <!-- Ex.: "Cyclo Alpha 0.7.3" -->
     <string name="settings_version">Cyclo %1$s</string>
-    <string name="settings_beta_updates">Atualizações beta</string>
-    <string name="settings_beta_updates_description">Experimenta mais cedo novas funcionalidades e melhorias. As versões beta podem ter erros ou funcionalidades por acabar</string>
 
     <!-- new-update-group (Definições): uma versão nova no GitHub -->
     <!-- Ex.: "Chegou o Cyclo Alpha 0.7.4" -->
@@ -146,13 +145,6 @@
     <string name="github_sheet_text_2">Podes dar uma vista de olhos, relatar um erro ou sugerir uma ideia</string>
     <string name="github_sheet_open">Abrir o GitHub</string>
 
-    <!-- action-menu-beta-program -->
-    <string name="beta_sheet_title">Antes de continuares, tem em conta</string>
-    <string name="beta_sheet_text_1">Depois de instalares uma versão beta, não podes voltar a uma versão estável anterior sem desinstalar a app</string>
-    <string name="beta_sheet_text_2">Alguns dados podem não ser compatíveis com versões estáveis anteriores</string>
-    <string name="beta_sheet_text_3">As atualizações normais continuam como sempre, incluindo as próximas versões estáveis</string>
-    <string name="beta_sheet_text_4">Estas limitações só se aplicam quando atualizares para uma versão beta</string>
-    <string name="beta_sheet_continue">Continuar</string>
     <string name="github_open_failed">Não conseguimos abrir o GitHub</string>
 
     <!-- Exportar e repor os dados -->
@@ -208,4 +200,26 @@
     <string name="widget_no_routine">Ainda não há rotinas</string>
     <string name="widget_preview_name">Rotina 1</string>
     <string name="widget_pin_unsupported">O teu ecrã principal não permite adicionar widgets a partir daqui</string>
+
+    <!-- Tracking -->
+    <string name="tracking_restfulness">Descanso</string>
+    <string name="tracking_caffeine">Cafeína</string>
+    <string name="tracking_mood">Humor</string>
+    <string name="tracking_week_chart">Últimos 7 dias</string>
+    <string name="tracking_month_chart">Este mês</string>
+    <string name="tracking_not_logged">Sem registo</string>
+    <!-- sleep-evaluation-prompt -->
+    <string name="sleep_prompt_title">Como dormiste esta noite?</string>
+    <string name="sleep_prompt_text">Diz-nos como dormiste para manteres o teu sono no bom caminho</string>
+    <string name="sleep_prompt_log">Registar sono</string>
+    <string name="sleep_prompt_close">Fechar</string>
+    <!-- action-menu-log-sleep e o sleep-quality-meter -->
+    <string name="sleep_sheet_title">Como dormiste esta noite?</string>
+    <string name="sleep_sheet_done">Concluído</string>
+    <string name="sleep_quality_meter">Como dormiste</string>
+    <string name="sleep_quality_really_well">Muito bem</string>
+    <string name="sleep_quality_well">Bem</string>
+    <string name="sleep_quality_meh">Mais ou menos</string>
+    <string name="sleep_quality_poor">Mal</string>
+    <string name="sleep_quality_very_poor">Muito mal</string>
 </resources>

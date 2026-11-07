@@ -17,6 +17,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.gaebriu.cyclo.data.sleepMeterStart
+import com.gaebriu.cyclo.ui.main.SleepLogSheet
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.FilePicker
 import com.gaebriu.cyclo.reminder.BedtimeReminder
@@ -143,6 +146,8 @@ fun CycloApp(viewModel: CycloViewModel) {
         )
     }
     var overlayOpen by rememberSaveable { mutableStateOf(!data.onboarded || justUpdated) }
+    // action-menu-log-sleep aberto (pedido pelo "Log sleep" da Tracking).
+    var sleepSheetOpen by rememberSaveable { mutableStateOf(false) }
     // Esta versão já abriu: guarda-se logo (um arranque normal a seguir não volta a mostrar nada).
     LaunchedEffect(versionCode) {
         if (data.lastRunVersion != versionCode) viewModel.markVersionSeen(versionCode)
@@ -283,7 +288,23 @@ fun CycloApp(viewModel: CycloViewModel) {
             },
             onReorderRoutines = { ordered -> viewModel.reorderRoutines(ordered.map { it.id }) },
             onReorderFeed = viewModel::setFeedOrder,
+            onLogSleep = { sleepSheetOpen = true },
+            onDismissSleepPrompt = viewModel::dismissSleepPrompt,
+            onReorderTracking = viewModel::setTrackingOrder,
         )
+    }
+    val sleepPromptDismissed by viewModel.sleepPromptDismissed.collectAsState()
+
+    // Tracking: o dia conta como "aberto" quando a app está à frente depois da hora de acordar de
+    // hoje. Vê-se ao voltar à frente e a cada minuto enquanto se vê (a hora pode passar com a app
+    // aberta). Só a atividade marca: widgets e alarmes não abrem a app.
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                viewModel.markOpened()
+                delay(OpenedCheckMs)
+            }
+        }
     }
 
     val bottomInset = maxOf(
@@ -301,7 +322,6 @@ fun CycloApp(viewModel: CycloViewModel) {
     val updateUi = availableUpdate
         ?.takeIf { updateDownload != DownloadState.Idle || System.currentTimeMillis() >= dismissedUntil }
         ?.let { UpdateUi(it.tag, it.version.label(), updateDownload, canDownload = it.apkUrl != null) }
-    val betaUpdates by CycloUpdates.betaEnabled.collectAsState()
 
     // Instalar: o instalador nativo do Android (o utilizador confirma lá). Se não abrir, a barra de
     // baixo diz e "Try again" tenta outra vez.
@@ -399,6 +419,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                     actions = actions,
                     reveal = reveal,
                     glow = { glow.value },
+                    sleepPromptDismissed = sleepPromptDismissed,
                 )
                 // Véu #010101 a 24 % quando o Feed está recuado.
                 Box(
@@ -479,8 +500,6 @@ fun CycloApp(viewModel: CycloViewModel) {
                         onSetAdvancedTextures = viewModel::setAdvancedTextures,
                         onClose = { overlayOpen = false },
                         update = updateUi,
-                        betaUpdates = betaUpdates,
-                        onSetBetaUpdates = { CycloUpdates.setBetaEnabled(context, it) },
                         onUpdateDownload = {
                             availableUpdate?.let { update ->
                                 if (update.apkUrl != null) {
@@ -561,6 +580,23 @@ fun CycloApp(viewModel: CycloViewModel) {
             }
             BackHandler(enabled = pendingRestore != null) { viewModel.cancelRestore() }
 
+            // action-menu-log-sleep (Componentes 5, 2013:40): "Log sleep" na Tracking. A bola começa
+            // na média dos últimos 30 dias (com 7 noites ou mais) ou em "Really well"; "Done" regista o
+            // sono de hoje (uma vez por dia) e o prompt sai. Fechar a folha não regista nada.
+            SleepLogSheet(
+                visible = sleepSheetOpen,
+                start = remember(sleepSheetOpen) {
+                    sleepMeterStart(data.history, data.dailyLog, java.time.LocalDate.now())
+                },
+                bottomMargin = bottomInset,
+                onDismiss = { sleepSheetOpen = false },
+                onDone = { quality ->
+                    sleepSheetOpen = false
+                    viewModel.logSleep(quality)
+                },
+            )
+            BackHandler(enabled = sleepSheetOpen) { sleepSheetOpen = false }
+
             LoadingDataOverlay(loadingData)
 
             CycloMessageBar(
@@ -575,6 +611,9 @@ fun CycloApp(viewModel: CycloViewModel) {
     }
     }
 }
+
+/** De quanto em quanto tempo, com a app à frente, se vê se o dia de hoje já conta como aberto. */
+private const val OpenedCheckMs = 60_000L
 
 /** Quanto um menu das definições leva a fechar antes da fotografia da mudança de língua. */
 private const val MenuCloseSettleMs = 320L

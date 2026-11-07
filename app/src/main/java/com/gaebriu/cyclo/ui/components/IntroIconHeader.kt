@@ -24,6 +24,9 @@ import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.icons.HeaderIcon
+import com.gaebriu.cyclo.ui.effects.drawFigmaNoise
+import com.gaebriu.cyclo.ui.effects.rememberFigmaNoise
+import androidx.compose.ui.graphics.drawscope.translate
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -70,18 +73,25 @@ fun IntroIconHeader(
     val effects = LocalVisualEffects.current
     val shape = remember(icon) { PathParser().parsePathString(icon.path).toPath() }
     val spotlight: ImageBitmap = ImageBitmap.imageResource(R.drawable.fx_spotlight)
+    val noise = rememberFigmaNoise()
 
     Box(modifier = modifier.size(63.dp, 95.dp)) {
         Spacer(
             modifier = Modifier
                 .size(63.dp)
                 .drawBehind {
-                    drawImage(
-                        image = spotlight,
-                        dstOffset = IntOffset(SpotlightLeft.toPx().roundToInt(), SpotlightTop.toPx().roundToInt()),
-                        dstSize = IntSize(SpotlightWidth.toPx().roundToInt(), SpotlightHeight.toPx().roundToInt()),
-                        filterQuality = FilterQuality.High,
-                    )
+                    val offset = IntOffset(SpotlightLeft.toPx().roundToInt(), SpotlightTop.toPx().roundToInt())
+                    val dstSize = IntSize(SpotlightWidth.toPx().roundToInt(), SpotlightHeight.toPx().roundToInt())
+                    drawImage(image = spotlight, dstOffset = offset, dstSize = dstSize, filterQuality = FilterQuality.High)
+                    // Noise do Figma (Cyclo-2, Beta 2.0): o grão só onde o holofote tem opacidade.
+                    // A camada do grão cobre a imagem toda (sai dos 63 dp, como o holofote).
+                    if (effects.textures) {
+                        translate(offset.x.toFloat(), offset.y.toFloat()) {
+                            drawFigmaNoise(noise.value, size = androidx.compose.ui.geometry.Size(dstSize.width.toFloat(), dstSize.height.toFloat())) {
+                                drawImage(image = spotlight, dstOffset = IntOffset.Zero, dstSize = dstSize, filterQuality = FilterQuality.High)
+                            }
+                        }
+                    }
                 },
         )
 

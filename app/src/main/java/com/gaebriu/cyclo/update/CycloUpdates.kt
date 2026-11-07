@@ -66,10 +66,9 @@ sealed interface DownloadState {
  * - Lê a lista de releases (não a "latest", que ignora as prereleases: as versões do Cyclo são
  *   alphas/betas) e escolhe a MAIS RECENTE de todas (não a seguinte à instalada): com a Beta 1.3
  *   instalada e a 1.4 e a 1.5 publicadas, o aviso mostra logo a 1.5 e descarrega o .apk dela.
- * - Dois canais (release-1.1): sem as atualizações beta só contam as estáveis; com elas, também as
- *   prereleases, mas uma estável elegível ganha sempre (ver [ReleaseSelection]). Guardam-se as duas
- *   candidatas (a melhor estável e, com a beta ligada, a melhor beta), por isso desligar a beta passa
- *   logo para a estável (ou esconde o aviso) sem rede. Ligar a beta verifica logo ([setBetaEnabled]).
+ * - Dois canais (release-1.1), as estáveis e as betas (prereleases), e uma estável elegível ganha
+ *   sempre (ver [ReleaseSelection]). Desde a Beta 2.0 a app é uma beta e recebe sempre as duas: o
+ *   "Beta updates" das definições saiu (a preferência antiga, "beta_enabled", apaga-se ao ler).
  * - O download corre no processo (continua com as definições fechadas) e pode ser cancelado.
  * - Dispensar (o X) esconde o aviso durante [DismissMs] (guardado entre sessões); "Undo" na barra de
  *   baixo ([undoDismiss]) volta a mostrá-lo logo, sem nova verificação. Passado o intervalo, se a
@@ -84,10 +83,10 @@ object CycloUpdates {
     private const val KeyLegacyRelease = "release"
     private const val KeyStable = "release_stable"
     private const val KeyBeta = "release_beta"
-    private const val KeyBetaEnabled = "beta_enabled"
 
-    /** Com que valor das atualizações beta se fez a última verificação (o ETag só vale para ele). */
-    private const val KeyCheckedBeta = "checked_beta"
+    /** Preferências da release-1.1 que já não se usam ("Beta updates"): apagam-se ao ler. */
+    private const val KeyLegacyBetaEnabled = "beta_enabled"
+    private const val KeyLegacyCheckedBeta = "checked_beta"
     private const val KeyDismissedAt = "dismissed_at"
     private const val KeyDismissedTag = "dismissed_tag"
 
@@ -103,21 +102,12 @@ object CycloUpdates {
 
     private val _available = MutableStateFlow<AvailableUpdate?>(null)
 
-    /** As candidatas da última verificação: a melhor estável e (com a beta ligada) a melhor beta. */
+    /** As candidatas da última verificação: a melhor estável e a melhor beta. */
     @Volatile
     private var stable: AvailableUpdate? = null
 
     @Volatile
     private var beta: AvailableUpdate? = null
-
-    private val _betaEnabled = MutableStateFlow(false)
-
-    /** "Beta updates" nas definições (desligado por omissão; fica no aparelho, fora das cópias). */
-    val betaEnabled: StateFlow<Boolean> = _betaEnabled.asStateFlow()
-
-    /** A tag do que está a descarregar ou descarregado (para o largar se deixar de ser elegível). */
-    @Volatile
-    private var downloadTag: String? = null
 
     /** A tag dispensada com o X (uma beta nova, diferente, volta a aparecer). */
     @Volatile
@@ -164,21 +154,20 @@ object CycloUpdates {
         val dismissedAt = prefs.getLong(KeyDismissedAt, 0L)
         _dismissedUntil.value = if (dismissedAt > 0) dismissedAt + DismissMs else 0L
         dismissedTag = prefs.getString(KeyDismissedTag, null)
-        _betaEnabled.value = prefs.getBoolean(KeyBetaEnabled, false)
         // As candidatas guardadas só valem para a versão instalada com que foram escolhidas.
         val sameInstall = prefs.getString(KeyCheckedFor, null) == installedName(context)
         stable = prefs.getString(KeyStable, null)?.takeIf { sameInstall }?.let { decode(it) }
-        beta = prefs.getString(KeyBeta, null)?.takeIf { sameInstall && _betaEnabled.value }?.let { decode(it) }
-        prefs.edit().remove(KeyLegacyRelease).apply()
+        beta = prefs.getString(KeyBeta, null)?.takeIf { sameInstall }?.let { decode(it) }
+        prefs.edit().remove(KeyLegacyRelease).remove(KeyLegacyBetaEnabled).remove(KeyLegacyCheckedBeta).apply()
         publish()
     }
 
-    /** O aviso segue as candidatas e a preferência: a estável primeiro, a beta só com ela ligada. */
+    /** O aviso segue as candidatas: a estável primeiro, a beta se não houver estável elegível. */
     @Synchronized
     private fun publish(context: Context? = null) {
-        val next = ReleaseSelection.Candidates(stable, beta).pick(_betaEnabled.value)
+        val next = ReleaseSelection.Candidates(stable, beta).pick(betaEnabled = true)
         // Uma beta nova (outra tag que não a dispensada) aparece mesmo com o aviso dispensado.
-        if (context != null && next != null && next.beta && _betaEnabled.value && next.tag != dismissedTag &&
+        if (context != null && next != null && next.beta && next.tag != dismissedTag &&
             _dismissedUntil.value > System.currentTimeMillis()
         ) {
             undoDismiss(context)
@@ -186,45 +175,6 @@ object CycloUpdates {
         _available.value = next
     }
 
-    /**
-     * Liga ou desliga as atualizações beta. Ligar (depois de confirmar o action-menu-beta-program)
-     * guarda logo e verifica já no GitHub (sem esperar pelo próximo arranque); nunca descarrega nem
-     * instala nada sozinho. Desligar tira logo a beta do estado (memória e cache): o aviso passa à
-     * estável elegível ou desaparece, e um download dessa beta (a decorrer ou acabado) é cancelado e
-     * apagado.
-     */
-    fun setBetaEnabled(context: Context, enabled: Boolean) {
-        val app = context.applicationContext
-        load(app)
-        if (_betaEnabled.value == enabled) return
-        // Mudar de canal invalida o ETag: um 304 diria "nada mudou" e a beta, apagada ao desligar,
-        // não voltava ao ligar outra vez (ligar → desligar → ligar).
-        val edit = prefs(app).edit().putBoolean(KeyBetaEnabled, enabled).remove(KeyEtag)
-        synchronized(this) {
-            _betaEnabled.value = enabled
-            if (!enabled) {
-                beta = null
-                edit.remove(KeyBeta)
-            }
-            edit.apply()
-            publish(app)
-        }
-        if (!enabled) dropIneligibleDownload(app)
-        // Uma verificação nova (sem o ETag da anterior, que era do outro canal).
-        checkJob?.cancel()
-        checkJob = null
-        if (enabled) checkIfDue(app, force = true)
-    }
-
-    /** O que está a descarregar (ou descarregado) deixou de ser a atualização disponível: larga-se. */
-    private fun dropIneligibleDownload(context: Context) {
-        val tag = downloadTag ?: return
-        if (tag == _available.value?.tag) return
-        cancelDownload()
-        autoInstall = false
-        downloadTag = null
-        File(context.cacheDir, "updates").listFiles()?.forEach { it.delete() }
-    }
 
     /**
      * Verifica uma vez por processo (o arranque a frio); as chamadas seguintes da mesma sessão (voltar
@@ -242,8 +192,6 @@ object CycloUpdates {
     private suspend fun check(context: Context) {
         val prefs = prefs(context)
         val repo = repositoryPath(context) ?: return
-        // O canal com que esta verificação começou; se mudar a meio, o resultado já não serve.
-        val withBeta = _betaEnabled.value
         val connection = try {
             (URL("https://api.github.com/repos/$repo/releases?per_page=100").openConnection() as HttpURLConnection).apply {
                 connectTimeout = ConnectTimeoutMs
@@ -251,13 +199,10 @@ object CycloUpdates {
                 setRequestProperty("Accept", "application/vnd.github+json")
                 setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
                 setRequestProperty("User-Agent", "Cyclo-Android")
-                // O ETag só vale para a versão instalada e o canal com que se escolheram as candidatas
-                // guardadas (outra versão ou ligar a beta pode escolher outra release da mesma lista).
+                // O ETag só vale para a versão instalada com que se escolheram as candidatas guardadas
+                // (outra versão pode escolher outra release da mesma lista).
                 prefs.getString(KeyEtag, null)
-                    ?.takeIf {
-                        prefs.getString(KeyCheckedFor, null) == installedName(context) &&
-                            prefs.getBoolean(KeyCheckedBeta, false) == withBeta
-                    }
+                    ?.takeIf { prefs.getString(KeyCheckedFor, null) == installedName(context) }
                     ?.let { setRequestProperty("If-None-Match", it) }
             }
         } catch (e: IOException) {
@@ -274,15 +219,12 @@ object CycloUpdates {
                     val found = ReleaseSelection.select(body, installedName(context))
                     currentCoroutineContext().ensureActive()
                     synchronized(this) {
-                        // A preferência mudou entretanto: este resultado é do outro canal.
-                        if (_betaEnabled.value != withBeta) return
                         stable = found.stable
-                        beta = found.beta.takeIf { withBeta }
+                        beta = found.beta
                         prefs.edit()
                             .putLong(KeyLastCheck, System.currentTimeMillis())
                             .putString(KeyEtag, connection.getHeaderField("ETag"))
                             .putString(KeyCheckedFor, installedName(context))
-                            .putBoolean(KeyCheckedBeta, withBeta)
                             .apply {
                                 stable?.let { putString(KeyStable, encode(it)) } ?: remove(KeyStable)
                                 beta?.let { putString(KeyBeta, encode(it)) } ?: remove(KeyBeta)
@@ -330,7 +272,6 @@ object CycloUpdates {
         val url = update.apkUrl ?: return
         val app = context.applicationContext
         if (downloadJob?.isActive == true) return
-        downloadTag = update.tag
         _download.value = DownloadState.Running(0L, update.apkSize)
         downloadJob = scope.launch {
             val dir = File(app.cacheDir, "updates").apply { mkdirs() }

@@ -49,21 +49,37 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.util.lerp
+import com.gaebriu.cyclo.ui.effects.drawFigmaNoise
+import com.gaebriu.cyclo.ui.effects.rememberFigmaNoise
+import com.gaebriu.cyclo.ui.theme.CycloSpring
+import com.gaebriu.cyclo.ui.theme.smoothStep
+import com.gaebriu.cyclo.ui.theme.springProgress
+import kotlin.math.PI
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 // Medidas do frame do Figma (393 x 852).
 private val GreetingTop = 229.dp
 private val TopShadeHeight = 130.dp
 
-// Brilho do topo: elipse de 432 x 267 dp, gradiente vertical (roxo a 39 % em cima, 100 % em baixo),
-// desfoque 267 do Figma e 63 % de opacidade do grupo.
+// "fx gradient with blur" (Cyclo-2 23:8, Beta 2.0), grupo a 63 %:
+// - a luz: elipse de 432 x 267 dp com o topo no topo do ecrã (centro a 133,5 dp), gradiente vertical
+//   #4A3C99 de 39 % (em cima) a 100 % (em baixo), desfoque 267;
+// - por cima, a sombra: elipse de 267 x 165 dp, também com o topo no topo do ecrã (centro a 82,5 dp),
+//   preto de 39 % a 100 %, desfoque 165;
+// - cada uma com o Noise do Figma (MONOTONE 2, #FCFCFE a 39 %), recortado por ela.
 private const val GlowGroupAlpha = 0.63f
-
-/** Média da opacidade do gradiente do preenchimento da elipse (de 39 % a 100 %). */
-private const val GlowMeanFill = 0.695f
-
-/** O gradiente do preenchimento desloca o centro de massa da elipse para baixo (fração do semieixo vertical). */
-private const val GlowCentroidShift = 0.1097f
+private val LightRadiusX = 216.dp
+private val LightRadiusY = 133.5.dp
+private val ShadeRadiusX = 133.5.dp
+private val ShadeRadiusY = 82.5.dp
+private const val ShadeFigmaBlur = 165f
+private const val FillTopAlpha = 0.39f
 
 // Fade do brilho quando o ecrã recua: a frente do fade desce do topo e o brilho some de cima para baixo.
 private val GlowFadeReach = 480.dp
@@ -99,6 +115,7 @@ fun Introduction0Screen(
     LaunchedEffect(reveal) {
         coroutineScope {
             launch {
+                // Sem animações, a luz só aparece (fade); com elas, o relógio da cena (TopGlow) faz o resto.
                 glow.animateTo(1f, tween(CycloMotion.GlowDurationMs, easing = CycloMotion.Decelerate))
             }
             // O "Hello" dura HelloDurationMs: cada letra começa com um pequeno intervalo e
@@ -144,46 +161,168 @@ fun Introduction0Screen(
 }
 
 /**
- * Brilho do topo. Nasce do topo e expande-se até à forma do design.
+ * O brilho do topo (Cyclo-2 23:8): a luz roxa e a sombra por cima dela, com o grão do Figma.
  *
- * É desenhado só com gradientes (ver [drawGaussianGlow]), SEM RenderEffect, por isso aparece
- * igual em qualquer aparelho. Tem camada própria para a máscara do fade só afetar o brilho.
+ * A entrada (uma só vez, ao abrir): a luz nasce de baixo e abre (escala, subida e intensidade numa
+ * mola lenta, [LightRise], com um ressalto quase invisível); a sombra assenta de cima um pouco
+ * depois ([ShadeSettle]) e dá à luz a forma de horizonte do Figma. Depois, a cena respira: a luz e a
+ * sombra mexem-se muito devagar (escala, intensidade e um pequeno desvio lateral), desfasadas, sem
+ * nunca sair do desenho do Figma mais do que ~2 %. O grão fica parado (é a superfície). O relógio
+ * pára com o ecrã tapado pelo Introduction 1.
+ *
+ * Desenhado só com gradientes (ver [drawGaussianGlow]), SEM RenderEffect: igual em qualquer
+ * aparelho. Sem animações: a cena final aparece com um fade.
  */
 @Composable
 private fun TopGlow(glow: Progress, recede: () -> Float, effects: VisualEffects) {
+    val noise = rememberFigmaNoise()
+    // O relógio da cena (s): a entrada e a respiração leem-no ao desenhar (nada se recompõe).
+    val clock = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(effects.animationsEnabled) {
+        if (!effects.animationsEnabled) return@LaunchedEffect
+        var start = -1L
+        while (true) {
+            // Tapado pelo Introduction 1: não há nada a mexer (espera que volte a ver-se).
+            if (recede() >= 0.999f) {
+                snapshotFlow { recede() < 0.999f }.first { it }
+                start = -1L
+            }
+            withFrameNanos { now ->
+                if (start < 0) start = now - (clock.floatValue * 1e9f).toLong()
+                clock.floatValue = (now - start) / 1e9f
+            }
+        }
+    }
     Spacer(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            // O grupo a 63 % (o Figma junta a luz e a sombra antes da opacidade).
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+                alpha = GlowGroupAlpha
+            }
             .drawBehind {
-                // Sem animações: aparece com um fade em vez de crescer.
-                val growth = if (effects.animationsEnabled) glow.value else 1f
-                val intensity = if (effects.animationsEnabled) 1f else glow.value
-                drawTopGlow(growth, intensity)
+                val scene = if (effects.animationsEnabled) glowScene(clock.floatValue) else GlowScene.Final
+                val fade = if (effects.animationsEnabled) 1f else glow.value
+                val tile = if (effects.textures) noise.value else null
+                drawLight(scene, fade, tile)
+                drawShade(scene, fade, tile)
                 drawRecedeFade(recede())
             },
     )
 }
 
+/** A cena num instante: escala, deslocamento (px a multiplicar por dp) e intensidade das duas elipses. */
+private class GlowScene(
+    val lightScale: Float,
+    val lightDx: Float,
+    val lightDy: Float,
+    val lightIntensity: Float,
+    val shadeScale: Float,
+    val shadeDx: Float,
+    val shadeDy: Float,
+    val shadeIntensity: Float,
+) {
+    companion object {
+        val Final = GlowScene(1f, 0f, 0f, 1f, 1f, 0f, 0f, 1f)
+    }
+}
+
+/** A luz a nascer: lenta, com um ressalto quase invisível. */
+private val LightRise = CycloSpring(response = 1.5f, dampingFraction = 0.9f)
+
+/** A sombra a assentar: um pouco mais lenta e sem ressalto. */
+private val ShadeSettle = CycloSpring(response = 1.7f, dampingFraction = 1f)
+
+/** Quando a sombra começa (s depois da luz). */
+private const val ShadeDelayS = 0.22f
+
+/** A respiração entra devagar entre estes dois instantes (s). */
+private const val BreathFromS = 2.2f
+private const val BreathFullS = 4.2f
+
+private fun glowScene(t: Float): GlowScene {
+    val light = springProgress(t, LightRise)
+    val shade = if (t > ShadeDelayS) springProgress(t - ShadeDelayS, ShadeSettle) else 0f
+    val breath = smoothStep(t, BreathFromS, BreathFullS)
+    val tau = 2f * PI.toFloat()
+    return GlowScene(
+        lightScale = lerp(0.6f, 1f, light) * (1f + 0.022f * breath * sin(tau * t / 7.6f)),
+        lightDx = 5f * breath * sin(tau * t / 11.3f),
+        lightDy = lerp(64f, 0f, light),
+        lightIntensity = light.coerceIn(0f, 1.05f) * (1f + 0.05f * breath * sin(tau * t / 7.6f + 0.7f)),
+        shadeScale = lerp(1.22f, 1f, shade) * (1f + 0.018f * breath * sin(tau * t / 8.9f + 2.1f)),
+        shadeDx = -7f * breath * sin(tau * t / 9.7f + 1.3f),
+        shadeDy = lerp(-28f, 0f, shade),
+        shadeIntensity = shade,
+    )
+}
+
 /**
- * O desfoque gaussiano de uma elipse com semieixos a e b (432 x 267 dp a escala 1) é, com muito
- * boa aproximação, uma gaussiana com sigma_x² = sigma² + a²/4 e sigma_y² = sigma² + b²/4,
- * de pico 0,63 x média do preenchimento x a·b / (2·sigma_x·sigma_y).
+ * Uma elipse desfocada com gradiente vertical (de [topAlpha] em cima a 100 % em baixo) e o grão do
+ * Figma, numa camada própria (o grão é recortado só por ela). O desfoque gaussiano de uma elipse de
+ * semieixos a e b é, com muito boa aproximação, uma gaussiana com sigma_x² = sigma² + a²/4 e
+ * sigma_y² = sigma² + b²/4, de pico a·b / (2·sigma_x·sigma_y); o gradiente pinta-a por cima (SrcIn).
  */
-private fun DrawScope.drawTopGlow(growth: Float, intensity: Float) {
-    if (growth <= 0f || intensity <= 0f) return
-    val sigma = figmaBlurPx(FigmaBlur.Glow)
-    val a = 216.dp.toPx() * growth
-    val b = 133.5.dp.toPx() * growth
+private fun DrawScope.drawBlurredEllipse(
+    color: Color,
+    center: Offset,
+    a: Float,
+    b: Float,
+    sigma: Float,
+    intensity: Float,
+    tile: androidx.compose.ui.graphics.ImageBitmap?,
+) {
+    if (intensity <= 0f || a <= 0f || b <= 0f) return
     val sigmaX = sqrt(sigma * sigma + a * a / 4f)
     val sigmaY = sqrt(sigma * sigma + b * b / 4f)
-    drawGaussianGlow(
+    val peak = (a * b / (2f * sigmaX * sigmaY) * intensity).coerceIn(0f, 1f)
+    val fill = Brush.verticalGradient(
+        0f to color.copy(alpha = FillTopAlpha),
+        1f to color,
+        startY = center.y - b,
+        endY = center.y + b,
+    )
+    val canvas = drawContext.canvas
+    canvas.saveLayer(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height), androidx.compose.ui.graphics.Paint())
+    drawGaussianGlow(Color.White, center, sigmaX, sigmaY, peak)
+    drawRect(brush = fill, blendMode = BlendMode.SrcIn)
+    drawFigmaNoise(tile) {
+        drawGaussianGlow(Color.White, center, sigmaX, sigmaY, peak)
+        drawRect(brush = fill, blendMode = BlendMode.DstIn)
+    }
+    canvas.restore()
+}
+
+/** A luz roxa (432 x 267, desfoque 267). */
+private fun DrawScope.drawLight(scene: GlowScene, fade: Float, tile: androidx.compose.ui.graphics.ImageBitmap?) {
+    val dp = 1.dp.toPx()
+    val a = LightRadiusX.toPx() * scene.lightScale
+    val b = LightRadiusY.toPx() * scene.lightScale
+    drawBlurredEllipse(
         color = CycloColors.Accent,
-        // A elipse está centrada no topo do ecrã (a 0,5 dp acima dele).
-        center = Offset(size.width / 2f, -0.5.dp.toPx() + GlowCentroidShift * b),
-        sigmaX = sigmaX,
-        sigmaY = sigmaY,
-        peakAlpha = GlowGroupAlpha * GlowMeanFill * a * b / (2f * sigmaX * sigmaY) * intensity,
+        center = Offset(size.width / 2f + scene.lightDx * dp, LightRadiusY.toPx() + scene.lightDy * dp),
+        a = a,
+        b = b,
+        sigma = figmaBlurPx(FigmaBlur.Glow),
+        intensity = scene.lightIntensity * fade,
+        tile = tile,
+    )
+}
+
+/** A sombra preta por cima da luz (267 x 165, desfoque 165). */
+private fun DrawScope.drawShade(scene: GlowScene, fade: Float, tile: androidx.compose.ui.graphics.ImageBitmap?) {
+    val dp = 1.dp.toPx()
+    val a = ShadeRadiusX.toPx() * scene.shadeScale
+    val b = ShadeRadiusY.toPx() * scene.shadeScale
+    drawBlurredEllipse(
+        color = Color.Black,
+        center = Offset(size.width / 2f + scene.shadeDx * dp, ShadeRadiusY.toPx() + scene.shadeDy * dp),
+        a = a,
+        b = b,
+        sigma = figmaBlurPx(ShadeFigmaBlur),
+        intensity = scene.shadeIntensity * fade,
+        tile = tile,
     )
 }
 

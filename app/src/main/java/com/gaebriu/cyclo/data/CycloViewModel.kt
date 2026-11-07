@@ -151,6 +151,43 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         repository.updateDailyLog(LocalDate.now()) { it.copy(mood = mood.coerceIn(0f, 1f)) }
     }
 
+    // --- Tracking ---------------------------------------------------------------------------
+
+    /**
+     * A app está à vista: se já passou a hora de acordar de hoje (ver [countsAsOpened]), o dia fica
+     * marcado como "aberto" (a cafeína e o humor dele contam na Tracking). Só escreve uma vez por dia.
+     * Chamado pela atividade (ao voltar à frente e a cada minuto à vista), nunca por widgets ou alarmes.
+     */
+    fun markOpened() {
+        val current = data.value ?: return
+        if (!current.onboarded) return
+        val now = java.time.LocalDateTime.now()
+        val today = now.toLocalDate()
+        if (current.dailyLog?.takeIf { it.date == today }?.opened == true) return
+        if (!countsAsOpened(current.routines, now)) return
+        write { repository.updateDailyLog(today) { if (it.opened) it else it.copy(opened = true) } }
+    }
+
+    /** "Done" do action-menu-log-sleep: o sono de hoje fica registado (uma vez por dia). */
+    fun logSleep(quality: SleepQuality) = write {
+        repository.updateDailyLog(LocalDate.now()) { if (it.sleep != null) it else it.copy(sleep = quality, opened = true) }
+    }
+
+    private val _sleepPromptDismissed = MutableStateFlow(false)
+
+    /**
+     * O X do sleep-evaluation-prompt esconde-o até a app voltar a abrir. Vive no ViewModel: sobrevive
+     * a rodar o ecrã, mas não a fechar a app (o ViewModel acaba com a atividade).
+     */
+    val sleepPromptDismissed: StateFlow<Boolean> = _sleepPromptDismissed.asStateFlow()
+
+    fun dismissSleepPrompt() {
+        _sleepPromptDismissed.value = true
+    }
+
+    /** Nova ordem dos cartões da Tracking. */
+    fun setTrackingOrder(order: List<TrackingSection>) = write { repository.setTrackingOrder(order) }
+
     fun setUse24Hour(use24Hour: Boolean) = write { repository.setUse24Hour(use24Hour) }
 
     /** "Advanced textures" (definições, Performance). */

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.CycloData
 import com.gaebriu.cyclo.data.FeedSection
+import com.gaebriu.cyclo.data.TrackingSection
 import com.gaebriu.cyclo.data.Routine
 import com.gaebriu.cyclo.data.SleepFactor
 import com.gaebriu.cyclo.ui.effects.Backdrop
@@ -89,29 +90,38 @@ class MainActions(
     val onReorderRoutines: (List<Routine>) -> Unit,
     /** Nova ordem dos blocos do Feed. */
     val onReorderFeed: (List<FeedSection>) -> Unit,
+    /** "Log sleep" do sleep-evaluation-prompt: abre o action-menu-log-sleep. */
+    val onLogSleep: () -> Unit,
+    /** O X do sleep-evaluation-prompt (esconde-o até a app voltar a abrir). */
+    val onDismissSleepPrompt: () -> Unit,
+    /** Nova ordem dos cartões da Tracking. */
+    val onReorderTracking: (List<TrackingSection>) -> Unit,
 )
 
 private const val FeedPage = 0
 private const val SavedPage = 1
+private const val TrackingPage = 2
+private const val LastPage = TrackingPage
 
 /**
- * O Feed e as rotinas guardadas, lado a lado. Só o conteúdo muda entre os dois; o brilho do topo,
- * as faixas do topo e do fundo, o mini-menu e a barra de navegação são FIXOS.
+ * O Feed, as rotinas guardadas e a Tracking, lado a lado (por esta ordem). Só o conteúdo muda entre
+ * eles; o brilho do topo, as faixas do topo e do fundo, o mini-menu e a barra de navegação são FIXOS.
  *
- * - Uma só posição contínua ([page], 0 = Feed, 1 = rotinas guardadas) guia tudo: as duas páginas
- *   (deslizam lado a lado e a que sai escurece um pouco), a pílula da barra de navegação, a lupa do
- *   mini-menu e o gradiente do brilho. Assim, o gesto, o toque na barra e o voltar são o mesmo
- *   movimento.
- * - Swipe: no Feed, para a esquerda vai para as rotinas guardadas; nas rotinas, para a direita
- *   volta ao Feed. A página segue o dedo sem atraso; para lá das pontas há resistência (rubber
- *   band). Ao largar, muda se passou de metade ou se o lançamento foi rápido; senão volta. A mola
+ * - Uma só posição contínua ([page], 0 = Feed, 1 = rotinas guardadas, 2 = Tracking) guia tudo: as
+ *   páginas (deslizam lado a lado e a que sai escurece um pouco), a pílula da barra de navegação, os
+ *   botões do mini-menu (a lupa só nas rotinas guardadas, o "+" fora da Tracking) e o gradiente do
+ *   brilho (a Tracking tem o das rotinas guardadas). Assim, o gesto, o toque na barra e o voltar são
+ *   o mesmo movimento.
+ * - Swipe: para a esquerda vai para a página seguinte, para a direita para a anterior. A página
+ *   segue o dedo sem atraso; para lá das pontas há resistência (rubber band). Ao largar, muda para a
+ *   vizinha se passou de metade ou se o lançamento foi rápido; senão volta. A mola
  *   [CycloSprings.Page] parte com a velocidade do dedo. Um háptico marca o momento em que passar
  *   o limite (e voltar atrás dele).
  * - O swipe só começa com um movimento claramente horizontal, fora das zonas de gesto do sistema,
  *   e não com a pesquisa aberta; o scroll, o medidor de emoções e o arrastar para reordenar ficam
  *   com os seus gestos (consomem-nos primeiro).
- * - Voltar nas rotinas guardadas vai para o Feed a seguir ao gesto (voltar preditivo); no Feed,
- *   sai da app.
+ * - Voltar recua uma página a seguir ao gesto (voltar preditivo): Tracking → rotinas guardadas →
+ *   Feed (decisão da Beta 2.0: a pré-visualização mostra a página que vem mesmo); no Feed, sai da app.
  * - O brilho do topo segue a hora do aparelho ([skyColorsAt]) e, ao mudar de página, volta a
  *   crescer e a acender um pouco enquanto passa para o gradiente complementar.
  * - A pesquisa: vazia, fecha quando se acaba de escrever (Enter, teclado fechado ou fim do ditado);
@@ -137,6 +147,7 @@ fun MainScreen(
     reveal: StaggeredReveal,
     glow: () -> Float,
     modifier: Modifier = Modifier,
+    sleepPromptDismissed: Boolean = false,
 ) {
     val effects = LocalVisualEffects.current
     val density = LocalDensity.current
@@ -151,7 +162,7 @@ fun MainScreen(
     var dragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
     val position: () -> Float = { if (dragging) dragPosition else page.value }
-    val tab = if (selected == SavedPage) MainTab.Saved else MainTab.Feed
+    val tab = MainTab.entries[selected.coerceIn(FeedPage, LastPage)]
 
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -160,6 +171,9 @@ fun MainScreen(
     // processo: voltar a entrar nas rotinas guardadas, rodar ou recriar a atividade não repete).
     val savedEmptyReveal = remember { StaggeredReveal(2, startRevealed = SavedEmptySession.revealed) }
     val onSavedEmptyShown = { SavedEmptySession.revealed = true }
+    // A Tracking entra em cascata (cartões e gráficos a crescer) só na primeira vez desta sessão.
+    val trackingReveal = remember { StaggeredReveal(TrackingRevealItems.Count, startRevealed = TrackingSession.revealed) }
+    val onTrackingShown = { TrackingSession.revealed = true }
     val searchAvailable = animateFloatAsState(
         targetValue = if (data.routines.isNotEmpty()) 1f else 0f,
         animationSpec = motionSpec(effects.animationsEnabled, CycloSprings.Snappy.float),
@@ -198,8 +212,8 @@ fun MainScreen(
     LaunchedEffect(tab) {
         if (tab == lastTab) return@LaunchedEffect
         lastTab = tab
-        // Sair das rotinas guardadas (pela barra, pelo swipe ou pelo voltar) fecha a pesquisa.
-        if (tab == MainTab.Feed) closeSearch()
+        // Sair das rotinas guardadas (para qualquer lado: barra, swipe ou voltar) fecha a pesquisa.
+        if (tab != MainTab.Saved) closeSearch()
         pulse.snapTo(0f)
         pulse.animateTo(1f, tween(CycloMotion.GlowTabDurationMs, easing = CycloMotion.Decelerate))
     }
@@ -217,17 +231,17 @@ fun MainScreen(
     }
 
     fun selectTab(target: MainTab) {
-        val index = if (target == MainTab.Saved) SavedPage else FeedPage
-        if (index != selected) settleTo(index)
+        if (target.ordinal != selected) settleTo(target.ordinal)
     }
 
-    // Voltar nas rotinas guardadas: o Feed entra a seguir ao gesto e, ao largar, a mola acaba.
-    PredictiveBackHandler(enabled = selected == SavedPage && !dragging) { progress ->
+    // Voltar: a página anterior entra a seguir ao gesto e, ao largar, a mola acaba.
+    PredictiveBackHandler(enabled = selected > FeedPage && !dragging) { progress ->
+        val from = selected
         try {
-            progress.collect { event -> page.snapTo(1f - event.progress * BackGestureReach) }
-            settleTo(FeedPage)
+            progress.collect { event -> page.snapTo(from - event.progress * BackGestureReach) }
+            settleTo(from - 1)
         } catch (e: CancellationException) {
-            settleTo(SavedPage)
+            settleTo(from)
         }
     }
 
@@ -282,7 +296,7 @@ fun MainScreen(
                 // Para lá das pontas, resistência do iOS.
                 dragPosition = when {
                     raw < 0f -> -rubberBand(-raw * width, width) / width
-                    raw > 1f -> 1f + rubberBand((raw - 1f) * width, width) / width
+                    raw > LastPage -> LastPage + rubberBand((raw - LastPage) * width, width) / width
                     else -> raw
                 }
                 val past = abs(dragPosition - fromPage) > CycloMotion.PageSwipeThreshold
@@ -305,13 +319,14 @@ fun MainScreen(
                 tracker.addPosition(change.uptimeMillis, change.position)
                 follow(change.position.x)
             }
-            // Velocidade em páginas por segundo (positiva = para as rotinas guardadas).
+            // Velocidade em páginas por segundo (positiva = para a página seguinte).
             val velocity = if (completed) -tracker.calculateVelocity().x / width else 0f
+            // Um gesto muda no máximo para a vizinha (a da direita ou a da esquerda de onde começou).
             val target = when {
                 !completed -> fromPage
-                abs(velocity) > CycloMotion.PageFlingVelocity -> if (velocity > 0f) SavedPage else FeedPage
-                else -> dragPosition.roundToInt().coerceIn(FeedPage, SavedPage)
-            }
+                abs(velocity) > CycloMotion.PageFlingVelocity -> fromPage + if (velocity > 0f) 1 else -1
+                else -> dragPosition.roundToInt()
+            }.coerceIn((fromPage - 1).coerceAtLeast(FeedPage), (fromPage + 1).coerceAtMost(LastPage))
             val release = dragPosition
             scope.launch {
                 page.snapTo(release)
@@ -326,7 +341,8 @@ fun MainScreen(
     val saveable = rememberSaveableStateHolder()
     // Uma página só existe enquanto se vê (ou é a escolhida); o estado dela (scroll) guarda-se.
     val showFeed by remember { derivedStateOf { selected == FeedPage || position() < 0.999f } }
-    val showSaved by remember { derivedStateOf { selected == SavedPage || position() > 0.001f } }
+    val showSaved by remember { derivedStateOf { selected == SavedPage || abs(position() - SavedPage) < 0.999f } }
+    val showTracking by remember { derivedStateOf { selected == TrackingPage || position() > SavedPage + 0.001f } }
 
     Box(modifier = modifier.fillMaxSize()) {
         // Fundo e brilho: o que está por baixo de tudo.
@@ -408,6 +424,26 @@ fun MainScreen(
                         }
                     }
                 }
+                if (showTracking) {
+                    MainPage(index = TrackingPage, position = position, animationsEnabled = effects.animationsEnabled, active = selected == TrackingPage) {
+                        saveable.SaveableStateProvider("tracking") {
+                            TrackingScreen(
+                                now = now,
+                                routines = data.routines,
+                                dailyLog = data.dailyLog,
+                                history = data.history,
+                                order = data.trackingOrder,
+                                promptDismissed = sleepPromptDismissed,
+                                reveal = trackingReveal,
+                                onShown = onTrackingShown,
+                                bottomReserve = bottomReserve,
+                                onLogSleep = actions.onLogSleep,
+                                onDismissPrompt = actions.onDismissSleepPrompt,
+                                onReorder = actions.onReorderTracking,
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -426,8 +462,16 @@ fun MainScreen(
                     },
                 ),
                 // A lupa só existe nas rotinas guardadas, e só com rotinas (o estado vazio do Figma,
-                // 255:40, tem só o + e as definições): o mini-menu alarga e ela aparece com a página.
-                firstSlot = { position().coerceIn(0f, 1f) * searchAvailable.value },
+                // 255:40, tem só o + e as definições); o "+" não existe na Tracking (2001:255, só a
+                // roda dentada). O mini-menu alarga e encolhe com a página.
+                slot = { index ->
+                    val p = position()
+                    when (index) {
+                        0 -> (1f - abs(p - SavedPage)).coerceIn(0f, 1f) * searchAvailable.value
+                        1 -> (TrackingPage - p).coerceIn(0f, 1f)
+                        else -> 1f
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = maxOf(MiniMenuTop, statusTop + 24.dp), end = CycloDimens.ScreenMargin)
@@ -438,8 +482,11 @@ fun MainScreen(
                 selected = tab,
                 pagePosition = position,
                 onSelect = ::selectTab,
-                feedDescription = stringResource(R.string.main_tab_feed),
-                savedDescription = stringResource(R.string.main_tab_saved),
+                descriptions = listOf(
+                    stringResource(R.string.main_tab_feed),
+                    stringResource(R.string.main_tab_saved),
+                    stringResource(R.string.main_tab_tracking),
+                ),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = bottomInset)

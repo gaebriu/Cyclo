@@ -215,7 +215,7 @@ fun SavedRoutinesScreen(
                 enabled = !filtering,
                 scrollState = scroll,
                 modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin),
-            ) { routine, handle ->
+            ) { routine, handle, surface ->
                 val snapshot = rememberGraphicsLayer()
                 val cardCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
                 Column {
@@ -224,6 +224,7 @@ fun SavedRoutinesScreen(
                             routine = routine,
                             modifier = Modifier
                                 .then(handle)
+                                .then(surface)
                                 .onGloballyPositioned { cardCoordinates[0] = it }
                                 // O cartão desenha-se numa camada que também serve de fotografia
                                 // para as partículas, ao apagar.

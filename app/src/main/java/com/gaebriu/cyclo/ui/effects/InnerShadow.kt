@@ -44,6 +44,31 @@ fun DrawScope.drawInnerShadow(
     }
 }
 
+/** Uma sombra interior do Figma: cor, deslocamento (px) e desfoque (px, como o Figma o indica). */
+class InnerShadowSpec(val color: Color, val offset: Offset, val cssBlurPx: Float)
+
+/**
+ * As sombras interiores de uma forma de cantos suaves (raio [radiusPx]) desenhadas UMA vez numa
+ * imagem de [width] x [height] px. Para elementos repetidos ou animados (os blocos e as colunas da
+ * Tracking): desenhar a imagem é barato, e o desfoque (BlurMaskFilter, feito no CPU) só corre aqui.
+ */
+fun innerShadowSprite(
+    width: Int,
+    height: Int,
+    radiusPx: Float,
+    shadows: List<InnerShadowSpec>,
+    density: androidx.compose.ui.unit.Density,
+): androidx.compose.ui.graphics.ImageBitmap {
+    val bitmap = androidx.compose.ui.graphics.ImageBitmap(width.coerceAtLeast(1), height.coerceAtLeast(1))
+    val canvas = androidx.compose.ui.graphics.Canvas(bitmap)
+    val size = androidx.compose.ui.geometry.Size(bitmap.width.toFloat(), bitmap.height.toFloat())
+    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(density, androidx.compose.ui.unit.LayoutDirection.Ltr, canvas, size) {
+        val shape = com.gaebriu.cyclo.ui.components.smoothRoundRectPath(size.width, size.height, radiusPx)
+        shadows.forEach { drawInnerShadow(shape, it.color, it.offset, it.cssBlurPx) }
+    }
+    return bitmap
+}
+
 /**
  * Círculo desfocado, para as sombras exteriores ("drop shadow" do Figma) da bolinha da barra de progresso.
  *

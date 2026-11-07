@@ -101,6 +101,7 @@ import com.gaebriu.cyclo.data.Routine
 import com.gaebriu.cyclo.data.SleepFactor
 import com.gaebriu.cyclo.data.FeedSection
 import com.gaebriu.cyclo.ui.components.ReorderableColumn
+import com.gaebriu.cyclo.ui.components.CycloMeter
 import com.gaebriu.cyclo.data.bedtimesFor
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
@@ -137,18 +138,10 @@ private val SectionGap = 39.dp
 private val LabelToCard = 15.dp
 private val CardPadding = 15.dp
 
-/** Cores das caras e do medidor de emoções (os pontos do gradiente "emotion-meter-background"). */
-private val MoodViolet = Color(0xFFB3A3E8)
-private val MoodBlue = Color(0xFF8FA8F0)
-private val MoodSky = Color(0xFF7FC1E8)
-private val MoodMint = Color(0xFF8FD9C4)
 private val StarYellow = Color(0xFFFFC93C)
 
 /** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, a cor da base do brilho (#34739A no Figma) a 24 %. */
 private const val WakeCardShadowAlpha = 0.24f
-
-/** Quantas posições tem o medidor de emoções (os pontos do Figma). */
-private const val MoodSteps = 5
 
 /** Quanto as horas para dormir esperam, depois do último toque na cafeína, fatores ou emoções. */
 private const val BedtimeSettleMs = 1200L
@@ -280,10 +273,11 @@ fun FeedScreen(
                 moveUpLabel = stringResource(R.string.reorder_move_up),
                 moveDownLabel = stringResource(R.string.reorder_move_down),
                 scrollState = scroll,
-            ) { section, handle ->
+            ) { section, handle, surface ->
                 val revealIndex = FeedRevealItems.Caffeine + feedOrder.indexOf(section).coerceAtLeast(0)
                 Column(modifier = Modifier.staggeredReveal(reveal, revealIndex)) {
                     Spacer(Modifier.height(SectionGap))
+                    // Agarra-se pelo título ou pelo cartão; só o cartão se levanta (escala e sombra).
                     Column(modifier = handle) {
                         when (section) {
                             FeedSection.Caffeine -> {
@@ -294,17 +288,18 @@ fun FeedScreen(
                                     onChange = onCaffeineChange,
                                     onMoreClick = { caffeineMenuOpen = true },
                                     onMoreBounds = { caffeineMenuAnchor = it },
+                                    modifier = surface,
                                 )
                             }
                             FeedSection.SleepFactors -> {
                                 SectionLabel(stringResource(R.string.feed_sleep_title))
                                 Spacer(Modifier.height(LabelToCard))
-                                SleepFactorsCard(selected = log.factors, onToggle = onToggleFactor)
+                                SleepFactorsCard(selected = log.factors, onToggle = onToggleFactor, modifier = surface)
                             }
                             FeedSection.Feeling -> {
                                 SectionLabel(stringResource(R.string.feed_feeling_title))
                                 Spacer(Modifier.height(LabelToCard))
-                                FeelingCard(mood = log.mood, onMoodChange = onMoodChange)
+                                FeelingCard(mood = log.mood, onMoodChange = onMoodChange, modifier = surface)
                             }
                         }
                     }
@@ -574,18 +569,10 @@ private fun BedtimeRow(bedtimes: List<Bedtime>) {
 /** Ícone de cada hora: estrela (6 e 5 ciclos) e as caras do medidor, de contente a insatisfeito. */
 private fun bedtimeIcon(cycles: Int): Pair<String, Color> = CycloAppIconPaths.bedtime(cycles) to when (cycles) {
     6, 5 -> StarYellow
-    4 -> MoodViolet
-    3 -> MoodBlue
-    2 -> MoodSky
-    else -> MoodMint
-}
-
-/** Cara ao lado da chávena: muda com a cafeína (0 a 2 contente ... 6 ou mais insatisfeito). */
-private fun caffeineFace(count: Int): Pair<String, Color> = when {
-    count <= 2 -> CycloAppIconPaths.SentimentSatisfied to MoodViolet
-    count <= 4 -> CycloAppIconPaths.SentimentNeutral to MoodBlue
-    count == 5 -> CycloAppIconPaths.SentimentDissatisfied to MoodSky
-    else -> CycloAppIconPaths.SentimentDissatisfied to MoodMint
+    4 -> CycloColors.MoodViolet
+    3 -> CycloColors.MoodBlue
+    2 -> CycloColors.MoodSky
+    else -> CycloColors.MoodMint
 }
 
 /** caffeine-meter-group: chávena e cara à esquerda; "−", o número e "+" à direita; e o "...". */
@@ -595,10 +582,11 @@ private fun CaffeineCard(
     onChange: (Int) -> Unit,
     onMoreClick: () -> Unit,
     onMoreBounds: (Rect) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val outset = (CycloDimens.TouchTarget - 15.dp) / 2
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 63.dp)
             .cycloCard()
@@ -669,9 +657,9 @@ private fun SquareButton(iconPath: String, description: String, enabled: Boolean
 
 /** might-affect-sleep-group: três opções que se ligam e desligam. */
 @Composable
-private fun SleepFactorsCard(selected: Set<SleepFactor>, onToggle: (SleepFactor) -> Unit) {
+private fun SleepFactorsCard(selected: Set<SleepFactor>, onToggle: (SleepFactor) -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .cycloCard()
             .padding(CardPadding),
@@ -758,289 +746,30 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
  * assenta no ponto mais perto com uma mola.
  */
 @Composable
-private fun FeelingCard(mood: Float, onMoodChange: (Float) -> Unit) {
+private fun FeelingCard(mood: Float, onMoodChange: (Float) -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .cycloCard()
             .padding(CardPadding),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
-            CycloIcon(path = CycloAppIconPaths.Mood, size = 15.dp, tint = MoodViolet, luminosity = false)
+            CycloIcon(path = CycloAppIconPaths.Mood, size = 15.dp, tint = CycloColors.MoodViolet, luminosity = false)
             Spacer(Modifier.weight(1f))
-            CycloIcon(path = CycloAppIconPaths.SentimentDissatisfied, size = 15.dp, tint = MoodMint, luminosity = false)
+            CycloIcon(path = CycloAppIconPaths.SentimentDissatisfied, size = 15.dp, tint = CycloColors.MoodMint, luminosity = false)
         }
         Spacer(Modifier.height(12.dp))
-        EmotionMeter(mood = mood, onMoodChange = onMoodChange)
-    }
-}
-
-/**
- * O medidor de emoções: a bola segue o dedo (com resistência para lá das pontas) e, ao largar,
- * escolhe o ponto pela posição e pelo lançamento, e assenta lá com uma mola que parte com a
- * velocidade do dedo. Cresce um pouco enquanto se segura. Um tique em cada ponto que passa.
- * Tocar num sítio leva a bola para o ponto mais perto.
- */
-@Composable
-private fun EmotionMeter(mood: Float, onMoodChange: (Float) -> Unit) {
-    val effects = LocalVisualEffects.current
-    val view = LocalView.current
-    val scope = rememberCoroutineScope()
-    val density = LocalDensity.current
-    val description = stringResource(R.string.feed_feeling_meter)
-    val levels = listOf(
-        stringResource(R.string.feed_feeling_level_1),
-        stringResource(R.string.feed_feeling_level_2),
-        stringResource(R.string.feed_feeling_level_3),
-        stringResource(R.string.feed_feeling_level_4),
-        stringResource(R.string.feed_feeling_level_5),
-    )
-    val last = MoodSteps - 1
-    val stored = (mood * last).roundToInt().coerceIn(0, last)
-    var step by remember { mutableIntStateOf(stored) }
-    // A posição da bola (0 a 1; passa um pouco das pontas com a resistência e a mola).
-    val ball = remember { Animatable(stored / last.toFloat()) }
-    // Enquanto o dedo arrasta, a bola está no dedo ([dragFinger]) mais a distância a que estava
-    // dele quando o arrasto começou ([grabOffset], que se fecha sozinha em poucos fotogramas): sem
-    // corrotinas a cada movimento e sem saltar para o dedo.
-    var dragging by remember { mutableStateOf(false) }
-    var dragFinger by remember { mutableFloatStateOf(0f) }
-    var grabOffset by remember { mutableFloatStateOf(0f) }
-    var grabJob by remember { mutableStateOf<Job?>(null) }
-    var settleJob by remember { mutableStateOf<Job?>(null) }
-    var held by remember { mutableStateOf(false) }
-    // State (sem "by"): o tamanho da bola só se lê ao desenhar, por isso a mola dela redesenha o
-    // medidor sem o recompor (antes recompunha-o a cada fotograma enquanto crescia).
-    val ballScale = animateFloatAsState(
-        targetValue = if ((held || dragging) && effects.animationsEnabled) CycloMotion.MoodBallHeldScale else 1f,
-        animationSpec = CycloMotion.MoodBallScaleSpring,
-        label = "moodBall",
-    )
-    // A última escolha feita aqui (e quando): um valor guardado mais antigo que chegue depois (duas
-    // escolhas seguidas) não leva a bola para trás.
-    var localStep by remember { mutableIntStateOf(-1) }
-    var localAt by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(stored) {
-        if (localStep >= 0) {
-            if (stored == localStep) {
-                localStep = -1
-                return@LaunchedEffect
-            }
-            if (System.currentTimeMillis() - localAt < PendingMoodMs) return@LaunchedEffect
-            localStep = -1
-        }
-        // Mudou fora daqui (outro dia, restauro): a bola vai para lá.
-        if (!dragging && stored != step) {
-            step = stored
-            if (effects.animationsEnabled) ball.animateTo(stored / last.toFloat(), CycloMotion.MoodSettleSpring) else ball.snapTo(stored / last.toFloat())
-        }
-    }
-
-    fun setStep(newStep: Int, haptic: Boolean) {
-        if (newStep != step) {
-            step = newStep
-            if (haptic) CycloHaptics.pickerTick(view, manyChoices = false)
-        }
-    }
-
-    /**
-     * Leva a bola para o ponto escolhido, a partir de [from] e com [velocity] (fração/s). A bola
-     * passa do dedo para a mola no mesmo fotograma ([dragging] só desliga depois de a mola estar na
-     * posição do dedo) e a escolha só se grava quando a bola assenta, para a recomposição do Feed
-     * (as horas a dormir mudam) não cair a meio da mola.
-     */
-    fun settle(from: Float, velocity: Float = 0f) {
-        val chosen = step
-        val target = chosen / last.toFloat()
-        localStep = chosen
-        localAt = System.currentTimeMillis()
-        settleJob = scope.launch {
-            try {
-                ball.snapTo(from)
-                dragging = false
-                if (effects.animationsEnabled) {
-                    ball.animateTo(target, CycloMotion.MoodSettleSpring, initialVelocity = velocity)
-                } else {
-                    ball.snapTo(target)
-                }
-            } finally {
-                // Também se um arrasto novo interromper a mola (grava-se depois a escolha dele).
-                onMoodChange(target)
-            }
-        }
-    }
-
-    /**
-     * A posição da bola enquanto o dedo arrasta: o dedo com o encaixe suave dos pontos
-     * ([moodDetent]) mais o que falta fechar da distância inicial, com resistência para lá das pontas.
-     */
-    fun dragPosition(): Float = rubberBandFraction(moodDetent(dragFinger, last) + grabOffset)
-
-    val ballInset = with(density) { 11.5.dp.toPx() }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(24.dp)
-            // O medidor arrasta na horizontal: o swipe entre páginas não começa aqui.
-            .excludeFromPageSwipe()
-            .semantics {
-                contentDescription = description
-                stateDescription = levels[step]
-                progressBarRangeInfo = ProgressBarRangeInfo(step.toFloat(), 0f..last.toFloat(), MoodSteps - 2)
-                setProgress { target ->
-                    setStep(target.roundToInt().coerceIn(0, last), haptic = false)
-                    settle(ball.value)
-                    true
-                }
-            },
-    ) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            held = true
-                            tryAwaitRelease()
-                            held = false
-                        },
-                    ) { offset ->
-                        val trackPx = (size.width - 2f * ballInset).coerceAtLeast(1f)
-                        setStep((((offset.x - ballInset) / trackPx).coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
-                        settle(if (dragging) dragPosition() else ball.value)
-                    }
-                }
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val trackPx = (size.width - 2f * ballInset).coerceAtLeast(1f)
-                        fun rawFractionAt(x: Float) = (x - ballInset) / trackPx
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val start = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ ->
-                            change.consume()
-                        } ?: return@awaitEachGesture
-                        val tracker = VelocityTracker()
-                        tracker.addPosition(start.uptimeMillis, start.position)
-                        // A bola começa onde está (a meio de uma mola, se for o caso) e não salta
-                        // para o dedo: a distância entre os dois fecha-se sozinha (mola crítica, a
-                        // partir deste mesmo fotograma), e daí em diante a bola fica debaixo do dedo.
-                        // A mola anterior pára já (antes, ao acabar, devolvia a bola a meio do arrasto).
-                        settleJob?.cancel()
-                        val shown = if (dragging) dragPosition() else ball.value
-                        val finger = rawFractionAt(start.position.x)
-                        dragFinger = finger
-                        // Medida a partir do dedo já com o encaixe: a bola não salta no primeiro frame.
-                        grabOffset = shown - moodDetent(finger, last)
-                        dragging = true
-                        grabJob?.cancel()
-                        grabJob = if (effects.animationsEnabled) {
-                            scope.launch { closeGrab(grabOffset) { grabOffset = it } }
-                        } else {
-                            grabOffset = 0f
-                            null
-                        }
-                        setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
-                        horizontalDrag(start.id) { change ->
-                            change.consume()
-                            tracker.addPosition(change.uptimeMillis, change.position)
-                            dragFinger = rawFractionAt(change.position.x)
-                            setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
-                        }
-                        // Larga-se onde a bola está desenhada; a mola parte daí, com a velocidade do dedo.
-                        grabJob?.cancel()
-                        val released = dragPosition()
-                        val velocity = tracker.calculateVelocity().x / trackPx
-                        val projected = (released + velocity * CycloMotion.MoodFlingProjectionS).coerceIn(0f, 1f)
-                        setStep((projected * last).roundToInt(), haptic = true)
-                        settle(released, velocity)
-                    }
-                },
-        ) {
-            val blend = effects.luminosity
-            // emotion-meter-background: gradiente a 39 %, de violeta a menta.
-            drawRoundRect(
-                brush = Brush.horizontalGradient(
-                    0f to MoodViolet.copy(alpha = 0.39f),
-                    0.25f to MoodBlue.copy(alpha = 0.39f),
-                    0.75f to MoodSky.copy(alpha = 0.39f),
-                    1f to MoodMint.copy(alpha = 0.39f),
-                ),
-                cornerRadius = CornerRadius(size.height / 2f),
-            )
-            // Os pontos (9 dp, #A3A2A7 a 15 % em Luminosity), nas cinco posições da bola.
-            val y = size.height / 2f
-            for (i in 0 until MoodSteps) {
-                val x = lerp(ballInset, size.width - ballInset, i / last.toFloat())
-                drawCircle(
-                    color = CycloColors.TextSecondary.copy(alpha = 0.15f),
-                    radius = 4.5.dp.toPx(),
-                    center = Offset(x, y),
-                    blendMode = blend,
-                )
-            }
-            // Enquanto arrasta: o dedo mais o que falta fechar da distância inicial (lido aqui, a cada fotograma).
-            val position = if (dragging) dragPosition() else ball.value
-            drawCycloBall(Offset(lerp(ballInset, size.width - ballInset, position), y), ballScale.value)
-        }
-    }
-}
-
-/** Quanto tempo uma escolha feita no medidor manda sobre valores guardados diferentes (ms). */
-private const val PendingMoodMs = 2_000L
-
-/**
- * Para lá das pontas, a bola anda cada vez menos do que o dedo (a resistência do iOS, [rubberBand]):
- * começa com [CycloMotion.MoodRubberBand] do movimento e aproxima-se de [CycloMotion.MoodRubberBandMax]
- * sem nunca bater num limite seco (antes parava de repente no máximo, como contra uma parede).
- */
-private fun rubberBandFraction(f: Float): Float = when {
-    f < 0f -> rubberBand(f, CycloMotion.MoodRubberBandMax, CycloMotion.MoodRubberBand)
-    f > 1f -> 1f + rubberBand(f - 1f, CycloMotion.MoodRubberBandMax, CycloMotion.MoodRubberBand)
-    else -> f
-}
-
-/**
- * Encaixe suave nos cinco pontos enquanto se arrasta: perto de um ponto a bola anda um pouco menos
- * do que o dedo (até [MoodDetentPull] da distância, a [MoodDetentReach] de um passo), e longe deles
- * acompanha-o por inteiro. A curva é contínua e sempre a subir (a bola nunca anda para trás nem
- * salta): o dedo sente os pontos sem a bola deixar de o seguir. [f] é a posição do dedo (0 a 1,
- * pode passar das pontas) e [last] o índice do último ponto.
- */
-private fun moodDetent(f: Float, last: Int): Float {
-    val s = f * last
-    val nearest = s.roundToInt().coerceIn(0, last)
-    val d = s - nearest
-    val u = (kotlin.math.abs(d) / MoodDetentReach).coerceIn(0f, 1f)
-    val smooth = u * u * (3f - 2f * u)
-    // Junto ao ponto anda (1 - pull) do dedo; ao afastar-se volta, suavemente, a andar com ele.
-    val eased = d * (1f - MoodDetentPull * (1f - smooth))
-    return (nearest + eased) / last
-}
-
-/** Quanto do movimento o encaixe segura junto a um ponto (0 = nada). */
-private const val MoodDetentPull = 0.35f
-
-/** Até onde chega o encaixe, em frações de um passo entre pontos. */
-private const val MoodDetentReach = 0.28f
-
-/**
- * Fecha a distância entre a bola e o dedo no início de um arrasto: uma mola crítica (sem passar
- * do dedo) com a resposta de [CycloSprings.Snappy], fotograma a fotograma, a partir de [from].
- */
-private suspend fun closeGrab(from: Float, set: (Float) -> Unit) {
-    val omega = (2.0 * Math.PI / CycloSprings.Snappy.response).toFloat()
-    var startNanos = -1L
-    while (true) {
-        val done = withFrameNanos { now ->
-            if (startNanos < 0) startNanos = now
-            val t = (now - startNanos) / 1_000_000_000f
-            val k = (1f + omega * t) * exp(-omega * t)
-            set(from * k)
-            k < 0.001f
-        }
-        if (done) {
-            set(0f)
-            return
-        }
+        CycloMeter(
+            value = mood,
+            levels = listOf(
+                stringResource(R.string.feed_feeling_level_1),
+                stringResource(R.string.feed_feeling_level_2),
+                stringResource(R.string.feed_feeling_level_3),
+                stringResource(R.string.feed_feeling_level_4),
+                stringResource(R.string.feed_feeling_level_5),
+            ),
+            description = stringResource(R.string.feed_feeling_meter),
+            onValueChange = onMoodChange,
+        )
     }
 }

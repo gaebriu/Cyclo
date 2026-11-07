@@ -12,6 +12,8 @@ class CycloApplication : Application() {
         super.onCreate()
         fontScale = resources.configuration.fontScale
         CycloSync.start(this)
+        // O grão dos brilhos (Noise do Figma) calcula-se já, em segundo plano, para o primeiro ecrã.
+        com.gaebriu.cyclo.ui.effects.FigmaNoise.prewarm(resources.displayMetrics.density)
     }
 
     /**

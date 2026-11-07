@@ -101,7 +101,7 @@ class BackupTest {
 
     @Test
     fun rejectsNewerVersion() {
-        val json = buildBackupJson(data, exportedAt, "x").replace("\"version\": 1", "\"version\": 99")
+        val json = buildBackupJson(data, exportedAt, "x").replace("\"version\": $BackupFormatVersion", "\"version\": 99")
         assertEquals(BackupProblem.TooNew, problem(json))
     }
 
@@ -138,5 +138,47 @@ class BackupTest {
         val dup = data.copy(routines = listOf(data.routines[0], data.routines[1].copy(id = 1)))
         val ids = valid(buildBackupJson(dup, exportedAt, "x")).routines.map { it.id }
         assertEquals(2, ids.toSet().size)
+    }
+
+    private val withHistory = data.copy(
+        trackingOrder = listOf(TrackingSection.Mood, TrackingSection.Restfulness, TrackingSection.Caffeine),
+        history = listOf(
+            DailyLog(LocalDate.of(2026, 10, 28), caffeine = 2, opened = true, sleep = SleepQuality.Meh),
+            DailyLog(LocalDate.of(2026, 10, 29), mood = 1f, opened = false, sleep = null),
+        ),
+        dailyLog = data.dailyLog!!.copy(opened = true, sleep = SleepQuality.VeryPoor),
+    )
+
+    @Test
+    fun historyAndTrackingOrderRoundTrip() {
+        val c = valid(buildBackupJson(withHistory, exportedAt, "beta-2.0"))
+        assertEquals(withHistory.history, c.history)
+        assertEquals(withHistory.trackingOrder, c.trackingOrder)
+        assertEquals(withHistory.dailyLog, c.dailyLog)
+    }
+
+    @Test
+    fun formatOneBackupKeepsCurrentHistory() {
+        // Uma cópia da versão 1 (antes da Tracking): sem histórico nem ordem; os registos sem
+        // "opened" contam como abertos.
+        val v1 = """{"format":"cyclo-backup","version":1,"data":{"routines":[],
+            "dailyLog":{"date":"2026-10-30","caffeine":1,"factors":[],"mood":0.5}}}"""
+        val c = valid(v1)
+        assertNull(c.history)
+        assertNull(c.trackingOrder)
+        assertEquals(true, c.dailyLog!!.opened)
+        assertNull(c.dailyLog!!.sleep)
+    }
+
+    @Test
+    fun brokenHistoryEntryRejectsTheWholeFile() {
+        val json = buildBackupJson(withHistory, exportedAt, "x").replace("\"2026-10-28\"", "\"2026-13-45\"")
+        assertEquals(BackupProblem.Invalid, problem(json))
+    }
+
+    @Test
+    fun unknownSleepNameIsIgnored() {
+        val json = buildBackupJson(withHistory, exportedAt, "x").replace("\"Meh\"", "\"Dreamy\"")
+        assertNull(valid(json).history!!.first().sleep)
     }
 }

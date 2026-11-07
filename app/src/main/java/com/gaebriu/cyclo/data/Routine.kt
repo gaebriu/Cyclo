@@ -107,6 +107,11 @@ enum class SleepFactor { IntenseExercise, HeavyLateMeal, LongLateNap }
  *                         Pode ter menos entradas do que [caffeine] (registos de versões antigas,
  *                         sem hora); nunca mais.
  * @property factorTimes quando cada fator foi marcado (epoch ms). Só os fatores em [factors].
+ * @property opened a app foi aberta neste dia depois da hora de acordar desse dia (ver
+ *                  [trackingDayStart]): só então a cafeína e o humor deste dia contam na Tracking.
+ *                  Registos antigos (antes da Beta 2.0) não têm este campo e contam como abertos:
+ *                  só existiam porque o utilizador mexeu na app nesse dia.
+ * @property sleep como dormiu na noite que acabou na manhã deste dia ("Log sleep"); null = por registar.
  */
 @Immutable
 data class DailyLog(
@@ -116,7 +121,37 @@ data class DailyLog(
     val mood: Float = 0.5f,
     val caffeineTimes: List<Long> = emptyList(),
     val factorTimes: Map<SleepFactor, Long> = emptyMap(),
+    val opened: Boolean = false,
+    val sleep: SleepQuality? = null,
 )
+
+/**
+ * O nível do medidor de emoções do Feed ("How are you feeling tonight?"), de 0 (Great) a 4 (Bad):
+ * o ponto mais perto de [DailyLog.mood].
+ */
+val DailyLog.moodLevel: Int get() = (mood.coerceIn(0f, 1f) * (MoodLevels - 1)).let { kotlin.math.round(it).toInt() }
+
+/** Quantos níveis tem o medidor de emoções (Great, Good, Okay, Not great, Bad). */
+const val MoodLevels = 5
+
+/**
+ * Como dormiu (o sleep-quality-meter do action-menu-log-sleep, Componentes 5), pela ordem do medidor,
+ * da esquerda para a direita. Guarda-se pelo nome.
+ */
+enum class SleepQuality { ReallyWell, Well, Meh, Poor, VeryPoor }
+
+/**
+ * Os cartões da Tracking que se podem reordenar (long press e arrastar). O sleep-evaluation-prompt
+ * não está aqui: quando aparece, fica sempre no topo.
+ */
+enum class TrackingSection { Restfulness, Caffeine, Mood }
+
+/** A ordem do Figma (Tracking, 2001:115). */
+val DefaultTrackingOrder: List<TrackingSection> = TrackingSection.entries
+
+/** Como [normalizeFeedOrder], para os cartões da Tracking. */
+fun normalizeTrackingOrder(order: List<TrackingSection>): List<TrackingSection> =
+    (order + DefaultTrackingOrder).distinct()
 
 /**
  * Cronótipo escolhido nas definições (action-menu-chronotype, Componentes 3), pela ordem do menu.
@@ -182,6 +217,13 @@ data class CycloData(
     val bedtimeReminder: Boolean = true,
     /** A ordem dos blocos do Feed (reordenáveis), sem o grupo da hora de acordar. */
     val feedOrder: List<FeedSection> = DefaultFeedOrder,
+    /** A ordem dos cartões da Tracking (reordenáveis), sem o prompt do sono. */
+    val trackingOrder: List<TrackingSection> = DefaultTrackingOrder,
+    /**
+     * O histórico: o registo de cada dia que já passou (o de hoje está em [dailyLog]), do mais
+     * antigo ao mais recente, um por data. Guarda-se tudo, para sempre (ver data/Tracking.kt).
+     */
+    val history: List<DailyLog> = emptyList(),
     /**
      * O versionCode da última vez que a app abriu (null = nunca guardado). Serve para saber, na
      * primeira abertura depois de uma atualização, que deve mostrar o Introduction 0 e ir logo

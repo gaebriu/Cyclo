@@ -36,8 +36,13 @@ import java.time.format.DateTimeParseException
  * As preferências do aparelho ficam de fora: o formato das horas, a língua (guardada pelo Android)
  * e "Advanced textures" (beta-1.4). As cópias antigas trazem "use24Hour": continuam válidas e esse
  * valor é ignorado ao repor.
+ *
+ * Versão 2 (Beta 2.0, Tracking): "history" (os registos dos dias passados, cada um no formato do
+ * "dailyLog"), "settings.trackingOrder" e, em cada registo, "opened" e "sleep" (o nome de um
+ * [SleepQuality] ou null). As cópias da versão 1 continuam válidas: sem "history", o histórico atual
+ * fica como está; registos sem "opened" contam como abertos (ver [DailyLog.opened]).
  */
-const val BackupFormatVersion = 1
+const val BackupFormatVersion = 2
 private const val FormatName = "cyclo-backup"
 
 /** Ficheiros maiores do que isto não são uma cópia do Cyclo (as cópias reais têm poucos KB). */
@@ -54,6 +59,10 @@ data class BackupContents(
     val exportedAt: Instant?,
     /** A ordem dos blocos do Feed (null = a cópia não a traz, fica a atual). */
     val feedOrder: List<FeedSection>? = null,
+    /** A ordem dos cartões da Tracking (null = a cópia não a traz, fica a atual). */
+    val trackingOrder: List<TrackingSection>? = null,
+    /** O histórico (null = a cópia não o traz, versão 1: fica o atual). */
+    val history: List<DailyLog>? = null,
 )
 
 /** Porque é que uma cópia não pode ser reposta. */
@@ -78,10 +87,12 @@ fun buildBackupJson(data: CycloData, exportedAt: Instant, appVersion: String): S
         .put("fallAsleep", data.fallAsleep.name)
         .put("bedtimeReminder", data.bedtimeReminder)
         .put("feedOrder", JSONArray(data.feedOrder.map { it.name }))
+        .put("trackingOrder", JSONArray(data.trackingOrder.map { it.name }))
     val content = JSONObject()
         .put("onboarded", data.onboarded)
         .put("routines", routinesToJson(data.routines))
         .put("dailyLog", data.dailyLog?.let(::dailyLogToJson) ?: JSONObject.NULL)
+        .put("history", historyToJson(data.history))
         .put("settings", settings)
     return JSONObject()
         .put("format", FormatName)
@@ -122,6 +133,12 @@ fun parseBackup(text: String): BackupParseResult {
         } else {
             parseBackupDailyLog(data.getJSONObject("dailyLog")) ?: return BackupParseResult.Rejected(BackupProblem.Invalid)
         }
+        // O histórico (versão 2): um registo estragado recusa a cópia inteira, como as rotinas.
+        val history = data.optJSONArray("history")?.let { array ->
+            List(array.length()) { i ->
+                array.optJSONObject(i)?.let(::parseBackupDailyLog) ?: return BackupParseResult.Rejected(BackupProblem.Invalid)
+            }
+        }
         val settings = data.optJSONObject("settings") ?: JSONObject()
         val age = if (settings.isNull("age")) null else settings.optInt("age", -1).takeIf { it in AgeRange }
         if (!settings.isNull("age") && settings.has("age") && age == null) {
@@ -140,6 +157,10 @@ fun parseBackup(text: String): BackupParseResult {
                 feedOrder = settings.optJSONArray("feedOrder")?.let { array ->
                     normalizeFeedOrder(List(array.length()) { array.optString(it) }.mapNotNull { enumOrNull<FeedSection>(it) })
                 },
+                trackingOrder = settings.optJSONArray("trackingOrder")?.let { array ->
+                    normalizeTrackingOrder(List(array.length()) { array.optString(it) }.mapNotNull { enumOrNull<TrackingSection>(it) })
+                },
+                history = history,
             ),
         )
     } catch (e: JSONException) {
@@ -203,8 +224,16 @@ private fun parseBackupDailyLog(o: JSONObject): DailyLog? {
         mood = mood.toFloat(),
         caffeineTimes = parseCaffeineTimes(o, caffeine),
         factorTimes = parseFactorTimes(o, factorSet),
+        opened = o.optBoolean("opened", true),
+        sleep = parseSleepQuality(o),
     )
 }
+
+/** O sono registado (opcional); um nome que esta versão não conhece fica por registar. */
+internal fun parseSleepQuality(o: JSONObject): SleepQuality? =
+    if (o.isNull("sleep")) null else enumOrNull<SleepQuality>(o.optString("sleep"))
+
+internal fun historyToJson(history: List<DailyLog>): JSONArray = JSONArray().apply { history.forEach { put(dailyLogToJson(it)) } }
 
 internal fun routinesToJson(routines: List<Routine>): JSONArray {
     val array = JSONArray()
@@ -231,6 +260,8 @@ internal fun dailyLogToJson(log: DailyLog): JSONObject = JSONObject()
     .put("mood", log.mood.toDouble())
     .put("caffeineTimes", JSONArray(log.caffeineTimes))
     .put("factorTimes", JSONObject().apply { log.factorTimes.forEach { (f, t) -> put(f.name, t) } })
+    .put("opened", log.opened)
+    .put("sleep", log.sleep?.name ?: JSONObject.NULL)
 
 /**
  * As horas dos cafés (opcionais: registos antigos não as têm). Só as positivas, por ordem, e no

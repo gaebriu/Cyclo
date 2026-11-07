@@ -40,6 +40,12 @@ private val BedtimeReminderKey = booleanPreferencesKey("bedtime_reminder")
 /** A ordem dos blocos do Feed: os nomes separados por vírgulas (sem valor = a do Figma). */
 private val FeedOrderKey = stringPreferencesKey("feed_order")
 
+/** A ordem dos cartões da Tracking: os nomes separados por vírgulas (sem valor = a do Figma). */
+private val TrackingOrderKey = stringPreferencesKey("tracking_order")
+
+/** O histórico (Beta 2.0): os registos dos dias que já passaram, em JSON (ver [CycloData.history]). */
+private val HistoryKey = stringPreferencesKey("history")
+
 /** O versionCode da última abertura (ver [CycloData.lastRunVersion]). */
 private val LastRunVersionKey = intPreferencesKey("last_run_version")
 
@@ -74,6 +80,8 @@ class CycloRepository(context: Context) {
                     ?: FallAsleepTime.Fifteen,
                 bedtimeReminder = prefs[BedtimeReminderKey] ?: true,
                 feedOrder = prefs[FeedOrderKey]?.let(::parseFeedOrder) ?: DefaultFeedOrder,
+                trackingOrder = prefs[TrackingOrderKey]?.let(::parseTrackingOrder) ?: DefaultTrackingOrder,
+                history = prefs.history(),
                 lastRunVersion = prefs[LastRunVersionKey],
             )
         }
@@ -119,6 +127,11 @@ class CycloRepository(context: Context) {
         store.edit { prefs -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
     }
 
+    /** Guarda a nova ordem dos cartões da Tracking. */
+    suspend fun setTrackingOrder(order: List<TrackingSection>) {
+        store.edit { prefs -> prefs[TrackingOrderKey] = normalizeTrackingOrder(order).joinToString(",") { it.name } }
+    }
+
     /** Guarda o versionCode desta abertura (ver [CycloData.lastRunVersion]). */
     suspend fun setLastRunVersion(versionCode: Int) {
         store.edit { prefs -> prefs[LastRunVersionKey] = versionCode }
@@ -141,6 +154,9 @@ class CycloRepository(context: Context) {
             contents.fallAsleep?.let { prefs[FallAsleepKey] = it.name }
             contents.bedtimeReminder?.let { prefs[BedtimeReminderKey] = it }
             contents.feedOrder?.let { order -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
+            contents.trackingOrder?.let { order -> prefs[TrackingOrderKey] = normalizeTrackingOrder(order).joinToString(",") { it.name } }
+            // Cópias sem histórico (formato 1, antes da Beta 2.0) não apagam o que já há.
+            contents.history?.let { prefs.setHistory(it) }
         }
     }
 
@@ -194,11 +210,15 @@ class CycloRepository(context: Context) {
         }
     }
 
-    /** Muda o registo de hoje (se o guardado for de outro dia, começa um novo). */
+    /**
+     * Muda o registo de hoje. Se o guardado for de outro dia, passa para o histórico na MESMA escrita
+     * (nunca se perde um dia) e começa um novo.
+     */
     suspend fun updateDailyLog(today: LocalDate, change: (DailyLog) -> DailyLog) {
         store.edit { prefs ->
-            val current = prefs[DailyLogKey]?.let(::parseDailyLog)?.takeIf { it.date == today }
-                ?: DailyLog(today)
+            val stored = prefs[DailyLogKey]?.let(::parseDailyLog)
+            if (stored != null && stored.date != today) prefs.setHistory(prefs.history() + stored)
+            val current = stored?.takeIf { it.date == today } ?: DailyLog(today)
             prefs[DailyLogKey] = change(current).toJson()
         }
     }
@@ -216,6 +236,23 @@ private fun RoutineDraft.toRoutine(id: Long, nowMillis: Long) = Routine(
 )
 
 private fun Preferences.routines(): List<Routine> = this[RoutinesKey]?.let(::parseRoutines).orEmpty()
+
+private fun Preferences.history(): List<DailyLog> = this[HistoryKey]?.let(::parseHistory).orEmpty()
+
+/** Guarda o histórico: um registo por data (o mais recente ganha), do mais antigo ao mais recente. */
+private fun MutablePreferences.setHistory(logs: List<DailyLog>) {
+    val byDate = LinkedHashMap<LocalDate, DailyLog>()
+    logs.forEach { byDate[it.date] = it }
+    this[HistoryKey] = historyToJson(byDate.values.sortedBy { it.date }).toString()
+}
+
+private fun parseHistory(json: String): List<DailyLog> = runCatching {
+    val array = JSONArray(json)
+    List(array.length()) { i -> array.optJSONObject(i)?.let(::parseDailyLogObject) }.filterNotNull()
+}.getOrDefault(emptyList())
+
+private fun parseTrackingOrder(text: String): List<TrackingSection> =
+    normalizeTrackingOrder(text.split(',').mapNotNull { name -> TrackingSection.entries.firstOrNull { it.name == name.trim() } })
 
 private fun MutablePreferences.setRoutines(routines: List<Routine>) {
     this[RoutinesKey] = routinesToJson(routines).toString()
@@ -244,8 +281,9 @@ private fun parseFeedOrder(text: String): List<FeedSection> =
 
 private fun DailyLog.toJson(): String = dailyLogToJson(this).toString()
 
-private fun parseDailyLog(json: String): DailyLog? = runCatching {
-    val o = JSONObject(json)
+private fun parseDailyLog(json: String): DailyLog? = runCatching { JSONObject(json) }.getOrNull()?.let(::parseDailyLogObject)
+
+private fun parseDailyLogObject(o: JSONObject): DailyLog? = runCatching {
     val factors = o.optJSONArray("factors")
     val caffeine = o.optInt("caffeine", 0)
     val factorSet = buildSet {
@@ -262,5 +300,8 @@ private fun parseDailyLog(json: String): DailyLog? = runCatching {
         mood = o.optDouble("mood", 0.5).toFloat(),
         caffeineTimes = parseCaffeineTimes(o, caffeine),
         factorTimes = parseFactorTimes(o, factorSet),
+        // Registos de antes da Beta 2.0 não têm o campo: contam como abertos (ver DailyLog.opened).
+        opened = o.optBoolean("opened", true),
+        sleep = parseSleepQuality(o),
     )
 }.getOrNull()

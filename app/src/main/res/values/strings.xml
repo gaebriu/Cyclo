@@ -18,6 +18,7 @@
     <!-- Barra de navegação e mini-menu -->
     <string name="main_tab_feed">Feed</string>
     <string name="main_tab_saved">Saved routines</string>
+    <string name="main_tab_tracking">Tracking</string>
     <string name="main_search">Search routines</string>
     <string name="main_add_routine">Add routine</string>
     <string name="main_settings">Settings</string>
@@ -116,9 +117,6 @@
     <string name="settings_github">View on GitHub</string>
     <!-- Ex.: "Cyclo Alpha 0.7.3" (a fase e o número, do versionName "alpha-0.7.3") -->
     <string name="settings_version">Cyclo %1$s</string>
-    <!-- beta-updates (Cyclo-2 2006:691) e o texto de ajuda por baixo -->
-    <string name="settings_beta_updates">Beta updates</string>
-    <string name="settings_beta_updates_description">Get early access to new features and improvements. Beta versions may contain bugs or unfinished features</string>
 
     <!-- new-update-group (Definições): uma versão nova no GitHub -->
     <!-- Ex.: "Cyclo Alpha 0.7.4 is here" -->
@@ -147,13 +145,6 @@
     <string name="github_sheet_text_2">You can take a look, report a bug, or suggest an idea</string>
     <string name="github_sheet_open">Open GitHub</string>
 
-    <!-- action-menu-beta-program (Cyclo-2, Componentes 5, 2007:111) -->
-    <string name="beta_sheet_title">Before continuing, please keep in mind</string>
-    <string name="beta_sheet_text_1">Once you install a beta version, you cannot return to a previous stable version without uninstalling the app</string>
-    <string name="beta_sheet_text_2">Some data may be incompatible with older stable versions</string>
-    <string name="beta_sheet_text_3">Regular updates will continue as usual, including future stable releases</string>
-    <string name="beta_sheet_text_4">These limitations apply once you update to a beta version</string>
-    <string name="beta_sheet_continue">Continue</string>
     <string name="github_url" translatable="false">https://github.com/gaebriu/Cyclo</string>
     <string name="github_open_failed">Couldn\'t open GitHub</string>
 
@@ -220,4 +211,26 @@
     <string name="widget_preview_bed_4" translatable="false">02:45</string>
     <string name="widget_preview_bed_5" translatable="false">04:15</string>
     <string name="widget_pin_unsupported">Your home screen can\'t add widgets from here</string>
+
+    <!-- Tracking (Cyclo-2 2001:115 e 2006:449) -->
+    <string name="tracking_restfulness">Restfulness</string>
+    <string name="tracking_caffeine">Caffeine intake</string>
+    <string name="tracking_mood">Mood</string>
+    <string name="tracking_week_chart">Last 7 days</string>
+    <string name="tracking_month_chart">This month</string>
+    <string name="tracking_not_logged">Not logged</string>
+    <!-- sleep-evaluation-prompt (2006:416) -->
+    <string name="sleep_prompt_title">How well did you sleep last night?</string>
+    <string name="sleep_prompt_text">Let us know how you slept to keep your sleep on track</string>
+    <string name="sleep_prompt_log">Log sleep</string>
+    <string name="sleep_prompt_close">Close</string>
+    <!-- action-menu-log-sleep (Componentes 5, 2013:40) e o sleep-quality-meter -->
+    <string name="sleep_sheet_title">How well did you sleep last night?</string>
+    <string name="sleep_sheet_done">Done</string>
+    <string name="sleep_quality_meter">How you slept</string>
+    <string name="sleep_quality_really_well">Really well</string>
+    <string name="sleep_quality_well">Well</string>
+    <string name="sleep_quality_meh">Meh</string>
+    <string name="sleep_quality_poor">Poor</string>
+    <string name="sleep_quality_very_poor">Very poor</string>
 </resources>

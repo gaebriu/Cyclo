@@ -24,6 +24,11 @@ import com.gaebriu.cyclo.ui.theme.CycloType
  * Folha de confirmação (action-menu-big, ex.: action-menu-big-open-github do Componentes 3,
  * 345 x 219 dp): pega, título, um ou dois textos centrados e o botão roxo de 48 dp. Todos os
  * espaços são de 15 dp, como na folha dos dias.
+ *
+ * @param texts os textos centrados por baixo do título; [textContent], se houver, desenha-os em vez
+ *        disso (ex.: o nível do sono, que muda com a bola).
+ * @param extra o que vai entre os textos e o botão, também a 15 dp (ex.: o sleep-quality-meter do
+ *        action-menu-log-sleep, Componentes 5 2013:40).
  */
 @Composable
 fun CycloBigSheet(
@@ -32,6 +37,8 @@ fun CycloBigSheet(
     buttonText: String,
     onButtonClick: () -> Unit,
     modifier: Modifier = Modifier,
+    textContent: (@Composable () -> Unit)? = null,
+    extra: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -49,13 +56,22 @@ fun CycloBigSheet(
         )
         Spacer(Modifier.height(15.dp))
         BasicText(text = title, style = CycloType.SheetTitle, modifier = Modifier.semantics { heading() })
-        texts.forEach { text ->
+        if (textContent != null) {
             Spacer(Modifier.height(15.dp))
-            BasicText(
-                text = text,
-                style = CycloType.Body.copy(textAlign = TextAlign.Center),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            textContent()
+        } else {
+            texts.forEach { text ->
+                Spacer(Modifier.height(15.dp))
+                BasicText(
+                    text = text,
+                    style = CycloType.Body.copy(textAlign = TextAlign.Center),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        if (extra != null) {
+            Spacer(Modifier.height(15.dp))
+            extra()
         }
         Spacer(Modifier.height(15.dp))
         CycloPrimaryButton(text = buttonText, onClick = onButtonClick, size = CycloButtonSize.Compact)

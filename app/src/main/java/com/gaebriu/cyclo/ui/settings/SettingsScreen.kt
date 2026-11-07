@@ -159,14 +159,6 @@ private val RowTextVertical = 6.dp
 /** Onde o valor acaba quando há seta (a seta de 24 dp fica a 15 dp da direita, 9 dp depois do valor). */
 private val ValueEndWithArrow = 48.dp
 
-/**
- * Depois de ligar ou desligar "Beta updates", quanto tempo uma mudança do aviso de atualização ainda
- * faz a página subir até ele (a verificação no GitHub pode demorar uns segundos).
- */
-private const val BetaRevealWindowMs = 15_000L
-
-/** A essa distância do topo, o aviso já pode entrar ou sair enquanto a página acaba de subir. */
-private val RevealNearTop = 4.dp
 
 /** Os menus das definições (só um aberto de cada vez). */
 private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Language }
@@ -203,8 +195,6 @@ fun SettingsScreen(
     onSetAdvancedTextures: (Boolean) -> Unit,
     onClose: () -> Unit,
     update: UpdateUi? = null,
-    betaUpdates: Boolean = false,
-    onSetBetaUpdates: (Boolean) -> Unit = {},
     onUpdateDownload: () -> Unit = {},
     onUpdateCancel: () -> Unit = {},
     onUpdateInstall: () -> Unit = {},
@@ -224,14 +214,11 @@ fun SettingsScreen(
     var menu by remember { mutableStateOf(SettingsMenu.None) }
     var menuAnchor by remember { mutableStateOf(Rect.Zero) }
     var githubOpen by remember { mutableStateOf(false) }
-    var betaSheetOpen by remember { mutableStateOf(false) }
     var ageEditing by remember { mutableStateOf(false) }
     val content = rememberBackdropLayer()
     val scroll = rememberScrollState()
     val animationsEnabled = LocalVisualEffects.current.animationsEnabled
     val latestUpdate by rememberUpdatedState(update)
-    // Até quando (uptime) uma mudança do aviso, depois de mexer em "Beta updates", sobe a página até ele.
-    var revealUntil by remember { mutableLongStateOf(0L) }
     // No fim da página a faixa de baixo some (nos últimos 48 dp de scroll), para não tapar a versão.
     val rampPx = with(density) { BottomFadeRamp.toPx() }
     val bottomAmount by remember(scroll, rampPx) {
@@ -280,32 +267,14 @@ fun SettingsScreen(
 
             // new-update-group: só com uma versão nova no GitHub (e não dispensada há menos de
             // 12 h). Entra e sai com zoom, fade e o lugar a abrir e a fechar. O que se vê ([shownTag])
-            // segue a atualização disponível; depois de mexer em "Beta updates" (lá em baixo), a
-            // página sobe primeiro até ao topo (fechada a folha) e só então o aviso entra, sai ou
-            // troca, à vista e sem empurrar as linhas debaixo do dedo. Um aviso que deixou de ser o
-            // disponível nunca responde, mesmo enquanto sai.
+            // segue a atualização disponível; outra versão no lugar da que se via funde-se com ela.
+            // Um aviso que deixou de ser o disponível nunca responde, mesmo enquanto sai.
             var shownTag by remember { mutableStateOf(update?.tag) }
             var shownUpdate by remember { mutableStateOf(update) }
             if (update != null && update.tag == shownTag) shownUpdate = update
             LaunchedEffect(update?.tag) {
                 val target = latestUpdate?.tag
                 if (target == shownTag) return@LaunchedEffect
-                if (SystemClock.uptimeMillis() < revealUntil) {
-                    snapshotFlow { betaSheetOpen }.first { !it }
-                    if (scroll.value > 0) {
-                        if (animationsEnabled) {
-                            // O aviso começa a mexer quando a página já está a chegar (a cauda da
-                            // mola, os últimos píxeis, não o atrasa).
-                            val climb = launch { scroll.animateScrollTo(0, CycloSprings.Page.float) }
-                            val near = with(density) { RevealNearTop.roundToPx() }
-                            // Se o dedo interromper a subida, o aviso muda na mesma (sem ficar à espera).
-                            snapshotFlow { scroll.value <= near || !climb.isActive }.first { it }
-                        } else {
-                            scroll.scrollTo(0)
-                        }
-                    }
-                    revealUntil = 0L
-                }
                 shownTag = target
                 latestUpdate?.let { shownUpdate = it }
             }
@@ -435,24 +404,8 @@ fun SettingsScreen(
             // Sobre.
             SectionLabel(stringResource(R.string.settings_about), labelStyle)
             SettingsButton(stringResource(R.string.settings_github), onClick = { githubOpen = true })
+            // A versão é o fim da página (Beta 2.0: sem o "Beta updates", a app já é uma beta).
             Description(stringResource(R.string.settings_version, rememberVersionLabel()), labelStyle)
-            // beta-updates (2006:691): a 15 dp da versão. Ligar pede primeiro o
-            // action-menu-beta-program (só liga ao confirmar); desligar é logo, sem aviso.
-            Spacer(Modifier.height(RowGap))
-            SwitchRow(
-                label = stringResource(R.string.settings_beta_updates),
-                on = betaUpdates,
-                toggleHaptic = betaUpdates,
-                onToggle = {
-                    if (betaUpdates) {
-                        revealUntil = SystemClock.uptimeMillis() + BetaRevealWindowMs
-                        onSetBetaUpdates(false)
-                    } else {
-                        betaSheetOpen = true
-                    }
-                },
-            )
-            Description(stringResource(R.string.settings_beta_updates_description), labelStyle)
         }
 
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(content)) {
@@ -553,39 +506,14 @@ fun SettingsScreen(
                     },
                 )
             }
-
-            // action-menu-beta-program (Componentes 5, 2007:111): a mesma folha que a do GitHub.
-            // "Continue" liga as atualizações beta (e verifica logo); fechar a folha deixa-as desligadas.
-            BottomSheetHost(
-                visible = betaSheetOpen,
-                onDismiss = { betaSheetOpen = false },
-                bottomMargin = bottomInset,
-            ) {
-                CycloBigSheet(
-                    title = stringResource(R.string.beta_sheet_title),
-                    texts = listOf(
-                        stringResource(R.string.beta_sheet_text_1),
-                        stringResource(R.string.beta_sheet_text_2),
-                        stringResource(R.string.beta_sheet_text_3),
-                        stringResource(R.string.beta_sheet_text_4),
-                    ),
-                    buttonText = stringResource(R.string.beta_sheet_continue),
-                    onButtonClick = {
-                        betaSheetOpen = false
-                        revealUntil = SystemClock.uptimeMillis() + BetaRevealWindowMs
-                        onSetBetaUpdates(true)
-                    },
-                )
-            }
         }
     }
 
     // Vem depois do voltar de quem mostra as definições: fecha primeiro o que estiver aberto.
-    BackHandler(enabled = menu != SettingsMenu.None || githubOpen || betaSheetOpen || ageEditing) {
+    BackHandler(enabled = menu != SettingsMenu.None || githubOpen || ageEditing) {
         when {
             menu != SettingsMenu.None -> menu = SettingsMenu.None
             githubOpen -> githubOpen = false
-            betaSheetOpen -> betaSheetOpen = false
             else -> ageEditing = false
         }
     }
