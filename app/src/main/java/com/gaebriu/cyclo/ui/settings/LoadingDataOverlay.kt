@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -37,9 +36,7 @@ import com.gaebriu.cyclo.ui.components.LetterRevealState
 import com.gaebriu.cyclo.ui.components.LetterRevealText
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.VisualEffects
-import com.gaebriu.cyclo.ui.screens.BlurredRing
-import com.gaebriu.cyclo.ui.screens.RingTextSpacingEm
-import com.gaebriu.cyclo.ui.screens.ringScale
+import com.gaebriu.cyclo.ui.screens.AllSetTextSpacingEm
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.CycloType
@@ -52,21 +49,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** "fx circle-with-blur" do loading-data: #101011 a 63 % em Luminosity sobre o desfoque de fundo 39. */
+/** "fx blur" do loading-data (80:717): #101011 a 63 % em Luminosity sobre o desfoque de fundo 39. */
 private const val VeilAlpha = 0.63f
-private val RingBox = 267.dp
 
 /**
- * Posições do Figma (loading-data, 80:726, frame de 852): o anel (fx blur, 267 dp) tem o centro
- * 36,5 dp acima do centro do ecrã (389,5 contra 426), e o texto fica 4,5 dp acima do centro do anel
- * (como no Introduction 6: anel a 145 e texto a 265 da área das páginas).
+ * Posição do Figma (Cyclo-2 loading-data, 80:726, frame de 852): o texto (18 dp de altura) começa a
+ * 376 dp, por isso o centro dele fica 41 dp acima do centro do ecrã (385 contra 426). Beta 2.1: a
+ * argola de fundo saiu do design; o texto ficou onde estava.
  */
-private val RingAboveCenter = 36.5.dp
-private val TextAboveRingCenter = 4.5.dp
+private val TextAboveCenter = 41.dp
 
 /**
- * A argola e as letras começam quando o desfoque do fundo vai a meio (a mola [CycloSprings.VeilIn]
- * chega lá em ~0,16 s): entram sobre o véu ainda a crescer, como um só movimento.
+ * As letras começam quando o desfoque do fundo vai a meio (a mola [CycloSprings.VeilIn] chega lá
+ * em ~0,16 s): entram sobre o véu ainda a crescer, como um só movimento.
  */
 private const val ContentStartsAt = 0.5f
 private const val ContentLeadMs = 200
@@ -74,12 +69,8 @@ private const val ContentLeadMs = 200
 /** A pausa no fim, com o texto todo à vista, antes de o loading-data sair. */
 private const val ReadHoldMs = 450L
 
-/** À saída, o véu espera um pouco pela argola e pelo texto (o que está à frente sai primeiro). */
+/** À saída, o véu espera um pouco pelo texto (o que está à frente sai primeiro). */
 private const val VeilExitDelayMs = 90L
-
-/** À saída, a argola volta a desfocar-se até esta fração do desfoque inicial e cresce um pouco. */
-private const val ExitRingBlur = 0.6f
-private const val ExitRingGrow = 0.04f
 
 /**
  * Quanto tempo o loading-data fica à vista, no mínimo, com o texto [text]: o véu a entrar, as
@@ -97,7 +88,7 @@ class LoadingDataState internal constructor() {
     /** O véu: 0 (sem desfoque) a 1 (desfoque 39 e véu a 63 %). */
     internal val veil = Animatable(0f)
 
-    /** A argola e o texto a sair: 0 (à vista) a 1 (já saíram). */
+    /** O texto a sair: 0 (à vista) a 1 (já saiu). */
     internal val exit = Animatable(0f)
 
     /** As letras da vez que está aberto (null = fechado). */
@@ -106,7 +97,7 @@ class LoadingDataState internal constructor() {
     /** Enquanto está à vista (a entrar, parado ou a sair): bloqueia toques e o voltar. */
     val showing: Boolean get() = reveal != null
 
-    /** A sair (a argola e o texto já começaram a desaparecer). */
+    /** A sair (o texto já começou a desaparecer). */
     internal var leaving by mutableStateOf(false)
 
     /**
@@ -122,9 +113,9 @@ class LoadingDataState internal constructor() {
  * Liga o loading-data a [visible] (o ViewModel a repor os dados).
  *
  * Abrir: o desfoque do ecrã e o véu sobem com uma mola ([CycloSprings.VeilIn]); a meio, as letras
- * e a argola começam (a animação do Introduction 6). Fechar: espera o fim dessa animação (mesmo que
- * os dados fiquem prontos antes), e depois a argola e o texto saem ([CycloSprings.ContentOut]) e o
- * véu e o desfoque descem logo atrás ([CycloSprings.VeilOut]). A entrada corre num âmbito próprio,
+ * começam (a animação do Introduction 6). Fechar: espera o fim dessa animação (mesmo que os dados
+ * fiquem prontos antes), e depois o texto sai ([CycloSprings.ContentOut]) e o véu e o desfoque
+ * descem logo atrás ([CycloSprings.VeilOut]). A entrada corre num âmbito próprio,
  * para não ser cortada a meio se os dados ficarem prontos.
  */
 @Composable
@@ -137,7 +128,7 @@ fun rememberLoadingDataState(visible: Boolean): LoadingDataState {
     LaunchedEffect(visible) {
         if (visible) {
             entry[0]?.join()
-            val reveal = LetterRevealState(latestText, spacingEm = RingTextSpacingEm, settles = true)
+            val reveal = LetterRevealState(latestText, spacingEm = AllSetTextSpacingEm, settles = true)
             state.exit.snapTo(0f)
             state.leaving = false
             state.reveal = reveal
@@ -180,8 +171,8 @@ fun Modifier.loadingDataBlur(state: LoadingDataState, effects: VisualEffects): M
 
 /**
  * loading-data (Componentes, 80:726): enquanto os dados são repostos, tapa o ecrã com o véu
- * (#101011 em Luminosity sobre o ecrã desfocado, ver [loadingDataBlur]), o anel desfocado do
- * Introduction 6 e "Bringing your data back…", com a mesma animação do Introduction 6.
+ * (#101011 em Luminosity sobre o ecrã desfocado, ver [loadingDataBlur]) e "Bringing your data
+ * back…", com a mesma animação do texto do Introduction 6 (Beta 2.1: sem a argola de fundo).
  *
  * O véu não está numa camada à parte (sem alpha no grupo): a mistura Luminosity faz-se com o ecrã
  * desfocado que está mesmo por baixo, também durante a entrada e a saída. Bloqueia os toques e o
@@ -217,26 +208,15 @@ fun LoadingDataOverlay(state: LoadingDataState, modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .offset(y = -RingAboveCenter),
+                .offset(y = -TextAboveCenter),
             contentAlignment = Alignment.Center,
         ) {
-            // A saída: o que está à frente sai primeiro, com uma curva sem esquinas.
+            // A saída: o texto sai antes do véu, com uma curva sem esquinas.
             val out = { smoothStep(state.exit.value) }
-            BlurredRing(
-                alpha = { reveal.focus * (1f - out()) },
-                blur = {
-                    if (effects.animationsEnabled) maxOf(1f - reveal.focus, ExitRingBlur * out()) else 0f
-                },
-                scale = {
-                    ringScale(reveal, effects.animationsEnabled) + if (effects.animationsEnabled) ExitRingGrow * out() else 0f
-                },
-                modifier = Modifier.size(RingBox),
-            )
             LetterRevealText(
                 state = reveal,
                 style = CycloType.Body,
                 modifier = Modifier
-                    .offset(y = -TextAboveRingCenter)
                     .graphicsLayer {
                         val e = out()
                         alpha = 1f - e

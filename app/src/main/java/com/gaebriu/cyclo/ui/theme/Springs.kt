@@ -104,19 +104,13 @@ object CycloSprings {
     /** Regresso do scroll esticado (rubber band). */
     val Bounce = fromStiffness(200f, Spring.DampingRatioNoBouncy)
 
-    /**
-     * Um elemento a entrar em foco (a argola do Introduction 6 e do loading-data): opacidade e
-     * desfoque juntos, como uma letra do "Hello!" (assenta em ~1,5 s), sem ressalto.
-     */
-    val Focus = CycloSpring(response = 1.25f, dampingFraction = 1f)
-
     /** O desfoque do ecrã por baixo do loading-data a aumentar: suave e sem ressalto. */
     val VeilIn = CycloSpring(response = 0.62f, dampingFraction = 1f)
 
     /** O mesmo desfoque a diminuir, à saída: um pouco mais rápido do que a entrar. */
     val VeilOut = CycloSpring(response = 0.5f, dampingFraction = 1f)
 
-    /** O conteúdo do loading-data (argola e texto) a sair: mais rápido do que o véu, sem ressalto. */
+    /** O texto do loading-data a sair: mais rápido do que o véu, sem ressalto. */
     val ContentOut = CycloSpring(response = 0.4f, dampingFraction = 1f)
 
     /*

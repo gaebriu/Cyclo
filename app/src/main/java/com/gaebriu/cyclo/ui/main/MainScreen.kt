@@ -203,7 +203,7 @@ fun MainScreen(
 
     // Cores do brilho conforme a hora, com transição lenta quando a faixa horária muda.
     val now by rememberMinuteClock()
-    val sky = skyColorsAt(now.hour)
+    val sky = skyColorsAt(now.hour, now.minute)
     val skyTop by animateColorAsState(sky.top, tween(CycloMotion.SkyChangeDurationMs), label = "skyTop")
     val skyBase by animateColorAsState(sky.base, tween(CycloMotion.SkyChangeDurationMs), label = "skyBase")
     // Ao mudar de página o brilho volta a crescer e a acender (não na primeira vez).
@@ -434,6 +434,7 @@ fun MainScreen(
                                 history = data.history,
                                 order = data.trackingOrder,
                                 promptDismissed = sleepPromptDismissed,
+                                promptGlow = { skyBase },
                                 reveal = trackingReveal,
                                 onShown = onTrackingShown,
                                 bottomReserve = bottomReserve,

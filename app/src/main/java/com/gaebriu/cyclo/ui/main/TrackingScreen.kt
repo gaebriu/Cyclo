@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -144,8 +145,11 @@ private const val DayLabelMaxShare = 0.8f
 /** O "3" do máximo da semana: #A3A2A7 a 63 % em Luminosity. */
 private val MaxLabelColor = CycloColors.TextSecondary.copy(alpha = 0.63f)
 
-/** O vidro azul por trás do topo do prompt ("fx blur type 01", 315 x 33, #34739A a 24 %). */
-private val PromptGlowColor = Color(0xFF34739A).copy(alpha = 0.24f)
+/**
+ * A opacidade do "fx blur type 01 (base)" do prompt (2006:417, 315 x 33): a cor é a base do brilho
+ * da hora atual ([skyColorsAt]; #5FA2DB das 11:30 às 15:30, a do Figma) a 24 %.
+ */
+private const val PromptGlowAlpha = 0.24f
 
 // A entrada dos gráficos: cada coluna e cada bloco começa um pouco depois do anterior.
 private const val BarStaggerMs = 45
@@ -185,6 +189,7 @@ fun TrackingScreen(
     history: List<DailyLog>,
     order: List<TrackingSection>,
     promptDismissed: Boolean,
+    promptGlow: () -> Color,
     reveal: StaggeredReveal,
     onShown: () -> Unit,
     bottomReserve: Dp,
@@ -214,6 +219,7 @@ fun TrackingScreen(
     ) {
         SleepPrompt(
             visible = showPrompt,
+            glowColor = promptGlow,
             onLogSleep = onLogSleep,
             onDismiss = onDismissPrompt,
             modifier = Modifier.staggeredReveal(reveal, TrackingRevealItems.Prompt),
@@ -273,13 +279,17 @@ private fun grown(clockMs: Float, order: Int, staggerMs: Int): Float {
 
 /**
  * sleep-evaluation-prompt (2006:416): 345 x 156, o vidro do Figma (#101011 em Luminosity, desfoque
- * de fundo 39) com o "fx blur type 01" azul por trás do topo; título, texto, "Log sleep" (o botão
+ * de fundo 39) com o "fx blur type 01 (base)" por trás do topo; título, texto, "Log sleep" (o botão
  * roxo compacto) e o close-b. Entra a abrir e sai a encolher (a altura, a opacidade e um pouco a
  * escala), e os cartões de baixo acompanham, sem saltos.
+ *
+ * @param glowColor a base do brilho da hora atual (já animada quando a faixa horária muda); lê-se
+ *                  só ao desenhar, por isso uma mudança de cor não recompõe o cartão.
  */
 @Composable
 private fun SleepPrompt(
     visible: Boolean,
+    glowColor: () -> Color,
     onLogSleep: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -326,7 +336,7 @@ private fun SleepPrompt(
                         // O retângulo azul do Figma fica por baixo do vidro, desfocado por ele. O
                         // desfoque (no CPU) faz-se uma vez por tamanho, numa imagem: o cartão volta a
                         // desenhar-se a cada fotograma do scroll (lê o que tem por trás).
-                        underFill = { promptGlow.draw(this) },
+                        underFill = { promptGlow.draw(this, glowColor()) },
                     )
                     .padding(CardPadding),
             ) {
@@ -367,14 +377,18 @@ private fun SleepPrompt(
 }
 
 /**
- * O "fx blur type 01" do prompt (315 x 33, #34739A a 24 %, desfocado pelo vidro do cartão, 39):
- * desenhado uma vez por tamanho do cartão numa imagem e depois só copiado.
+ * O "fx blur type 01 (base)" do prompt (315 x 33, a base do brilho a 24 %, desfocado pelo vidro do
+ * cartão, 39). A forma desfocada (no CPU) desenha-se uma vez por tamanho do cartão numa imagem
+ * branca e opaca, que serve de máscara; a cor entra só ao copiar a imagem (tint SrcIn), por isso
+ * pode mudar a cada frame (a transição entre faixas horárias) sem voltar a desfocar nada.
  */
 private class PromptGlow {
     private var image: ImageBitmap? = null
     private var forSize = androidx.compose.ui.geometry.Size.Zero
+    private var tintColor = Color.Unspecified
+    private var tint: ColorFilter? = null
 
-    fun draw(scope: DrawScope) = with(scope) {
+    fun draw(scope: DrawScope, color: Color) = with(scope) {
         if (image == null || forSize != size) {
             forSize = size
             val w = size.width.roundToInt().coerceAtLeast(1)
@@ -386,11 +400,16 @@ private class PromptGlow {
                 val glow = Path().apply {
                     addRect(androidx.compose.ui.geometry.Rect(15.dp.toPx(), 0f, w - 15.dp.toPx(), 33.dp.toPx()))
                 }
-                drawBlurredPath(glow, PromptGlowColor, 39.dp.toPx())
+                drawBlurredPath(glow, Color.White, 39.dp.toPx())
             }
             image = bitmap
         }
-        image?.let { drawImage(it) }
+        val glowColor = color.copy(alpha = color.alpha * PromptGlowAlpha)
+        if (tint == null || glowColor != tintColor) {
+            tintColor = glowColor
+            tint = ColorFilter.tint(glowColor, BlendMode.SrcIn)
+        }
+        image?.let { drawImage(it, colorFilter = tint) }
     }
 }
 

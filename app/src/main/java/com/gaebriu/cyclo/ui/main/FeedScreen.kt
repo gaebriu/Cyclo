@@ -140,7 +140,7 @@ private val CardPadding = 15.dp
 
 private val StarYellow = Color(0xFFFFC93C)
 
-/** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, a cor da base do brilho (#34739A no Figma) a 24 %. */
+/** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, a cor da base do brilho ([skyColorsAt]; #5FA2DB no Figma) a 24 %. */
 private const val WakeCardShadowAlpha = 0.24f
 
 /** Quanto as horas para dormir esperam, depois do último toque na cafeína, fatores ou emoções. */

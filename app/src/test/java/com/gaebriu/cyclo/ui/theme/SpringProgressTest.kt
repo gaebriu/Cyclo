@@ -4,11 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** A solução exata das molas, usada para sincronizar a argola e as letras num só relógio. */
+/** A solução exata das molas, usada para pôr as letras e o espaçamento num só relógio. */
 class SpringProgressTest {
+    /** Uma mola criticamente amortecida, como a do espaçamento das letras. */
+    private val critical = CycloSpring(response = 1.25f, dampingFraction = 1f)
+
     @Test
     fun startsAtZeroAndSettlesAtOne() {
-        val spring = CycloSprings.Focus
+        val spring = critical
         assertEquals(0f, springProgress(0f, spring), 0f)
         assertEquals(1f, springProgress(5f, spring), 1e-4f)
     }
@@ -17,7 +20,7 @@ class SpringProgressTest {
     fun criticallyDampedNeverOvershoots() {
         var last = 0f
         for (i in 1..400) {
-            val p = springProgress(i / 100f, CycloSprings.Focus, velocity = 2.4f)
+            val p = springProgress(i / 100f, critical, velocity = 2.4f)
             assertTrue("t=${i / 100f}: $p", p <= 1f + 1e-6f && p >= last - 1e-6f)
             last = p
         }
@@ -27,7 +30,7 @@ class SpringProgressTest {
     fun matchesTheInitialVelocity() {
         // Logo no início, anda à velocidade pedida.
         val dt = 1e-4f
-        assertEquals(3f, springProgress(dt, CycloSprings.Focus, velocity = 3f) / dt, 0.05f)
+        assertEquals(3f, springProgress(dt, critical, velocity = 3f) / dt, 0.05f)
     }
 
     @Test

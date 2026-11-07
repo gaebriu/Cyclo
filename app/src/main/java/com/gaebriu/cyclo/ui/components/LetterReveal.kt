@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.Constraints
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloSpring
-import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import com.gaebriu.cyclo.ui.theme.springProgress
@@ -36,14 +35,13 @@ import kotlin.math.floor
  * mais comprido demora mais, em vez de as letras ficarem mais rápidas). O "Hello!" (6 letras)
  * dura exatamente o mesmo: [CycloMotion.HelloDurationMs].
  *
- * Tudo sai de UM relógio ([elapsedMs], ao frame): as letras, o espaçamento e o que se sincroniza
- * com eles (a argola do Introduction 6 e do loading-data, com [focus] e [settle]). Antes, cada
+ * Tudo sai de UM relógio ([elapsedMs], ao frame): as letras e o espaçamento ([settle]). Antes, cada
  * letra tinha a sua animação, lançada com um delay, e os começos não calhavam no mesmo frame.
  *
  * @param spacingEm espaçamento extra entre letras no início, em fração do tamanho da letra.
  * @param settles false: o espaçamento fecha com a curva do "Hello!" (Introduction 0, a referência).
- *                true: fecha com uma mola ([settle]) que acompanha a argola, para o texto e a argola
- *                assentarem como um só movimento (Introduction 6 e loading-data).
+ *                true: fecha com uma mola criticamente amortecida ([settle]), que assenta quando a
+ *                última letra acaba (Introduction 6 e loading-data).
  */
 @Stable
 class LetterRevealState(
@@ -65,7 +63,7 @@ class LetterRevealState(
     private val finished: Boolean get() = clock.value >= durationMs
 
     /**
-     * A mola do espaçamento e do movimento da argola: criticamente amortecida (sem ressalto), a
+     * A mola do espaçamento: criticamente amortecida (sem ressalto), a
      * assentar quando a última letra acaba, e a começar já com alguma velocidade (não parte parada).
      */
     private val settleSpring = CycloSpring(
@@ -91,26 +89,12 @@ class LetterRevealState(
             }
         }
 
-    /**
-     * O movimento que acompanha as letras (a argola a assentar): uma mola de 0 a 1 do início da
-     * primeira letra ao fim da última.
-     */
+    /** O espaçamento com [settles]: uma mola de 0 a 1 do início da primeira letra ao fim da última. */
     val settle: Float
         get() {
             if (finished) return 1f
             val seconds = (clock.value - CycloMotion.LettersStartDelayMs) / 1000f
             return springProgress(seconds, settleSpring, velocity = SettleStartVelocity / (revealMs / 1000f))
-        }
-
-    /**
-     * Um elemento a entrar em foco com as letras (a argola): opacidade e desfoque, como uma letra,
-     * mas com a física de uma mola ([CycloSprings.Focus]) em vez de uma curva.
-     */
-    val focus: Float
-        get() {
-            if (finished) return 1f
-            val seconds = (clock.value - CycloMotion.LettersStartDelayMs) / 1000f
-            return springProgress(seconds, CycloSprings.Focus, velocity = FocusStartVelocity).coerceIn(0f, 1f)
         }
 
     /**
@@ -140,9 +124,6 @@ class LetterRevealState(
 
         /** Velocidade inicial do [settle] (em durações por segundo): parte já a andar, sem arranque. */
         private const val SettleStartVelocity = 2.6f
-
-        /** Velocidade inicial do [focus] (por segundo): a argola começa a aparecer logo. */
-        private const val FocusStartVelocity = 2.4f
     }
 }
 
