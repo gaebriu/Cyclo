@@ -24,6 +24,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalView
+import com.gaebriu.cyclo.ui.haptics.CycloHaptics
+import com.gaebriu.cyclo.ui.theme.CycloSpring
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -200,8 +203,12 @@ fun TrackingScreen(
     onDismissPrompt: () -> Unit,
     onReorder: (List<TrackingSection>) -> Unit,
     modifier: Modifier = Modifier,
+    isCurrentPage: Boolean = true,
 ) {
     val today = now.toLocalDate()
+    // Beta 2.4: os hápticos dos gráficos só tocam com a Tracking escolhida (não ao espreitá-la).
+    val current by rememberUpdatedState(isCurrentPage)
+    val active = { current }
     val summary = remember(history, dailyLog, today) { trackingSummary(history, dailyLog, today) }
     val showPrompt = showsSleepPrompt(routines, dailyLog, now, promptDismissed)
     val latestOnShown by rememberUpdatedState(onShown)
@@ -240,8 +247,8 @@ fun TrackingScreen(
                 Box(modifier = handle) {
                     val grow = rememberChartGrowth(reveal, revealIndex)
                     when (section) {
-                        TrackingSection.Restfulness -> RestfulnessCard(summary, grow, surface)
-                        TrackingSection.Caffeine -> CaffeineCard(summary, grow, surface)
+                        TrackingSection.Restfulness -> RestfulnessCard(summary, grow, active, surface)
+                        TrackingSection.Caffeine -> CaffeineCard(summary, grow, active, surface)
                         TrackingSection.Mood -> MoodCard(summary, grow, surface)
                     }
                 }
@@ -271,6 +278,53 @@ private fun rememberChartGrowth(reveal: StaggeredReveal, index: Int): State<Floa
     return clock.asState()
 }
 
+
+/**
+ * Os hápticos de um gráfico semanal (Beta 2.4), suaves como o movimento:
+ * - na entrada, um tique muito leve por coluna com valor, no momento em que ela chega ao topo (ao
+ *   ritmo da cascata, mais forte nas colunas mais altas), numa só composição; as colunas sem valor
+ *   (só a base) não tocam. Só com a Tracking escolhida: se ela só estava a ser espreitada, tocam
+ *   apenas as colunas que ainda não chegaram quando passa a ser a escolhida;
+ * - um valor que muda depois (ex.: o sono de hoje registado): um tique quando a coluna chega.
+ * Sem animações (os gráficos aparecem logo), nada.
+ */
+@Composable
+private fun ChartHaptics(heights: List<Float?>, grow: State<Float>, active: () -> Boolean) {
+    val view = LocalView.current
+    val effects = LocalVisualEffects.current
+    val latestActive by rememberUpdatedState(active)
+    LaunchedEffect(Unit) {
+        if (!effects.animationsEnabled || grow.value >= GrowTimelineMs) return@LaunchedEffect
+        snapshotFlow { grow.value > 0f && latestActive() }.first { it }
+        val elapsed = grow.value
+        val tallest = heights.maxOfOrNull { it ?: 0f } ?: 0f
+        if (tallest <= 0f) return@LaunchedEffect
+        val ticks = heights.mapIndexedNotNull { i, h ->
+            if (h == null || h <= 0f) return@mapIndexedNotNull null
+            val at = (GrowDelayMs + i * BarStaggerMs + GrowArrivalMs - elapsed).roundToInt()
+            if (at < 0) null else at to (0.5f + 0.5f * h / tallest)
+        }
+        CycloHaptics.cascade(view, ticks.map { it.first }, ticks.map { it.second })
+    }
+    var previous by remember { mutableStateOf(heights) }
+    LaunchedEffect(heights) {
+        val before = previous
+        previous = heights
+        if (before == heights || !effects.animationsEnabled || grow.value < GrowTimelineMs || !latestActive()) return@LaunchedEffect
+        val grew = heights.indices.any { i -> (heights[i] ?: 0f) > (before.getOrNull(i) ?: 0f) }
+        if (grew) CycloHaptics.cascade(view, listOf(ChangeArrivalMs), listOf(0.8f))
+    }
+}
+
+/** Quanto tempo (ms) uma mola leva a chegar (98 % do caminho) ao destino, a partir do repouso. */
+private fun arrivalMs(spring: CycloSpring): Int {
+    var t = 0
+    while (t < 2_000 && springProgress(t / 1000f, spring) < 0.98f) t++
+    return t
+}
+
+private val GrowArrivalMs: Int by lazy { arrivalMs(CycloSprings.ChartGrow) }
+private val ChangeArrivalMs: Int by lazy { arrivalMs(CycloSprings.ChartChange) }
 
 /** Quanto do elemento [order] já cresceu (0 a 1, com o ressalto da mola) ao fim de [clockMs]. */
 private fun grown(clockMs: Float, order: Int, staggerMs: Int): Float {
@@ -466,7 +520,7 @@ private fun TrackingCard(
 }
 
 @Composable
-private fun RestfulnessCard(summary: TrackingSummary, grow: State<Float>, modifier: Modifier) {
+private fun RestfulnessCard(summary: TrackingSummary, grow: State<Float>, active: () -> Boolean, modifier: Modifier) {
     val locale = rememberAppLocale()
     val labels = SleepQuality.entries.map { stringResource(it.label) }
     val notLogged = stringResource(R.string.tracking_not_logged)
@@ -491,13 +545,14 @@ private fun RestfulnessCard(summary: TrackingSummary, grow: State<Float>, modifi
             month = summary.sleepMonth.map { day -> day.value?.let { BlockFill(CycloColors.Accent, it.blockAlpha()) } },
             caffeineBlocks = false,
             grow = grow,
+            active = active,
             legend = SleepQuality.entries.map { it.face() },
         )
     }
 }
 
 @Composable
-private fun CaffeineCard(summary: TrackingSummary, grow: State<Float>, modifier: Modifier) {
+private fun CaffeineCard(summary: TrackingSummary, grow: State<Float>, active: () -> Boolean, modifier: Modifier) {
     val locale = rememberAppLocale()
     val notLogged = stringResource(R.string.tracking_not_logged)
     val description = buildString {
@@ -524,6 +579,7 @@ private fun CaffeineCard(summary: TrackingSummary, grow: State<Float>, modifier:
             month = summary.caffeineMonth.map { day -> day.value?.let { BlockFill(CycloColors.Accent, summary.caffeineBlockAlpha(it)) } },
             caffeineBlocks = true,
             grow = grow,
+            active = active,
             // O máximo da semana e a cara da média da semana; sem cafés (ou sem dados), não aparecem.
             maxLabel = max.takeIf { it > 0 }?.toString(),
             maxFace = summary.caffeineWeekAverage?.takeIf { max > 0 }?.let { caffeineFace(it) },
@@ -629,6 +685,7 @@ private fun WeekAndMonthChart(
     month: List<BlockFill?>,
     caffeineBlocks: Boolean,
     grow: State<Float>,
+    active: () -> Boolean,
     legend: List<Pair<String, Color>> = emptyList(),
     maxLabel: String? = null,
     maxFace: Pair<String, Color>? = null,
@@ -656,6 +713,7 @@ private fun WeekAndMonthChart(
         animateFloatAsState(if (fill != null) 1f else 0f, spec(), label = "logged$i")
     }
     val maxAlpha by animateFloatAsState(if (maxText != null) 1f else 0f, spec(), label = "max")
+    ChartHaptics(week.map { it.second }, grow, active)
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val available = maxWidth.value

@@ -70,10 +70,7 @@ import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.rubberBand
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.floor
-import kotlin.math.sin
 import kotlin.math.roundToInt
 
 /** O que o Feed e as rotinas guardadas podem pedir. */
@@ -171,7 +168,9 @@ fun MainScreen(
     var dragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
     val position: () -> Float = { if (dragging) dragPosition else page.value }
-    val tab = MainTab.entries[selected.coerceIn(FeedPage, LastPage)]
+    // Beta 2.4: o mini-menu, a barra e o brilho num salto por cima de uma página (ver PageChrome).
+    val chrome = remember { PageChrome(lastPage = LastPage, searchPage = SavedPage, trackingPage = TrackingPage) }
+    val tab =MainTab.entries[selected.coerceIn(FeedPage, LastPage)]
 
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -223,8 +222,7 @@ fun MainScreen(
         if (!effects.animationsEnabled) {
             1f
         } else {
-            val p = position().coerceIn(FeedPage.toFloat(), LastPage.toFloat())
-            1f - sin((p - floor(p)) * PI.toFloat())
+            1f - chrome.value(position(), PageChrome.Stretch)
         }
     }
     var lastTab by remember { mutableStateOf(tab) }
@@ -238,12 +236,15 @@ fun MainScreen(
     /** Leva as páginas a [target], a partir de onde estão e com a velocidade que tiverem. */
     fun settleTo(target: Int, velocity: Float = page.velocity) {
         selected = target
+        chrome.onSettle(page.value, target.toFloat())
         scope.launch {
             if (effects.animationsEnabled) {
                 page.animateTo(target.toFloat(), CycloSprings.Page.float, initialVelocity = velocity)
             } else {
                 page.animateTo(target.toFloat(), tween(CycloMotion.TabSwitchDurationMs))
             }
+            // Só se chegou ao fim (interrompida, a mola seguinte parte do que se vê).
+            chrome.onSettled()
         }
     }
 
@@ -320,6 +321,7 @@ fun MainScreen(
             val tracker = VelocityTracker()
             tracker.addPosition(claimed.uptimeMillis, claimed.position)
             scope.launch { page.stop() }
+            chrome.onDragStart(from)
             dragging = true
             var beyond = false
 
@@ -388,7 +390,7 @@ fun MainScreen(
                 growth = glow,
                 pulse = pagePulse,
                 sky = { SkyColors(skyTop, skyBase) },
-                saved = { position().coerceIn(0f, 1f) },
+                saved = { chrome.value(position(), PageChrome.Saved) },
             )
         }
 
@@ -423,6 +425,7 @@ fun MainScreen(
                                 onToggleFactor = actions.onToggleFactor,
                                 onMoodChange = actions.onMoodChange,
                                 onReorder = actions.onReorderFeed,
+                                isCurrentPage = selected == FeedPage,
                             )
                         }
                     }
@@ -473,6 +476,7 @@ fun MainScreen(
                                 onLogSleep = actions.onLogSleep,
                                 onDismissPrompt = actions.onDismissSleepPrompt,
                                 onReorder = actions.onReorderTracking,
+                                isCurrentPage = selected == TrackingPage,
                             )
                         }
                     }
@@ -500,8 +504,8 @@ fun MainScreen(
                 slot = { index ->
                     val p = position()
                     when (index) {
-                        0 -> (1f - abs(p - SavedPage)).coerceIn(0f, 1f) * searchAvailable.value
-                        1 -> (TrackingPage - p).coerceIn(0f, 1f)
+                        0 -> chrome.value(p, PageChrome.Search) * searchAvailable.value
+                        1 -> chrome.value(p, PageChrome.Plus)
                         else -> 1f
                     }
                 },
@@ -514,6 +518,8 @@ fun MainScreen(
             MainNavigationBar(
                 selected = tab,
                 pagePosition = position,
+                stretch = { chrome.value(position(), PageChrome.Stretch) },
+                iconAmount = { index -> chrome.value(position(), PageChrome.Icon0 + index) },
                 onSelect = ::selectTab,
                 descriptions = listOf(
                     stringResource(R.string.main_tab_feed),

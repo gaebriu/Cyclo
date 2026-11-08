@@ -121,7 +121,7 @@ fun ProgressiveBlurEdge(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .backdropSampler(sampler)
+            .backdropSampler(sampler, backdrop)
             .drawBehind {
                 val a = amount().coerceIn(0f, 1f)
                 if (a <= 0f) return@drawBehind

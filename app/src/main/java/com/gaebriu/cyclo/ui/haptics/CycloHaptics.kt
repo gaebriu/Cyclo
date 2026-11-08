@@ -22,6 +22,10 @@ import android.view.View
  *   contam (passar o limite, mudar de lugar), nunca a cada frame.
  */
 object CycloHaptics {
+    /** A escala máxima dos tiques de [cascade] (LOW_TICK, já muito leve) e a do TICK quando falta. */
+    private const val CascadeLowTickScale = 0.6f
+    private const val CascadeTickScale = 0.25f
+
     /**
      * Toque num botão: o tique mais suave (CONTEXT_CLICK). Todos os botões usam este.
      */
@@ -122,6 +126,42 @@ object CycloHaptics {
             }
         ) {
             view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+        }
+    }
+
+    /**
+     * Elementos que chegam um a um (Beta 2.4; ex.: as colunas de um gráfico a crescer): um tique muito
+     * leve por elemento, no momento em que ele chega, numa só composição (o sistema toca-a a tempo,
+     * sem esperar pela app). [atMs] são os momentos a partir de agora e [strengths] a força de cada um
+     * (0 a 1, multiplicada por uma escala já baixa). É decorativo: sem as primitivas, não vibra.
+     */
+    fun cascade(view: View, atMs: List<Int>, strengths: List<Float>) {
+        if (atMs.isEmpty()) return
+        if (!view.isHapticFeedbackEnabled) return
+        val vibrator = view.context.getSystemService(Vibrator::class.java) ?: return
+        if (!vibrator.hasVibrator()) return
+        runCatching {
+            // LOW_TICK é o mais leve; sem ele, o TICK numa escala mais baixa.
+            val (primitive, scale) = when {
+                vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK) ->
+                    VibrationEffect.Composition.PRIMITIVE_LOW_TICK to CascadeLowTickScale
+                vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_TICK) ->
+                    VibrationEffect.Composition.PRIMITIVE_TICK to CascadeTickScale
+                else -> return
+            }
+            val duration = vibrator.getPrimitiveDurations(primitive).firstOrNull()?.coerceAtLeast(0) ?: 0
+            val composition = VibrationEffect.startComposition()
+            // O atraso de cada primitiva conta a partir do FIM da anterior.
+            var cursor = 0
+            atMs.indices.sortedBy { atMs[it] }.forEach { i ->
+                val at = atMs[i].coerceAtLeast(cursor)
+                composition.addPrimitive(primitive, (strengths[i].coerceIn(0f, 1f) * scale).coerceIn(0.01f, 1f), at - cursor)
+                cursor = at + duration
+            }
+            vibrator.vibrate(
+                composition.compose(),
+                VibrationAttributes.createForUsage(VibrationAttributes.USAGE_TOUCH),
+            )
         }
     }
 

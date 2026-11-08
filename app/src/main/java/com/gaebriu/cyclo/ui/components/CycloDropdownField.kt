@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
@@ -34,6 +35,11 @@ import com.gaebriu.cyclo.ui.theme.CycloType
  * texto a 15 dp da esquerda e seta de 24 dp a 15 dp da direita.
  *
  * @param description o que o campo faz, para o TalkBack (a opção escolhida vai como estado).
+ * @param singleLine (Beta 2.4, Introduction 5) o texto fica sempre numa linha, como no Figma (13:163,
+ *        whitespace-nowrap) e, se não couber, é cortado com reticências antes da seta ("Mostrar só
+ *        desta…"), em vez de passar à linha seguinte. O espaço do texto é o campo menos 15 dp à
+ *        esquerda, 8 dp até à seta, a seta (24 dp) e 15 dp à direita: no campo de 215 dp do Figma
+ *        (ecrã de 393 dp), 153 dp. O TalkBack lê sempre a opção inteira (stateDescription).
  * @param onBoundsInRoot avisa onde o campo está, para o menu aparecer ancorado a ele. É chamado
  *        no momento do toque, logo antes de [onClick], com a posição atual no ecrã. Assim só o
  *        campo tocado define a âncora, mesmo havendo outro campo igual numa página por baixo
@@ -46,6 +52,7 @@ fun CycloDropdownField(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    singleLine: Boolean = false,
     onBoundsInRoot: (Rect) -> Unit = {},
 ) {
     val arrow = remember { PathParser().parsePathString(CycloIconPaths.DropDown).toPath() }
@@ -75,6 +82,8 @@ fun CycloDropdownField(
         BasicText(
             text = text,
             style = CycloType.Input,
+            maxLines = if (singleLine) 1 else Int.MAX_VALUE,
+            overflow = if (singleLine) TextOverflow.Ellipsis else TextOverflow.Clip,
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 // Numa linha fica com os 48 dp do Figma; com o texto em duas linhas (ecrã estreito ou letra

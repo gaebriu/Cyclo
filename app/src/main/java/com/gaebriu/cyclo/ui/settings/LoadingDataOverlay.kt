@@ -128,8 +128,9 @@ class LoadingDataState internal constructor() {
  * para não ser cortada a meio se os dados ficarem prontos.
  */
 @Composable
-fun rememberLoadingDataState(visible: Boolean): LoadingDataState {
+fun rememberLoadingDataState(visible: Boolean, onLeave: () -> Unit = {}): LoadingDataState {
     val state = remember { LoadingDataState() }
+    val latestOnLeave by rememberUpdatedState(onLeave)
     val text = stringResource(R.string.restore_loading)
     val latestText by rememberUpdatedState(text)
     val scope = rememberCoroutineScope()
@@ -150,6 +151,7 @@ fun rememberLoadingDataState(visible: Boolean): LoadingDataState {
         } else if (state.reveal != null) {
             entry[0]?.join()
             state.leaving = true
+            latestOnLeave()
             coroutineScope {
                 launch { state.exit.animateTo(1f, tween(TextExitMs, easing = LinearEasing)) }
                 launch {

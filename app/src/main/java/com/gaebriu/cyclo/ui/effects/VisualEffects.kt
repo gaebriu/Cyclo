@@ -21,8 +21,10 @@ import androidx.compose.ui.platform.LocalContext
  * Estado dos efeitos visuais.
  *
  * - blurEnabled: se o aparelho desenha desfoques (segundo o Android; hoje sempre verdadeiro). Vale
- *   para os desfoques que fazem parte das animações (letras a aparecer, ecrã que recua, números a
- *   rolar, menus a abrir) e para o loading-data.
+ *   para os desfoques que fazem parte das animações (letras a aparecer, números a rolar, menus a
+ *   abrir) e para o loading-data. O desfoque do ecrã que recua quando outro sobe por cima (Feed por
+ *   baixo das definições ou do editor, Introduction 0 por baixo do 1) é uma textura avançada desde
+ *   a Beta 2.4: usa [textures].
  * - animationsEnabled: falso quando as animações do sistema estão desligadas. Quando é
  *   falso, os movimentos passam a fades com a mesma duração.
  * - textures: "Advanced textures" (definições, Performance). Ligadas, o desenho completo do Figma:

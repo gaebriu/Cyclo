@@ -331,7 +331,9 @@ fun IntroductionFlow(
                             val s = 1f - (1f - CycloMotion.BackgroundScale) * e
                             scaleX = s
                             scaleY = s
-                            renderEffect = if (effects.blurEnabled && e > 0f) {
+                            // Beta 2.4: o desfoque do recuo é uma textura avançada (desligadas, só o
+                            // zoom e o véu).
+                            renderEffect = if (effects.textures && e > 0f) {
                                 val sigma = figmaBlurPx(FigmaBlur.BackgroundRecede) * e
                                 BlurEffect(sigma, sigma, TileMode.Clamp)
                             } else {

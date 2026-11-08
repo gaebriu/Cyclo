@@ -43,7 +43,7 @@ internal fun Modifier.repeatMenuSurface(): Modifier {
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    return backdropSampler(sampler).drawWithCache {
+    return backdropSampler(sampler, backdrop).drawWithCache {
         val shape = roundRectPath(size.width, size.height, CycloDimens.CornerRadius.toPx())
         val edge = CycloColors.TextSecondary.copy(alpha = EdgeAlpha)
         val glowBlur = 9.dp.toPx()

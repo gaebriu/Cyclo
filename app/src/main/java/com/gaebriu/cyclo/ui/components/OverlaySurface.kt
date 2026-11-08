@@ -37,7 +37,7 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius): M
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    return backdropSampler(sampler).drawWithCache {
+    return backdropSampler(sampler, backdrop).drawWithCache {
         // A forma só se refaz quando o tamanho muda (os menus a abrir mudam de tamanho; parados, não).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
         onDrawBehind {

@@ -55,7 +55,7 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    return backdropSampler(sampler).drawWithCache {
+    return backdropSampler(sampler, backdrop).drawWithCache {
         // A forma e a borda só se refazem quando o tamanho muda (antes, a cada desenho).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
         val border = glassBorderBrush()
@@ -93,7 +93,7 @@ fun Modifier.cycloCard(
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    return backdropSampler(sampler).drawWithCache {
+    return backdropSampler(sampler, backdrop).drawWithCache {
         // A forma só se refaz quando o tamanho muda (antes, a cada desenho: no scroll, a cada frame).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
         onDrawBehind {

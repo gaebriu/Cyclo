@@ -12,6 +12,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -106,6 +107,32 @@ class BackdropSampler internal constructor(internal val blurLayer: GraphicsLayer
     /** Muda quando a superfície se move (ex.: com o scroll), para voltar a recortar o fundo. */
     internal var moves by mutableIntStateOf(0)
     internal var sigma = -1f
+
+    // Onde a superfície estava em relação a cada fonte do fundo (x, y por fonte), no último recorte.
+    private var relative = FloatArray(0)
+
+    /**
+     * A superfície mudou de lugar EM RELAÇÃO ao que está por baixo dela (Beta 2.4)? Um ecrã inteiro
+     * a deslizar, a recuar (zoom) ou a desfocar move a superfície e as fontes juntas: o recorte do
+     * fundo fica exatamente igual, e não se volta a gravar nem a desfocar.
+     */
+    internal fun movedAgainst(backdrop: Backdrop, self: LayoutCoordinates): Boolean {
+        val count = backdrop.layers.size * 2
+        val changed = relative.size != count
+        if (changed) relative = FloatArray(count)
+        var moved = changed
+        backdrop.layers.forEachIndexed { i, source ->
+            val coordinates = source.coordinates?.takeIf { it.isAttached }
+            val offset = if (coordinates != null && self.isAttached) coordinates.localPositionOf(self, Offset.Zero) else Offset.Unspecified
+            val x = if (offset.isSpecified) offset.x else Float.NaN
+            val y = if (offset.isSpecified) offset.y else Float.NaN
+            // NaN nunca é igual a si próprio: uma fonte por medir conta sempre como mudança.
+            if (relative[i * 2] != x || relative[i * 2 + 1] != y) moved = true
+            relative[i * 2] = x
+            relative[i * 2 + 1] = y
+        }
+        return moved
+    }
 }
 
 @Composable
@@ -114,10 +141,19 @@ fun rememberBackdropSampler(): BackdropSampler {
     return remember(layer) { BackdropSampler(layer) }
 }
 
-/** Mede onde a superfície está. Vem logo antes do desenho que usa [drawBackdrop]. */
-fun Modifier.backdropSampler(sampler: BackdropSampler): Modifier = onGloballyPositioned {
+/**
+ * Mede onde a superfície está. Vem logo antes do desenho que usa [drawBackdrop].
+ *
+ * Com [backdrop] (Beta 2.4), o fundo só se volta a recortar quando a superfície se move em relação
+ * às fontes dele (o scroll, uma página que desliza por cima do brilho). Antes recortava-se a cada
+ * mudança de posição no ecrã: com as definições ou o editor a subir, e o Feed a recuar por baixo
+ * (zoom e desfoque), todos os cartões, pílulas e faixas de desfoque gravavam e desfocavam de novo o
+ * seu fundo em CADA frame, para chegar à mesma imagem, e a animação perdia frames. O tamanho não
+ * conta aqui: quando muda, o desenho refaz-se sozinho.
+ */
+fun Modifier.backdropSampler(sampler: BackdropSampler, backdrop: Backdrop? = null): Modifier = onGloballyPositioned {
     sampler.coordinates = it
-    sampler.moves++
+    if (backdrop == null || sampler.movedAgainst(backdrop, it)) sampler.moves++
 }
 
 /**

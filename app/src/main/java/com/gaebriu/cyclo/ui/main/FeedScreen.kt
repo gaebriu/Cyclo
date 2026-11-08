@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -197,6 +198,7 @@ fun FeedScreen(
     onMoodChange: (Float) -> Unit,
     onReorder: (List<FeedSection>) -> Unit,
     modifier: Modifier = Modifier,
+    isCurrentPage: Boolean = true,
 ) {
     val today = now.toLocalDate()
     val log = dailyLog?.takeIf { it.date == today } ?: DailyLog(today)
@@ -214,10 +216,29 @@ fun FeedScreen(
     }
     // Só muda depois de os toques assentarem (nada de contas nem saltos a cada toque no "+").
     var latency by remember { mutableLongStateOf(targetLatency) }
+    // Beta 2.4: quando as horas rolam por causa do que se marcou no Feed (cafeína, fatores,
+    // emoções), um tique leve acompanha-as. Não toca quando mudam sozinhas (o relógio, a cafeína a
+    // passar), por causa das definições, nem com o Feed fora de vista.
+    val view = LocalView.current
+    val effects = LocalVisualEffects.current
+    // Só o que se marca no Feed conta (o "opened" do dia e o sono registado também mudam o registo).
+    val latestInputs by rememberUpdatedState(dailyLog?.feedInputs())
+    val latestCurrent by rememberUpdatedState(isCurrentPage)
+    var appliedInputs by remember { mutableStateOf(dailyLog?.feedInputs()) }
     LaunchedEffect(targetLatency) {
         if (targetLatency != latency) {
             delay(BedtimeSettleMs)
             latency = targetLatency
+            val before = appliedInputs
+            val inputs = latestInputs
+            // No mesmo dia (à meia-noite o registo novo começa vazio, sem ninguém ter tocado).
+            val fromFeed = inputs != before && inputs?.date == before?.date
+            appliedInputs = inputs
+            if (fromFeed && latestCurrent && effects.animationsEnabled && next != null) {
+                CycloHaptics.pickerTick(view, manyChoices = true)
+            }
+        } else {
+            appliedInputs = latestInputs
         }
     }
 
@@ -775,3 +796,13 @@ private fun FeelingCard(mood: Float, onMoodChange: (Float) -> Unit, modifier: Mo
         )
     }
 }
+
+/** O que se marca no Feed e muda as horas para dormir (Beta 2.4, ver o háptico das horas a rolar). */
+private fun DailyLog.feedInputs(): DailyLog = DailyLog(
+    date = date,
+    caffeine = caffeine,
+    factors = factors,
+    mood = mood,
+    caffeineTimes = caffeineTimes,
+    factorTimes = factorTimes,
+)

@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalView
+import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
@@ -126,6 +128,7 @@ fun CycloApp(viewModel: CycloViewModel) {
     val message by viewModel.message.collectAsState()
     val effects = LocalVisualEffects.current
     val scope = rememberCoroutineScope()
+    val view = LocalView.current
 
     // O tutorial decide-se uma vez, ao abrir: a marca "feito" é escrita no Introduction 6, mas o
     // tutorial continua até ao fim do 7.
@@ -390,7 +393,11 @@ fun CycloApp(viewModel: CycloViewModel) {
     // Tudo o que fica por baixo da barra de baixo (undo-action), que o desfoca.
     val screens = rememberBackdropLayer()
     // loading-data: o ecrã por baixo dele desfoca-se a si próprio, em tempo real, com o véu.
-    val loadingData = rememberLoadingDataState(restoring)
+    // Beta 2.4: os dados voltaram (o texto começa a sair e a barra diz "Your data is back"): o
+    // háptico de confirmação acompanha esse momento. Num erro a barra já toca o de recusa.
+    val loadingData = rememberLoadingDataState(restoring) {
+        if (viewModel.message.value?.isError == false) CycloHaptics.confirm(view)
+    }
 
     // "Advanced textures" e língua: o ecrã antigo dissolve-se no novo (ver ScreenCrossfade).
     val crossfade = remember { ScreenCrossfade() }
@@ -441,7 +448,9 @@ fun CycloApp(viewModel: CycloViewModel) {
                             val s = 1f - (1f - CycloMotion.BackgroundScale) * c
                             scaleX = s
                             scaleY = s
-                            renderEffect = if (effects.blurEnabled && c > 0f) {
+                            // Beta 2.4: o desfoque do recuo é uma textura avançada (desligadas, o Feed
+                            // recua só com o zoom e o véu).
+                            renderEffect = if (appEffects.textures && c > 0f) {
                                 val sigma = figmaBlurPx(FigmaBlur.BackgroundRecede) * c
                                 BlurEffect(sigma, sigma, TileMode.Clamp)
                             } else {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
@@ -24,7 +25,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.data.AppMessage
@@ -38,6 +38,14 @@ import kotlinx.coroutines.delay
 // Medidas do Figma (undo-action: 345 x 66 dp, texto a 24 dp das pontas).
 private val BarHeight = 66.dp
 private val TextInset = 24.dp
+
+/**
+ * Beta 2.4: um texto que não cabe numa linha (ex.: "Não conseguimos exportar os teus dados" ao lado
+ * do "Tentar de novo") passa à linha seguinte e a barra cresce PARA CIMA (está presa ao fundo), com
+ * 15 dp por cima e por baixo do texto; antes ficava cortado com reticências. Com uma linha continua
+ * com os 66 dp do Figma, e o botão fica sempre ao centro da altura da barra.
+ */
+private val TextVerticalMargin = 15.dp
 
 /**
  * Barra de baixo (undo-action): um texto e, à direita, um botão ("Undo", ou "Try again" depois de
@@ -88,7 +96,7 @@ fun CycloMessageBar(
                     if (effects.animationsEnabled) translationY = (1f - progress.value) * (size.height + 24.dp.toPx())
                 }
                 .fillMaxWidth()
-                .height(BarHeight)
+                .heightIn(min = BarHeight)
                 .cycloOverlaySurface()
                 .semantics { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.CenterVertically,
@@ -97,9 +105,9 @@ fun CycloMessageBar(
             BasicText(
                 text = current.text,
                 style = CycloType.MenuItem,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = TextVerticalMargin),
             )
             val action = current.action
             if (current.actionLabel != null && action != null) {

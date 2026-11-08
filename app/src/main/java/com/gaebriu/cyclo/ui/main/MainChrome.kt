@@ -284,6 +284,13 @@ fun MainNavigationBar(
     onSelect: (MainTab) -> Unit,
     descriptions: List<String>,
     modifier: Modifier = Modifier,
+    // Beta 2.4: o esticar da pílula e o acender de cada ícone vêm de fora (ver PageChrome), para um
+    // salto por cima de um separador não esticar duas vezes nem acender o separador do meio.
+    stretch: () -> Float = {
+        val p = pagePosition().coerceIn(0f, (MainTab.entries.size - 1).toFloat())
+        kotlin.math.sin((p - kotlin.math.floor(p)) * kotlin.math.PI.toFloat())
+    },
+    iconAmount: (Int) -> Float = { index -> (1f - kotlin.math.abs(pagePosition() - index)).coerceIn(0f, 1f) },
 ) {
     val effects = LocalVisualEffects.current
     Box(
@@ -298,10 +305,9 @@ fun MainNavigationBar(
                 // A meio caminho entre dois separadores, a pílula estica-se na largura e afina na
                 // altura (uma gota a passar de um lado para o outro); nos separadores tem a forma do
                 // Figma. Segue a mesma posição contínua (dedo, toque, voltar), separador a separador.
-                val between = p - kotlin.math.floor(p)
-                val stretch = if (effects.animationsEnabled) kotlin.math.sin(between * kotlin.math.PI.toFloat()) else 0f
-                val width = IndicatorWidth.toPx() * (1f + IndicatorStretchX * stretch)
-                val height = IndicatorHeight.toPx() * (1f - IndicatorSquashY * stretch)
+                val drop = if (effects.animationsEnabled) stretch() else 0f
+                val width = IndicatorWidth.toPx() * (1f + IndicatorStretchX * drop)
+                val height = IndicatorHeight.toPx() * (1f - IndicatorSquashY * drop)
                 val left = x + (IndicatorWidth.toPx() - width) / 2f
                 val top = IndicatorInset.toPx() + (IndicatorHeight.toPx() - height) / 2f
                 drawRoundRect(
@@ -325,7 +331,7 @@ fun MainNavigationBar(
                     },
                     description = descriptions[tab.ordinal],
                     // O ícone acende à medida que a pílula chega a ele.
-                    amount = { (1f - kotlin.math.abs(pagePosition() - tab.ordinal)).coerceIn(0f, 1f) },
+                    amount = { iconAmount(tab.ordinal) },
                     isSelected = selected == tab,
                     onClick = { onSelect(tab) },
                 )

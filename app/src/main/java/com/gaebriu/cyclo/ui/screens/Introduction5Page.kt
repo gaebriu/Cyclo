@@ -153,6 +153,8 @@ fun Introduction5Page(
                                 description = stringResource(R.string.introduction_4_repeat_field),
                                 onClick = { repeat.isMenuOpen = true },
                                 enabled = dropdownInteractive,
+                                // Beta 2.4: numa linha, com reticências se não couber (ex.: "Mostrar só desta…").
+                                singleLine = true,
                                 onBoundsInRoot = { repeat.anchor = it },
                             )
                         }

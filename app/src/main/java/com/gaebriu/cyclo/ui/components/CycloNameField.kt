@@ -227,7 +227,7 @@ private fun BoxScope.NameFieldFill(search: Boolean) {
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
-    Canvas(modifier = Modifier.matchParentSize().backdropSampler(sampler)) {
+    Canvas(modifier = Modifier.matchParentSize().backdropSampler(sampler, backdrop)) {
         val radius = CycloDimens.InputRadius.toPx()
         val shape = roundedShape(radius)
         val edge = CycloColors.TextSecondary
