@@ -59,19 +59,38 @@ object BedtimeReminder {
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
             NotificationManagerCompat.from(context).areNotificationsEnabled()
 
-    /** O interruptor como se mostra: ligado nas definições E com autorização. */
-    fun isOn(context: Context, data: CycloData): Boolean = data.bedtimeReminder && isPermitted(context)
+    /**
+     * O canal [channelId] não foi desligado pelo utilizador nas definições do sistema (Beta 2.3).
+     * Um canal que ainda não existe conta como ligado (é criado com a importância normal).
+     */
+    fun isChannelEnabled(context: Context, channelId: String): Boolean =
+        NotificationManagerCompat.from(context).getNotificationChannelCompat(channelId)
+            ?.importance != NotificationManagerCompat.IMPORTANCE_NONE
+
+    /** O interruptor como se mostra: ligado nas definições E com autorização (da app e do canal). */
+    fun isOn(context: Context, data: CycloData): Boolean =
+        data.bedtimeReminder && isPermitted(context) && isChannelEnabled(context, ChannelId)
 
     /**
-     * Cria o canal (ou, se já existe, atualiza o nome e a descrição para a língua atual; a
-     * importância e o que o utilizador escolheu para o canal ficam como estão).
+     * Cria os canais dos dois lembretes, "Bedtime" e "Log sleep" (ou, se já existem, atualiza o nome
+     * e a descrição para a língua atual; a importância e o que o utilizador escolheu para cada canal
+     * ficam como estão).
      */
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        manager.createNotificationChannel(
-            NotificationChannel(ChannelId, context.getString(R.string.reminder_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = context.getString(R.string.reminder_channel_description)
-            },
+        manager.createNotificationChannels(
+            listOf(
+                NotificationChannel(ChannelId, context.getString(R.string.reminder_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = context.getString(R.string.reminder_channel_description)
+                },
+                NotificationChannel(
+                    LogSleepReminder.ChannelId,
+                    context.getString(R.string.log_sleep_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = context.getString(R.string.log_sleep_channel_description)
+                },
+            ),
         )
     }
 
@@ -190,7 +209,10 @@ object BedtimeReminder {
         val open = PendingIntent.getActivity(
             context,
             0,
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            // SINGLE_TOP (Beta 2.3): com a app aberta, a atividade fica (sem SINGLE_TOP, o CLEAR_TOP
+            // fechava-a e abria outra, e perdia-se o ecrã em que se estava).
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = NotificationCompat.Builder(context, ChannelId)

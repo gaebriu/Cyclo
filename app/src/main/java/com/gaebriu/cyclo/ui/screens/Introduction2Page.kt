@@ -220,6 +220,8 @@ fun Introduction2Page(
                         if (!use24Hour) {
                             Spacer(Modifier.width(periodGap))
                             // AM-PM-Slider: 0 = AM, 1 = PM; muda só a metade do dia (as horas e os minutos ficam).
+                            // O sol NÃO roda com ele (Beta 2.3): só as rodas da hora e dos minutos o mexem.
+                            // A caixa das horas mostra o mesmo valor (wakeHour % 12), por isso também não salta.
                             CycloTimeUnitPicker(
                                 value = if (pm) 1 else 0,
                                 valueCount = 2,
@@ -229,7 +231,6 @@ fun Introduction2Page(
                                     if (hour != wakeHour) onHourChange(hour)
                                 },
                                 label = { if (it == 1) "PM" else "AM" },
-                                onWheelMove = { turnSun(it * CycloMotion.SunDegreesPerPeriod) },
                                 modifier = Modifier.width(boxWidth),
                             )
                         }

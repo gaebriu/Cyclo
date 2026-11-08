@@ -215,6 +215,12 @@ data class CycloData(
      * Figma; só vale de facto com a autorização de notificações (ver BedtimeReminder).
      */
     val bedtimeReminder: Boolean = true,
+    /**
+     * O interruptor "Log sleep" (Beta 2.3, reminders-group): o lembrete para registar o sono, depois
+     * da hora de acordar. DESLIGADO de omissão (também para quem já usava a app); só vale de facto
+     * com a autorização de notificações (ver LogSleepReminder).
+     */
+    val logSleepReminder: Boolean = false,
     /** A ordem dos blocos do Feed (reordenáveis), sem o grupo da hora de acordar. */
     val feedOrder: List<FeedSection> = DefaultFeedOrder,
     /** A ordem dos cartões da Tracking (reordenáveis), sem o prompt do sono. */

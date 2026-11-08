@@ -31,7 +31,7 @@ import kotlin.math.floor
 
 /**
  * Estado da animação letra a letra do "header-big" do Introduction 0 ("Hello!"), também usada no
- * texto do Introduction 6 ("You’re all set!") e do loading-data.
+ * texto do Introduction 7 ("You’re all set!") e do loading-data.
  *
  * O ritmo é sempre o do "Hello!": cada letra demora [LetterDurationMs] a aparecer e começa
  * [CycloMotion.LetterStaggerMs] depois da anterior, seja qual for o comprimento do texto (um texto
@@ -51,7 +51,7 @@ import kotlin.math.floor
  * @param spacingEm espaçamento extra entre letras no início, em fração do tamanho da letra.
  * @param settles false: o espaçamento fecha com a curva do "Hello!" (Introduction 0, a referência).
  *                true: fecha com uma mola criticamente amortecida ([settle]), que assenta quando a
- *                última letra acaba (Introduction 6 e loading-data).
+ *                última letra acaba (Introduction 7 e loading-data).
  * @param clockMs um relógio de fora (ms desde o início, lido em estado do Compose); null = o próprio.
  */
 @Stable

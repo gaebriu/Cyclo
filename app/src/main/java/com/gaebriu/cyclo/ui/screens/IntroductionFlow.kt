@@ -37,7 +37,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.zIndex
 import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.data.OnboardingReminders
 import com.gaebriu.cyclo.data.RoutineDraft
+import com.gaebriu.cyclo.reminder.BedtimeReminder
+import com.gaebriu.cyclo.reminder.LogSleepReminder
+import com.gaebriu.cyclo.ui.haptics.CycloHaptics
+import com.gaebriu.cyclo.ui.notifications.NotificationAccess
+import androidx.compose.ui.platform.LocalView
 import com.gaebriu.cyclo.ui.components.CycloGlassButton
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
 import com.gaebriu.cyclo.ui.components.MaxRoutineNameLength
@@ -60,11 +66,14 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Para que serve o fluxo: o tutorial (Introduction 0 a 6) ou criar/editar uma rotina (2 a 5). */
+/** Para que serve o fluxo: o tutorial (Introduction 0 a 7) ou criar/editar uma rotina (2 a 5). */
 enum class IntroductionMode { Tutorial, Editor }
 
-/** Passos do tutorial com barra de progresso (Introduction 1 a 6). */
-private const val TutorialStepCount = 6
+/** Passos do tutorial com barra de progresso (Introduction 1 a 7; Beta 2.3: eram 6). */
+private const val TutorialStepCount = 7
+
+/** Introduction 6 (Beta 2.3): os lembretes, só no tutorial. O Next dele guarda a rotina. */
+private const val NotificationsStep = 6
 
 /** Na troca Next / Done, o "Next" sai até aqui e o "Done" entra a partir de 1 - isto. */
 private const val DoneSwapSplit = 0.55f
@@ -79,7 +88,7 @@ private const val LastRoutineStep = 5
 /**
  * Fluxo dos ecrãs de introdução, usado de duas formas ([mode]):
  *
- * **Tutorial** (Introduction 0 a 6):
+ * **Tutorial** (Introduction 0 a 7):
  * - O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto,
  *   enquanto o 0 recua (zoom out, desfoque, véu escuro, e o brilho roxo some de cima para baixo).
  *   O X e o gesto/botão de voltar do Android fazem-no descer de volta, e o 0 avança com zoom in.
@@ -89,9 +98,13 @@ private const val LastRoutineStep = 5
  *   ([CycloSprings.Page]); a que entra vem encostada à que sai, que escurece um pouco. O botão de
  *   cima, a barra de progresso e o Next são FIXOS: não se mexem; o ícone do botão muda por fade
  *   (X para seta) e a barra cresce.
- * - O Next do Introduction 5 guarda a rotina (e marca o tutorial como feito) e passa ao 6.
- *   No Introduction 6, o botão de cima e o Next saem com um fade e deixam de responder, e os
- *   gestos de voltar ficam bloqueados; no fim das animações chama [onFinished].
+ * - Introduction 6 (Beta 2.3): os lembretes "Bedtime" e "Log sleep" ([Introduction6Page]), os dois
+ *   desligados ao chegar; ligar pede a autorização de notificações ([notifications]) e recusar não
+ *   mostra nada. O Next dele guarda a rotina, marca o tutorial como feito e guarda os dois lembretes,
+ *   tudo numa só escrita ([onSave]), e passa ao 7. Guardar só aqui (e não no 5) deixa voltar do 6
+ *   ao 5 sem guardar a rotina duas vezes; fechar a app no 6 recomeça o tutorial, como no 5.
+ * - No Introduction 7 ("You're all set!"), o botão de cima e o Next saem com um fade e deixam de
+ *   responder, e os gestos de voltar ficam bloqueados; no fim das animações chama [onFinished].
  *
  * **Editor** (criar ou editar uma rotina, Introduction 2 a 5):
  * - Começa no Introduction 2 com um X (fecha, [onClose]); daí em diante a seta volta atrás.
@@ -107,14 +120,16 @@ private const val LastRoutineStep = 5
  *
  * @param initial o que a rotina já tem, ao editar (null ao criar).
  * @param nextRoutineNumber o número que a próxima rotina vai ter (as já guardadas + 1).
- * @param onSave guarda a rotina; chama onSaved quando a escrita correu bem, ou onFailed se falhou
- *        (o fluxo fica onde está, e quem guarda mostra o erro com "Try again").
- * @param onFinished tutorial: fim do Introduction 6. Editor: a rotina foi guardada.
+ * @param onSave guarda a rotina (no tutorial, com os lembretes do Introduction 6; no editor, null);
+ *        chama onSaved quando a escrita correu bem, ou onFailed se falhou (o fluxo fica onde está,
+ *        e quem guarda mostra o erro com "Try again").
+ * @param onFinished tutorial: fim do Introduction 7. Editor: a rotina foi guardada.
+ * @param notifications a autorização de notificações (tutorial: os interruptores do Introduction 6).
  * @param onClose editor: o X do primeiro passo.
  */
 @Composable
 fun IntroductionFlow(
-    onSave: (draft: RoutineDraft, onSaved: () -> Unit, onFailed: () -> Unit) -> Unit,
+    onSave: (draft: RoutineDraft, reminders: OnboardingReminders?, onSaved: () -> Unit, onFailed: () -> Unit) -> Unit,
     onFinished: () -> Unit,
     modifier: Modifier = Modifier,
     mode: IntroductionMode = IntroductionMode.Tutorial,
@@ -122,8 +137,10 @@ fun IntroductionFlow(
     nextRoutineNumber: Int = 1,
     onClose: () -> Unit = {},
     onAddWidget: () -> Unit = {},
+    notifications: NotificationAccess? = null,
 ) {
     val effects = LocalVisualEffects.current
+    val view = LocalView.current
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val isEditor = mode == IntroductionMode.Editor
@@ -155,6 +172,32 @@ fun IntroductionFlow(
     // Enquanto a rotina está a ser guardada, o botão não volta a guardar.
     var saving by remember { mutableStateOf(false) }
 
+    // Introduction 6: os lembretes que o utilizador ligou (começam desligados). Mostram-se ligados
+    // só com as notificações autorizadas; é isso que se guarda no Next.
+    var bedtimeWanted by rememberSaveable { mutableStateOf(false) }
+    var logSleepWanted by rememberSaveable { mutableStateOf(false) }
+    val bedtimeShown = bedtimeWanted && notifications?.isAllowed(BedtimeReminder.ChannelId) == true
+    val logSleepShown = logSleepWanted && notifications?.isAllowed(LogSleepReminder.ChannelId) == true
+
+    /**
+     * Um interruptor do Introduction 6. Desligar é logo. Ligar: já autorizado, liga; sem
+     * autorização, abre o pedido nativo do Android (sempre que o sistema o deixa mostrar) e só liga
+     * se for aceite, com o háptico de ligar nesse momento. Recusado: fica desligado, sem mensagens.
+     */
+    fun toggleReminder(channelId: String, shown: Boolean, setWanted: (Boolean) -> Unit) {
+        if (shown) {
+            setWanted(false)
+            return
+        }
+        val access = notifications ?: return
+        val askedSystem = !access.isAllowed(channelId)
+        access.request(channelId) { allowed ->
+            if (!allowed) return@request
+            setWanted(true)
+            if (askedSystem) CycloHaptics.toggle(view, true)
+        }
+    }
+
     // Guarda o nome: o que foi escrito; se estiver vazio, o que já estava guardado; se também, "Routine [Nº]".
     fun commitRoutineName(typed: String) {
         savedRoutineName = typed.trim()
@@ -171,6 +214,7 @@ fun IntroductionFlow(
         val draft = RoutineDraft(savedRoutineName, wakeHour, wakeMinute, repeat.option, repeat.daysMask)
         onSave(
             draft,
+            if (isEditor) null else OnboardingReminders(bedtime = bedtimeShown, logSleep = logSleepShown),
             {
                 saving = false
                 if (isEditor) onFinished() else step = TutorialStepCount
@@ -222,7 +266,8 @@ fun IntroductionFlow(
 
     // Gesto de voltar do Android: como nas páginas do Feed, a anterior entra a seguir ao dedo (até
     // [CycloMotion.PageBackReach] da largura) e, ao largar, a mola acaba o caminho (ou volta atrás).
-    PredictiveBackHandler(enabled = step in (firstPage + 1)..LastRoutineStep) { backProgress ->
+    // No tutorial vai até ao Introduction 6 (o 7 bloqueia o voltar).
+    PredictiveBackHandler(enabled = step in (firstPage + 1)..(if (isEditor) LastRoutineStep else NotificationsStep)) { backProgress ->
         val from = step
         val gesture = BackGestureVelocity()
         try {
@@ -239,7 +284,7 @@ fun IntroductionFlow(
         }
     }
 
-    // Introduction 6: os gestos de voltar ficam bloqueados.
+    // Introduction 7: os gestos de voltar ficam bloqueados.
     BackHandler(enabled = !isEditor && step == TutorialStepCount) { }
 
     // Com um menu aberto, voltar fecha o menu. Vem DEPOIS dos outros, por isso tem prioridade.
@@ -252,11 +297,12 @@ fun IntroductionFlow(
     val showIntroduction4 by remember { derivedStateOf { step >= 4 || position.value > 3.001f } }
     val showIntroduction5 by remember { derivedStateOf { step >= 5 || position.value > 4.001f } }
     val showIntroduction6 by remember { derivedStateOf { !isEditor && (step >= 6 || position.value > 5.001f) } }
-    // O Introduction 6 só começa as animações depois de assentar.
-    val introduction6Settled by remember { derivedStateOf { step == TutorialStepCount && position.value > 5.98f } }
+    val showIntroduction7 by remember { derivedStateOf { !isEditor && (step >= 7 || position.value > 6.001f) } }
+    // O Introduction 7 só começa as animações depois de assentar.
+    val introduction7Settled by remember { derivedStateOf { step == TutorialStepCount && position.value > 6.98f } }
 
-    // Introduction 6: o botão de cima e o Next saem com um fade, à medida que a página entra.
-    val chromeAlpha = { if (isEditor) 1f else 1f - (position.value - LastRoutineStep).coerceIn(0f, 1f) }
+    // Introduction 7: o botão de cima e o Next saem com um fade, à medida que a página entra.
+    val chromeAlpha = { if (isEditor) 1f else 1f - (position.value - NotificationsStep).coerceIn(0f, 1f) }
     val chromeEnabled = isEditor || step < TutorialStepCount
 
     // Editor: no último passo o Next dá lugar ao "Done" roxo.
@@ -432,7 +478,23 @@ fun IntroductionFlow(
                         if (showIntroduction6) {
                             IntroPage(6, { position.value }, effects.animationsEnabled, active = step == 6) {
                                 Introduction6Page(
-                                    active = introduction6Settled,
+                                    bedtimeOn = bedtimeShown,
+                                    onToggleBedtime = {
+                                        toggleReminder(BedtimeReminder.ChannelId, bedtimeShown) { bedtimeWanted = it }
+                                    },
+                                    logSleepOn = logSleepShown,
+                                    onToggleLogSleep = {
+                                        toggleReminder(LogSleepReminder.ChannelId, logSleepShown) { logSleepWanted = it }
+                                    },
+                                    asks = notifications?.isPermissionGranted() != true,
+                                )
+                            }
+                        }
+
+                        if (showIntroduction7) {
+                            IntroPage(7, { position.value }, effects.animationsEnabled, active = step == 7) {
+                                Introduction7Page(
+                                    active = introduction7Settled,
                                     onFinished = onFinished,
                                 )
                             }
@@ -465,7 +527,9 @@ fun IntroductionFlow(
                                         commitRoutineName(savedRoutineName)
                                         step = 5
                                     }
-                                    LastRoutineStep -> save()
+                                    // Editor: o "Done" (por cima) é que guarda. Tutorial: segue para os lembretes.
+                                    LastRoutineStep -> if (isEditor) save() else step = NotificationsStep
+                                    NotificationsStep -> save()
                                 }
                             },
                             // A troca é UM botão a mudar (Beta 2.2): a forma fica, o vidro fica opaco por

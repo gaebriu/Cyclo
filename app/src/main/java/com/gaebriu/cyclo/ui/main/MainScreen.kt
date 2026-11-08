@@ -153,6 +153,7 @@ fun MainScreen(
     glow: () -> Float,
     modifier: Modifier = Modifier,
     sleepPromptDismissed: Boolean = false,
+    trackingRequest: Int = 0,
 ) {
     val effects = LocalVisualEffects.current
     val density = LocalDensity.current
@@ -161,7 +162,9 @@ fun MainScreen(
     val scope = rememberCoroutineScope()
 
     // A página escolhida (guardada ao rodar o ecrã) e a posição contínua das duas.
-    var selected by rememberSaveable { mutableIntStateOf(FeedPage) }
+    // Aberta pela notificação do "Log sleep" (Beta 2.3, [trackingRequest] > 0 ao nascer): começa já
+    // na Tracking, sem passar pelo Feed.
+    var selected by rememberSaveable { mutableIntStateOf(if (trackingRequest > 0) TrackingPage else FeedPage) }
     // Limiar fino (Beta 2.2): com o de omissão (0,01 de página) a mola parava ~10 px antes e saltava.
     val page = remember { Animatable(selected.toFloat(), visibilityThreshold = 0.0005f) }
     // Enquanto o dedo arrasta, a posição está aqui (sem corrotinas a cada movimento).
@@ -246,6 +249,16 @@ fun MainScreen(
 
     fun selectTab(target: MainTab) {
         if (target.ordinal != selected) settleTo(target.ordinal)
+    }
+
+    // Cada novo [trackingRequest] (a notificação do "Log sleep" com a app já aberta) leva as páginas
+    // à Tracking, com a mola das páginas, como tocar no separador. Os já tratados não se repetem
+    // (nem ao recriar a atividade).
+    var handledTrackingRequest by rememberSaveable { mutableIntStateOf(trackingRequest) }
+    LaunchedEffect(trackingRequest) {
+        if (trackingRequest == handledTrackingRequest) return@LaunchedEffect
+        handledTrackingRequest = trackingRequest
+        if (selected != TrackingPage) settleTo(TrackingPage)
     }
 
     // Voltar: a página anterior entra a seguir ao gesto e, ao largar, a mola acaba (Beta 2.2: com a

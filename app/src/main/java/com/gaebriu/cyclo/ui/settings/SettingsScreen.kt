@@ -104,6 +104,8 @@ import com.gaebriu.cyclo.ui.components.CycloActionMenu
 import com.gaebriu.cyclo.ui.components.CycloBigSheet
 import com.gaebriu.cyclo.ui.components.CycloCircleButton
 import com.gaebriu.cyclo.ui.components.CycloIcon
+import com.gaebriu.cyclo.ui.components.SwitchRow
+import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.components.cycloCard
 import com.gaebriu.cyclo.ui.components.cycloPressable
 import com.gaebriu.cyclo.ui.effects.Backdrop
@@ -160,6 +162,10 @@ private val RowTextVertical = 6.dp
 /** Onde o valor acaba quando há seta (a seta de 24 dp fica a 15 dp da direita, 9 dp depois do valor). */
 private val ValueEndWithArrow = 48.dp
 
+/** A lua antes da versão (Cyclo-2 2039:146): 15 dp, e 9 dp até ao texto (que começa a 63 dp do ecrã). */
+private val VersionIconSize = 15.dp
+private val VersionIconGap = 9.dp
+
 
 /** Os menus das definições (só um aberto de cada vez). */
 private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Language }
@@ -171,14 +177,18 @@ private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Lang
  * - A idade escreve-se na própria linha (tap-to-write-box-age): o visto guarda; fora de 5–100 a
  *   caixa abana com um háptico de erro e o valor não entra.
  * - Cronótipo, tempo a adormecer e formato das horas abrem os action-menu do Componentes 3.
- * - "Bedtime" liga o lembrete (pede a autorização de notificações; ver [onToggleReminder]).
+ * - "Bedtime" e "Log sleep" (Beta 2.3) ligam os lembretes (pedem a autorização de notificações; ver
+ *   [onToggleReminder] e [onToggleLogSleep]).
  * - "Export my data" e "Restore my data" abrem o seletor de ficheiros do sistema.
  * - "View on GitHub" mostra primeiro o action-menu-big-open-github.
  * - A língua abre o action-menu-lang (Componentes 4): muda logo a língua da app toda ([onSetLanguage]).
  * - "Advanced textures" (Performance) liga e desliga o desenho completo ([onSetAdvancedTextures]).
  * - Voltar (botão, gesto) fecha primeiro o menu, a folha ou a caixa da idade, se estiverem abertos.
  *
- * @param reminderOn o interruptor como se vê: ligado nas definições e com autorização.
+ * @param reminderOn o interruptor "Bedtime" como se vê: ligado nas definições e com autorização.
+ * @param logSleepOn o interruptor "Log sleep", da mesma forma.
+ * @param reminderAsks ligar um lembrete abre primeiro o pedido de autorização do sistema (o toque
+ *        tem então o háptico de botão, e não o de ligar).
  */
 @Composable
 fun SettingsScreen(
@@ -189,6 +199,9 @@ fun SettingsScreen(
     onSetChronotype: (Chronotype) -> Unit,
     onSetFallAsleep: (FallAsleepTime) -> Unit,
     onToggleReminder: () -> Unit,
+    logSleepOn: Boolean,
+    onToggleLogSleep: () -> Unit,
+    reminderAsks: Boolean,
     onExport: () -> Unit,
     onRestore: () -> Unit,
     onOpenGitHub: () -> Unit,
@@ -361,6 +374,15 @@ fun SettingsScreen(
                 label = stringResource(R.string.settings_bedtime_reminder),
                 on = reminderOn,
                 onToggle = onToggleReminder,
+                toggleHaptic = reminderOn || !reminderAsks,
+            )
+            Spacer(Modifier.height(RowGap))
+            // log-sleep (Cyclo-2 2039:134, Beta 2.3): o lembrete para registar o sono.
+            SwitchRow(
+                label = stringResource(R.string.settings_log_sleep_reminder),
+                on = logSleepOn,
+                onToggle = onToggleLogSleep,
+                toggleHaptic = logSleepOn || !reminderAsks,
             )
             Spacer(Modifier.height(SectionGap))
 
@@ -409,8 +431,17 @@ fun SettingsScreen(
             Description(stringResource(R.string.settings_beta_updates_description), labelStyle)
             Spacer(Modifier.height(DescriptionToSection))
             SettingsButton(stringResource(R.string.settings_github), onClick = { githubOpen = true })
-            // A versão é o fim da página.
-            Description(stringResource(R.string.settings_version, rememberVersionLabel()), labelStyle)
+            // A versão é o fim da página, com a lua do Cyclo antes (Beta 2.3, 2039:146): #A3A2A7 sem
+            // mistura nem sombra (o texto mantém as dele), centrada na linha do texto.
+            Spacer(Modifier.height(RowToDescription))
+            Row(
+                modifier = Modifier.padding(horizontal = RowInset),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CycloIcon(path = CycloAppIconPaths.Bedtime, size = VersionIconSize, tint = CycloColors.TextSecondary, luminosity = false)
+                Spacer(Modifier.width(VersionIconGap))
+                BasicText(text = stringResource(R.string.settings_version, rememberVersionLabel()), style = labelStyle)
+            }
         }
 
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(content)) {
@@ -650,109 +681,6 @@ private fun LabelValueRow(
         }
     }
 }
-
-/**
- * A linha "Bedtime" com o interruptor (y/n). Toda a linha liga e desliga.
- * [toggleHaptic] false: o toque não muda já o interruptor (abre uma confirmação), por isso tem o
- * háptico de botão e não o de ligar.
- */
-@Composable
-private fun SwitchRow(
-    label: String,
-    on: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier,
-    toggleHaptic: Boolean = true,
-    pressHaptic: Boolean = !toggleHaptic,
-    shake: () -> Float = { 0f },
-) {
-    val view = LocalView.current
-    val stateText = stringResource(if (on) R.string.saved_state_on else R.string.saved_state_off)
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = CycloDimens.InputHeight)
-            // A recusa: a linha toda abana, como a caixa da idade (ver [playRejectShake]).
-            .graphicsLayer { translationX = shake().dp.toPx() }
-            .cycloPressable(
-                onClick = {
-                    if (toggleHaptic) CycloHaptics.toggle(view, !on)
-                    onToggle()
-                },
-                haptic = pressHaptic,
-                role = Role.Switch,
-            )
-            .semantics(mergeDescendants = true) {
-                contentDescription = label
-                stateDescription = stateText
-                toggleableState = ToggleableState(on)
-                role = Role.Switch
-            }
-            .cycloCard(shadowColor = null),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        BasicText(
-            text = label,
-            style = CycloType.CardTitle,
-            modifier = Modifier.padding(start = RowInset, end = RowInset + 42.dp + RowLabelGap, top = RowTextVertical, bottom = RowTextVertical),
-        )
-        CycloSwitch(on = on, modifier = Modifier.align(Alignment.CenterEnd).padding(end = RowInset))
-    }
-}
-
-/**
- * Interruptor (y/n): 42 x 23 dp, raio 15. Ligado: #4A3C99 com a bola à direita; desligado:
- * #A3A2A7 a 15 % com a bola à esquerda a 63 %. A bola tem 15 dp, a 4 dp das pontas, com
- * gradiente #FCFCFE a #9F9FA0 em Luminosity.
- *
- * A mudança é uma mola com um ressalto muito leve: a bola desliza e, a meio do caminho, estica um
- * pouco no sentido do movimento (e volta a ser redonda ao chegar); a cor do fundo e a opacidade da
- * bola acompanham. Igual a ligar e a desligar. Sem animações, muda logo.
- */
-@Composable
-private fun CycloSwitch(on: Boolean, modifier: Modifier = Modifier) {
-    val effects = LocalVisualEffects.current
-    // Beta 2.2: a mola vem dos presets ([CycloSprings.Toggle]) e o esticão da bola segue a
-    // velocidade a que ela anda mesmo (como a bola do medidor), e não a posição.
-    val motion = remember { Animatable(if (on) 1f else 0f) }
-    LaunchedEffect(on, effects.animationsEnabled) {
-        val target = if (on) 1f else 0f
-        if (effects.animationsEnabled) motion.animateTo(target, CycloSprings.Toggle.float) else motion.snapTo(target)
-    }
-    Box(
-        modifier = modifier
-            .size(width = 42.dp, height = 23.dp)
-            .drawBehind {
-                val p = motion.value
-                val radius = CornerRadius(15.dp.toPx())
-                drawRoundRect(
-                    color = lerp(CycloColors.TextSecondary.copy(alpha = 0.15f), CycloColors.Accent, p.coerceIn(0f, 1f)),
-                    cornerRadius = radius,
-                )
-                val knob = 15.dp.toPx()
-                val inset = 4.dp.toPx()
-                // Esticão: até 5 dp, proporcional à velocidade da bola (0 parada).
-                val stretch = 5.dp.toPx() * (kotlin.math.abs(motion.velocity) / ToggleFullStretchSpeed).coerceIn(0f, 1f)
-                val travel = size.width - inset * 2f - knob
-                val x = inset + travel * p - stretch * p
-                val alpha = lerpFloat(0.63f, 1f, p.coerceIn(0f, 1f))
-                drawRoundRect(
-                    brush = Brush.verticalGradient(
-                        listOf(CycloColors.TextPrimary.copy(alpha = alpha), Color(0xFF9F9FA0).copy(alpha = alpha)),
-                        startY = inset,
-                        endY = inset + knob,
-                    ),
-                    topLeft = Offset(x, inset),
-                    size = androidx.compose.ui.geometry.Size(knob + stretch, knob),
-                    cornerRadius = radius,
-                    blendMode = effects.luminosity,
-                )
-            },
-    )
-}
-
-/** A esta velocidade (percursos por segundo) a bola do interruptor já estica os 5 dp todos. */
-private const val ToggleFullStretchSpeed = 6f
 
 /**
  * A idade. Sem estar a escrever, é uma linha como as outras ("Your age", e o valor ou

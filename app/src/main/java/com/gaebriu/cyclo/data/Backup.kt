@@ -29,7 +29,8 @@ import java.time.format.DateTimeParseException
  * ```
  * "caffeineTimes" e "factorTimes" (as horas dos registos, para o [BedtimeEngine]) vieram depois e
  * são opcionais: as versões anteriores ignoram-nos e as cópias sem eles continuam válidas, por isso
- * a versão do formato não mudou. O mesmo para "feedOrder" (a ordem dos blocos do Feed, alpha-0.7.3).
+ * a versão do formato não mudou. O mesmo para "feedOrder" (a ordem dos blocos do Feed, alpha-0.7.3)
+ * e para "settings.logSleepReminder" (o lembrete "Log sleep", Beta 2.3: a Beta 2.2 ignora-o).
  * Os enums vão pelo nome, como no DataStore. Ao mudar o formato, sobe-se [BackupFormatVersion] e
  * [parseBackup] passa a saber ler as versões antigas.
  *
@@ -57,6 +58,8 @@ data class BackupContents(
     val fallAsleep: FallAsleepTime?,
     val bedtimeReminder: Boolean?,
     val exportedAt: Instant?,
+    /** O lembrete "Log sleep" (Beta 2.3; null = a cópia não o traz, fica o atual). */
+    val logSleepReminder: Boolean? = null,
     /** A ordem dos blocos do Feed (null = a cópia não a traz, fica a atual). */
     val feedOrder: List<FeedSection>? = null,
     /** A ordem dos cartões da Tracking (null = a cópia não a traz, fica a atual). */
@@ -86,6 +89,7 @@ fun buildBackupJson(data: CycloData, exportedAt: Instant, appVersion: String): S
         .put("chronotype", data.chronotype.name)
         .put("fallAsleep", data.fallAsleep.name)
         .put("bedtimeReminder", data.bedtimeReminder)
+        .put("logSleepReminder", data.logSleepReminder)
         .put("feedOrder", JSONArray(data.feedOrder.map { it.name }))
         .put("trackingOrder", JSONArray(data.trackingOrder.map { it.name }))
     val content = JSONObject()
@@ -152,6 +156,7 @@ fun parseBackup(text: String): BackupParseResult {
                 chronotype = enumOrNull<Chronotype>(settings.optString("chronotype")),
                 fallAsleep = enumOrNull<FallAsleepTime>(settings.optString("fallAsleep")),
                 bedtimeReminder = if (settings.has("bedtimeReminder")) settings.getBoolean("bedtimeReminder") else null,
+                logSleepReminder = if (settings.has("logSleepReminder")) settings.getBoolean("logSleepReminder") else null,
                 exportedAt = runCatching { Instant.parse(root.getString("exportedAt")) }.getOrNull(),
                 // Nomes que esta versão não conhece são ignorados; os que faltam vão para o fim.
                 feedOrder = settings.optJSONArray("feedOrder")?.let { array ->

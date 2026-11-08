@@ -37,6 +37,9 @@ private val ChronotypeKey = stringPreferencesKey("chronotype")
 private val FallAsleepKey = stringPreferencesKey("fall_asleep")
 private val BedtimeReminderKey = booleanPreferencesKey("bedtime_reminder")
 
+/** O lembrete "Log sleep" (Beta 2.3); sem valor guardado, desligado. */
+private val LogSleepReminderKey = booleanPreferencesKey("log_sleep_reminder")
+
 /** A ordem dos blocos do Feed: os nomes separados por vírgulas (sem valor = a do Figma). */
 private val FeedOrderKey = stringPreferencesKey("feed_order")
 
@@ -79,6 +82,7 @@ class CycloRepository(context: Context) {
                     ?.let { name -> FallAsleepTime.entries.firstOrNull { it.name == name } }
                     ?: FallAsleepTime.Fifteen,
                 bedtimeReminder = prefs[BedtimeReminderKey] ?: true,
+                logSleepReminder = prefs[LogSleepReminderKey] ?: false,
                 feedOrder = prefs[FeedOrderKey]?.let(::parseFeedOrder) ?: DefaultFeedOrder,
                 trackingOrder = prefs[TrackingOrderKey]?.let(::parseTrackingOrder) ?: DefaultTrackingOrder,
                 history = prefs.history(),
@@ -110,6 +114,10 @@ class CycloRepository(context: Context) {
 
     suspend fun setBedtimeReminder(on: Boolean) {
         store.edit { prefs -> prefs[BedtimeReminderKey] = on }
+    }
+
+    suspend fun setLogSleepReminder(on: Boolean) {
+        store.edit { prefs -> prefs[LogSleepReminderKey] = on }
     }
 
     /** Guarda a nova ordem das rotinas (arrastadas nas rotinas guardadas), pelos ids. */
@@ -153,6 +161,7 @@ class CycloRepository(context: Context) {
             contents.chronotype?.let { prefs[ChronotypeKey] = it.name }
             contents.fallAsleep?.let { prefs[FallAsleepKey] = it.name }
             contents.bedtimeReminder?.let { prefs[BedtimeReminderKey] = it }
+            contents.logSleepReminder?.let { prefs[LogSleepReminderKey] = it }
             contents.feedOrder?.let { order -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
             contents.trackingOrder?.let { order -> prefs[TrackingOrderKey] = normalizeTrackingOrder(order).joinToString(",") { it.name } }
             // Cópias sem histórico (formato 1, antes da Beta 2.0) não apagam o que já há.
@@ -160,13 +169,20 @@ class CycloRepository(context: Context) {
         }
     }
 
-    /** Guarda uma rotina nova e, se for a do tutorial, marca-o como feito na MESMA escrita. */
-    suspend fun addRoutine(draft: RoutineDraft, completeOnboarding: Boolean, nowMillis: Long) {
+    /**
+     * Guarda uma rotina nova. A do tutorial ([onboarding] não null) marca-o como feito e guarda os
+     * dois lembretes escolhidos no Introduction 6, tudo na MESMA escrita (ou entra tudo, ou nada).
+     */
+    suspend fun addRoutine(draft: RoutineDraft, onboarding: OnboardingReminders?, nowMillis: Long) {
         store.edit { prefs ->
             val routines = prefs.routines()
             val id = (routines.maxOfOrNull { it.id } ?: 0L) + 1L
             prefs.setRoutines(routines + draft.toRoutine(id, nowMillis))
-            if (completeOnboarding) prefs[OnboardedKey] = true
+            if (onboarding != null) {
+                prefs[OnboardedKey] = true
+                prefs[BedtimeReminderKey] = onboarding.bedtime
+                prefs[LogSleepReminderKey] = onboarding.logSleep
+            }
         }
     }
 
@@ -223,6 +239,12 @@ class CycloRepository(context: Context) {
         }
     }
 }
+
+/**
+ * Os lembretes escolhidos no Introduction 6 do tutorial (Beta 2.3). Guardam-se os dois, mesmo
+ * desligados: quem salta a página fica com as notificações desligadas.
+ */
+data class OnboardingReminders(val bedtime: Boolean, val logSleep: Boolean)
 
 private fun RoutineDraft.toRoutine(id: Long, nowMillis: Long) = Routine(
     id = id,

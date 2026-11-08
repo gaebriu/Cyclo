@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Mantém o lembrete e os widgets em dia com os dados, enquanto o processo da app existe (fica no
+ * Mantém os lembretes e os widgets em dia com os dados, enquanto o processo da app existe (fica no
  * Application, não num ecrã). Fora disso, o próprio alarme e os eventos do sistema tratam do resto.
  *
  * Espera que a escrita assente antes de recalcular (debounce adaptativo): uma mudança isolada
@@ -65,9 +65,10 @@ object CycloSync {
         apply(context, data, animateWidgets = false)
     }
 
-    /** Reagenda o lembrete e atualiza os widgets com estes dados. */
+    /** Reagenda os lembretes ("Bedtime" e "Log sleep") e atualiza os widgets com estes dados. */
     fun apply(context: Context, data: CycloData, animateWidgets: Boolean) {
         runCatching { BedtimeReminder.reschedule(context, data) }
+        runCatching { LogSleepReminder.reschedule(context, data) }
         runCatching { BedtimeWidgets.updateAll(context, data, animate = animateWidgets) }
     }
 }

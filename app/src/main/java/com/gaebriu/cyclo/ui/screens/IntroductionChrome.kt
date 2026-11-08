@@ -27,7 +27,7 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
  * @param leadingIsBack se o botão está (ou vai ficar) em modo "voltar", para o TalkBack.
  * @param backAmount de 0 (X) a 1 (seta), segue a posição das páginas.
  * @param progress de 0 a 1.
- * @param leadingAlpha opacidade do botão (o Introduction 6 fá-lo sair com um fade).
+ * @param leadingAlpha opacidade do botão (o Introduction 7 fá-lo sair com um fade).
  * @param leadingEnabled falso: o botão não responde nem aparece ao TalkBack.
  */
 @Composable

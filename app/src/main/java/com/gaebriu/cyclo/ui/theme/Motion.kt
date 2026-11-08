@@ -97,11 +97,10 @@ object CycloMotion {
     /**
      * O sol do Introduction 2 roda com as rodas da hora (Beta 2.2: com o movimento CONTÍNUO delas,
      * e não um salto por valor). Graus por valor, iguais nos dois formatos (a mesma deslizada dá a
-     * mesma rotação): uma hora 15° (as 24 horas, uma volta), o AM/PM 180° (são 12 horas), um
-     * minuto 6° (os 60, uma volta). Sentido horário ao aumentar, anti-horário ao diminuir.
+     * mesma rotação): uma hora 15° (as 24 horas, uma volta), um minuto 6° (os 60, uma volta).
+     * Sentido horário ao aumentar, anti-horário ao diminuir. O AM-PM-Slider não mexe o sol (Beta 2.3).
      */
     const val SunDegreesPerHour = 15f
-    const val SunDegreesPerPeriod = 180f
     const val SunDegreesPerMinute = 6f
 
     /**
@@ -113,7 +112,7 @@ object CycloMotion {
     /** A caixa do nome do Introduction 5 a alargar ao escrever (e a voltar): a mesma mola do teclado. */
     val NameFieldExpandSpring = KeyboardSpring
 
-    /** Introduction 6: tempo de espera depois das animações, antes de ir para o Feed. */
+    /** Introduction 7: tempo de espera depois das animações, antes de ir para o Feed. */
     const val AllSetHoldMs = 1000L
 
     /** Troca entre o botão Next e o "Done" roxo no último passo da criação de uma rotina. */

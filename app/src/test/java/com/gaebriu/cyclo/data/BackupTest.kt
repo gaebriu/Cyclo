@@ -28,6 +28,7 @@ class BackupTest {
         chronotype = Chronotype.NightOwl,
         fallAsleep = FallAsleepTime.ThirtyOrMore,
         bedtimeReminder = false,
+        logSleepReminder = true,
         feedOrder = listOf(FeedSection.Feeling, FeedSection.Caffeine, FeedSection.SleepFactors),
     )
     private val exportedAt = Instant.parse("2026-11-02T21:00:00Z")
@@ -44,6 +45,7 @@ class BackupTest {
         assertEquals(Chronotype.NightOwl, c.chronotype)
         assertEquals(FallAsleepTime.ThirtyOrMore, c.fallAsleep)
         assertEquals(false, c.bedtimeReminder)
+        assertEquals(true, c.logSleepReminder)
         assertEquals(exportedAt, c.exportedAt)
         assertEquals(data.feedOrder, c.feedOrder)
     }
@@ -131,6 +133,16 @@ class BackupTest {
         assertNull(c.age)
         assertNull(c.chronotype)
         assertNull(c.bedtimeReminder)
+        assertNull(c.logSleepReminder)
+    }
+
+    @Test
+    fun backupWithoutLogSleepKeepsTheCurrentChoice() {
+        // Uma cópia da Beta 2.2 (formato 2, sem "logSleepReminder"): o lembrete fica como está.
+        val json = """{"format":"cyclo-backup","version":2,"data":{"routines":[],"settings":{"bedtimeReminder":true}}}"""
+        val c = valid(json)
+        assertEquals(true, c.bedtimeReminder)
+        assertNull(c.logSleepReminder)
     }
 
     @Test

@@ -41,8 +41,11 @@
     <string name="introduction_5_title">Queres adicioná-la como widget ao ecrã principal?</string>
     <string name="introduction_5_subtitle">Se preferires, salta esta parte</string>
     <string name="introduction_5_add_widget">Adicionar como widget</string>
-    <!-- Introduction 6 -->
-    <string name="introduction_6_text">Está tudo pronto!</string>
+    <!-- Introduction 6 (Beta 2.3): os lembretes -->
+    <string name="introduction_6_title">Quase lá, queres receber lembretes?</string>
+    <string name="introduction_6_subtitle">Se preferires, salta esta parte</string>
+    <!-- Introduction 7 (até à Beta 2.2, o 6) -->
+    <string name="introduction_7_text">Está tudo pronto!</string>
     <!-- Introduction 4 -->
     <string name="introduction_4_title">Quando deve aparecer no teu feed?</string>
     <string name="introduction_4_subtitle">Se for só para uma vez, salta esta parte</string>

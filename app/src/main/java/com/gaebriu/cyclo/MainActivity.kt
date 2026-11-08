@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.gaebriu.cyclo.data.CycloViewModel
+import com.gaebriu.cyclo.reminder.LogSleepReminder
 import com.gaebriu.cyclo.ui.CycloApp
 import com.gaebriu.cyclo.ui.effects.ProvideVisualEffects
 import com.gaebriu.cyclo.ui.theme.CycloMotion
@@ -45,9 +46,10 @@ class MainActivity : ComponentActivity() {
                 .start()
         }
 
-        // Aberta pelo lápis do widget: vai direta ao editor da rotina (só na primeira criação, não
-        // ao recriar depois de rodar o ecrã).
-        if (savedInstanceState == null) handleWidgetIntent(intent)
+        // Aberta pelo lápis do widget (vai direta ao editor da rotina) ou pela notificação do
+        // "Log sleep" (vai à Tracking com o action-menu-log-sleep). Só na primeira criação, não ao
+        // recriar depois de rodar o ecrã.
+        if (savedInstanceState == null) handleIntent(intent)
         lastLocales = resources.configuration.locales
 
         setContent {
@@ -75,12 +77,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleWidgetIntent(intent)
+        handleIntent(intent)
     }
 
-    private fun handleWidgetIntent(intent: Intent?) {
-        if (intent?.action != BedtimeWidgets.ActionEdit) return
-        val routineId = intent.getLongExtra(BedtimeWidgets.ExtraRoutineId, -1L)
-        if (routineId >= 0) viewModel.requestEdit(routineId)
+    private fun handleIntent(intent: Intent?) {
+        intent ?: return
+        // Reaberta pelos recentes, a atividade recebe a intenção antiga outra vez: não se repete.
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        when (intent.action) {
+            BedtimeWidgets.ActionEdit -> {
+                val routineId = intent.getLongExtra(BedtimeWidgets.ExtraRoutineId, -1L)
+                if (routineId >= 0) viewModel.requestEdit(routineId)
+            }
+            LogSleepReminder.ActionOpen -> viewModel.requestLogSleep()
+        }
     }
 }

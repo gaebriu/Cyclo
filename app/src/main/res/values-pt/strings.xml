@@ -99,6 +99,7 @@
     <string name="settings_fall_asleep_30">30 minutos ou mais</string>
     <string name="settings_reminders">Lembretes</string>
     <string name="settings_bedtime_reminder">Hora de dormir</string>
+    <string name="settings_log_sleep_reminder">Registar sono</string>
     <string name="settings_notifications_denied">Permite as notificações para ligar</string>
     <string name="settings_format_language">Formato e idioma</string>
     <string name="settings_time_format">Formato das horas</string>
@@ -173,6 +174,8 @@
     <!-- Lembrete da hora de dormir (notificação) -->
     <string name="reminder_channel_name">Hora de dormir</string>
     <string name="reminder_channel_description">Um lembrete para começares a abrandar antes de ires para a cama</string>
+    <string name="log_sleep_channel_name">Registar sono</string>
+    <string name="log_sleep_channel_description">Um lembrete para registares como dormiste, depois de acordares</string>
     <string name="reminder_title">Hora de abrandar</string>
     <string name="reminder_title_early">Hora de abrandar</string>
     <string name="reminder_title_now">Hora de ir para a cama</string>

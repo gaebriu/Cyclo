@@ -9,6 +9,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.reminder.LogSleepReminder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -80,8 +81,9 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addRoutine(draft: RoutineDraft, completeOnboarding: Boolean, onSaved: () -> Unit, onFailed: () -> Unit) =
-        write(onSaved, onFailed) { repository.addRoutine(draft, completeOnboarding, System.currentTimeMillis()) }
+    /** [onboarding]: a rotina do tutorial, com os lembretes do Introduction 6 (null = uma rotina nova). */
+    fun addRoutine(draft: RoutineDraft, onboarding: OnboardingReminders?, onSaved: () -> Unit, onFailed: () -> Unit) =
+        write(onSaved, onFailed) { repository.addRoutine(draft, onboarding, System.currentTimeMillis()) }
 
     fun updateRoutine(id: Long, draft: RoutineDraft, onSaved: () -> Unit, onFailed: () -> Unit) =
         write(onSaved, onFailed) { repository.updateRoutine(id, draft, System.currentTimeMillis()) }
@@ -168,9 +170,27 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         write { repository.updateDailyLog(today) { if (it.opened) it else it.copy(opened = true) } }
     }
 
-    /** "Done" do action-menu-log-sleep: o sono de hoje fica registado (uma vez por dia). */
-    fun logSleep(quality: SleepQuality) = write {
+    /**
+     * "Done" do action-menu-log-sleep: o sono de hoje fica registado (uma vez por dia). A notificação
+     * "How well did you sleep last night?", se ainda estiver à vista, sai (já não faz falta).
+     */
+    fun logSleep(quality: SleepQuality) = write(onSuccess = { LogSleepReminder.cancelNotification(getApplication()) }) {
         repository.updateDailyLog(LocalDate.now()) { if (it.sleep != null) it else it.copy(sleep = quality, opened = true) }
+    }
+
+    /**
+     * Pedido para abrir a Tracking com o action-menu-log-sleep (o toque na notificação do lembrete
+     * "Log sleep"). A [com.gaebriu.cyclo.ui.CycloApp] consome-o quando o ecrã principal está pronto.
+     */
+    private val _logSleepRequest = MutableStateFlow(false)
+    val logSleepRequest: StateFlow<Boolean> = _logSleepRequest.asStateFlow()
+
+    fun requestLogSleep() {
+        _logSleepRequest.value = true
+    }
+
+    fun consumeLogSleepRequest() {
+        _logSleepRequest.value = false
     }
 
     private val _sleepPromptDismissed = MutableStateFlow(false)
@@ -212,6 +232,9 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     /** O interruptor "Bedtime". Ligar só chega aqui com a autorização de notificações dada. */
     fun setBedtimeReminder(on: Boolean) = write { repository.setBedtimeReminder(on) }
+
+    /** O interruptor "Log sleep" (Beta 2.3). Como o "Bedtime": ligar só chega aqui com autorização. */
+    fun setLogSleepReminder(on: Boolean) = write { repository.setLogSleepReminder(on) }
 
     /** Autorização de notificações recusada: o interruptor fica desligado. */
     fun notificationsDenied() = showMessage(string(R.string.settings_notifications_denied))

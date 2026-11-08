@@ -1,9 +1,7 @@
 ﻿package com.gaebriu.cyclo.ui
 
-import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
@@ -13,7 +11,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -24,6 +21,8 @@ import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.FilePicker
 import com.gaebriu.cyclo.reminder.BedtimeReminder
 import com.gaebriu.cyclo.reminder.CycloSync
+import com.gaebriu.cyclo.reminder.LogSleepReminder
+import com.gaebriu.cyclo.ui.notifications.rememberNotificationAccess
 import com.gaebriu.cyclo.ui.components.BottomSheetHost
 import com.gaebriu.cyclo.ui.components.CycloBigSheet
 import com.gaebriu.cyclo.ui.settings.LoadingDataOverlay
@@ -113,7 +112,7 @@ private const val OverlayUpdated = 4
  *
  * - O que está por cima sobe de baixo e desce para sair, como o Introduction 1 sobre o 0: o Feed
  *   recua por baixo (zoom out, desfoque e véu escuro) e volta a avançar quando ele desce.
- * - No fim do tutorial, o Introduction 6 desce e o Feed aparece com a sua entrada em cascata
+ * - No fim do tutorial, o Introduction 7 desce e o Feed aparece com a sua entrada em cascata
  *   (o mesmo acontece ao abrir a app depois do tutorial). Só acontece uma vez por sessão.
  * - No primeiro passo do editor, e nas definições, o gesto de voltar faz o ecrã descer a seguir ao dedo.
  * - As horas seguem o formato escolhido nas definições ou, sem escolha, o do sistema.
@@ -128,8 +127,8 @@ fun CycloApp(viewModel: CycloViewModel) {
     val effects = LocalVisualEffects.current
     val scope = rememberCoroutineScope()
 
-    // O tutorial decide-se uma vez, ao abrir: a marca "feito" é escrita no Introduction 5, mas o
-    // tutorial continua até ao fim do 6.
+    // O tutorial decide-se uma vez, ao abrir: a marca "feito" é escrita no Introduction 6, mas o
+    // tutorial continua até ao fim do 7.
     // Depois de uma atualização (o versionCode guardado é outro), a primeira abertura mostra o
     // Introduction 0 e passa sozinha para o Feed, sem o tutorial. Só com o tutorial já feito: numa
     // instalação nova vale o tutorial. Os dados não mudam.
@@ -215,11 +214,14 @@ fun CycloApp(viewModel: CycloViewModel) {
     }
     LaunchedEffect(viewModel) { viewModel.pickerRequests.collect { openPicker(it) } }
 
-    // O interruptor "Bedtime" mostra-se ligado só com a autorização dada; volta a ver-se ao regressar
-    // à app (pode ter sido tirada nas definições do sistema).
-    var notificationsAllowed by remember { mutableStateOf(BedtimeReminder.isPermitted(context)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val latestData by rememberUpdatedState(data)
+    // Os interruptores dos lembretes ("Bedtime" e "Log sleep", nas definições e no Introduction 6)
+    // mostram-se ligados só com a autorização dada (da app e do canal); volta a ver-se ao regressar à
+    // app (pode ter sido tirada nas definições do sistema), e os lembretes reagendam-se se mudou.
+    val notifications = rememberNotificationAccess {
+        CycloSync.apply(context, latestData, animateWidgets = false)
+    }
 
     // O lápis do widget: abre o editor dessa rotina (com o tutorial feito e se ela ainda existir).
     val editRequest by viewModel.editRequest.collectAsState()
@@ -228,43 +230,67 @@ fun CycloApp(viewModel: CycloViewModel) {
         viewModel.consumeEditRequest()
         if (latestData.onboarded && overlay != OverlayTutorial && latestData.routines.any { it.id == id }) openEditor(id)
     }
+
+    // A notificação do "Log sleep" (Beta 2.3): a Tracking com o action-menu-log-sleep aberto (só se o
+    // sono de hoje ainda não estiver registado). Com as definições ou o editor por cima, descem
+    // primeiro (como o lápis do widget); depois de uma atualização, o "Hello!" acaba primeiro. No
+    // tutorial não faz nada (ainda não há lembretes).
+    // Num arranque a frio pela notificação, o ecrã principal já nasce na Tracking.
+    val startOnTracking = remember { viewModel.logSleepRequest.value && data.onboarded && !justUpdated }
+    var trackingRequest by rememberSaveable { mutableIntStateOf(if (startOnTracking) 1 else 0) }
+    // Um só coletor (e não um LaunchedEffect com o pedido como chave): consumir o pedido mudava a
+    // chave e cancelava a espera pela descida das definições, e a folha não chegava a abrir.
+    LaunchedEffect(viewModel) {
+        viewModel.logSleepRequest.collect { requested ->
+            if (!requested) return@collect
+            if (!latestData.onboarded || overlay == OverlayTutorial) {
+                viewModel.consumeLogSleepRequest()
+                return@collect
+            }
+            snapshotFlow { overlay == OverlayUpdated && overlayOpen }.first { !it }
+            viewModel.consumeLogSleepRequest()
+            if (overlayOpen && (overlay == OverlayEditor || overlay == OverlaySettings)) overlayOpen = false
+            // Sempre um pedido novo: se o ecrã principal já nasceu na Tracking, não muda nada; se foi
+            // reposto de um estado guardado (o processo morreu em segundo plano), vai para lá.
+            trackingRequest += 1
+            // A folha sobe com o ecrã de cima já a meio da descida (não por cima dele).
+            snapshotFlow { cover.value }.first { it <= CoverDownForSheet }
+            if (latestData.dailyLog?.takeIf { it.date == java.time.LocalDate.now() }?.sleep == null) sleepSheetOpen = true
+        }
+    }
+
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 // Atualizações no GitHub: uma vez por arranque a frio (voltar à app não volta a verificar).
                 CycloUpdates.checkIfDue(context)
-                val allowed = BedtimeReminder.isPermitted(context)
-                if (allowed != notificationsAllowed) {
-                    notificationsAllowed = allowed
-                    CycloSync.apply(context, latestData, animateWidgets = false)
-                }
             }
         }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        notificationsAllowed = BedtimeReminder.isPermitted(context)
-        if (granted && notificationsAllowed) {
-            viewModel.setBedtimeReminder(true)
-            // A preferência costuma já estar ligada (é o valor por omissão): gravar o mesmo valor não
-            // muda o DataStore e o CycloSync não reagendava. E este resultado chega antes do ON_RESUME,
-            // que por isso também já não via diferença. Agenda-se aqui o lembrete desta noite (se a
-            // preferência estava desligada, a escrita acima também reagenda, pelo CycloSync).
-            CycloSync.refresh(context)
-        } else {
-            viewModel.notificationsDenied()
+    val reminderOn = data.bedtimeReminder && notifications.isAllowed(BedtimeReminder.ChannelId)
+    val logSleepOn = data.logSleepReminder && notifications.isAllowed(LogSleepReminder.ChannelId)
+
+    /**
+     * Os interruptores dos lembretes nas definições. Desligar é logo; ligar pede o que faltar
+     * ([NotificationAccess.request]). Recusado: fica desligado e a barra diz "Allow notifications
+     * to turn this on." (o Introduction 6, esse, não diz nada).
+     */
+    fun toggleReminder(channelId: String, on: Boolean, set: (Boolean) -> Unit) {
+        if (on) {
+            set(false)
+            return
         }
-    }
-    val reminderOn = data.bedtimeReminder && notificationsAllowed
-    fun toggleReminder() {
-        when {
-            reminderOn -> viewModel.setBedtimeReminder(false)
-            notificationsAllowed -> viewModel.setBedtimeReminder(true)
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED ->
-                permissionRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
-            // Autorizado, mas as notificações da app estão desligadas no sistema.
-            else -> viewModel.notificationsDenied()
+        notifications.request(channelId) { allowed ->
+            if (allowed) {
+                set(true)
+                // A preferência "Bedtime" costuma já estar ligada (é o valor por omissão): gravar o
+                // mesmo valor não muda o DataStore e o CycloSync não reagendava. Agenda-se aqui.
+                CycloSync.refresh(context)
+            } else {
+                viewModel.notificationsDenied()
+            }
         }
     }
 
@@ -432,6 +458,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                     reveal = reveal,
                     glow = { glow.value },
                     sleepPromptDismissed = sleepPromptDismissed,
+                    trackingRequest = trackingRequest,
                 )
                 // Véu #010101 a 24 % quando o Feed está recuado.
                 Box(
@@ -489,11 +516,12 @@ fun CycloApp(viewModel: CycloViewModel) {
                     IntroductionFlow(
                         mode = IntroductionMode.Tutorial,
                         nextRoutineNumber = data.routines.size + 1,
-                        onSave = { draft, onSaved, onFailed ->
-                            viewModel.addRoutine(draft, completeOnboarding = true, onSaved = onSaved, onFailed = onFailed)
+                        onSave = { draft, reminders, onSaved, onFailed ->
+                            viewModel.addRoutine(draft, onboarding = reminders, onSaved = onSaved, onFailed = onFailed)
                         },
                         onFinished = { overlayOpen = false },
                         onAddWidget = { pinWidget(nextRoutineId(data)) },
+                        notifications = notifications,
                     )
                 } else if (overlay == OverlaySettings) {
                     SettingsScreen(
@@ -503,7 +531,10 @@ fun CycloApp(viewModel: CycloViewModel) {
                         onSetAge = viewModel::setAge,
                         onSetChronotype = viewModel::setChronotype,
                         onSetFallAsleep = viewModel::setFallAsleep,
-                        onToggleReminder = ::toggleReminder,
+                        onToggleReminder = { toggleReminder(BedtimeReminder.ChannelId, reminderOn, viewModel::setBedtimeReminder) },
+                        logSleepOn = logSleepOn,
+                        onToggleLogSleep = { toggleReminder(LogSleepReminder.ChannelId, logSleepOn, viewModel::setLogSleepReminder) },
+                        reminderAsks = !notifications.isPermissionGranted(),
                         onExport = { openPicker(FilePicker.Export) },
                         onRestore = { openPicker(FilePicker.Restore) },
                         onOpenGitHub = {
@@ -546,11 +577,11 @@ fun CycloApp(viewModel: CycloViewModel) {
                                 RoutineDraft(it.name, it.wakeHour, it.wakeMinute, it.repeat, it.daysMask)
                             },
                             nextRoutineNumber = data.routines.size + 1,
-                            onSave = { draft, onSaved, onFailed ->
+                            onSave = { draft, _, onSaved, onFailed ->
                                 if (editing != null) {
                                     viewModel.updateRoutine(editing.id, draft, onSaved, onFailed)
                                 } else {
-                                    viewModel.addRoutine(draft, completeOnboarding = false, onSaved = onSaved, onFailed = onFailed)
+                                    viewModel.addRoutine(draft, onboarding = null, onSaved = onSaved, onFailed = onFailed)
                                 }
                             },
                             onFinished = { overlayOpen = false },
@@ -631,6 +662,9 @@ fun CycloApp(viewModel: CycloViewModel) {
     }
     }
 }
+
+/** O action-menu-log-sleep pedido pela notificação abre quando o ecrã de cima já desceu até aqui. */
+private const val CoverDownForSheet = 0.5f
 
 /** De quanto em quanto tempo, com a app à frente, se vê se o dia de hoje já conta como aberto. */
 private const val OpenedCheckMs = 60_000L

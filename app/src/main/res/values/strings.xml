@@ -96,6 +96,7 @@
     <string name="settings_fall_asleep_30">30 minutes or more</string>
     <string name="settings_reminders">Reminders</string>
     <string name="settings_bedtime_reminder">Bedtime</string>
+    <string name="settings_log_sleep_reminder">Log sleep</string>
     <string name="settings_notifications_denied">Allow notifications to turn this on.</string>
     <string name="settings_format_language">Format &amp; Language</string>
     <string name="settings_time_format">Time format</string>
@@ -176,6 +177,8 @@
     <!-- Lembrete da hora de dormir (notificação) -->
     <string name="reminder_channel_name">Bedtime</string>
     <string name="reminder_channel_description">A reminder to start winding down before bed</string>
+    <string name="log_sleep_channel_name">Log sleep</string>
+    <string name="log_sleep_channel_description">A reminder to log how you slept, after you wake up</string>
     <string name="reminder_title">Time to wind down</string>
     <string name="reminder_title_early">Time to start winding down</string>
     <string name="reminder_title_now">Time for bed</string>

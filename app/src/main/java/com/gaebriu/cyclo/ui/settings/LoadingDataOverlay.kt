@@ -122,7 +122,7 @@ class LoadingDataState internal constructor() {
  * Liga o loading-data a [visible] (o ViewModel a repor os dados).
  *
  * Abrir: o desfoque do ecrã e o véu sobem com uma mola ([CycloSprings.VeilIn]) e, com eles, as letras
- * começam (a animação do Introduction 6). Fechar: espera o fim dessa animação (mesmo que os dados
+ * começam (a animação do Introduction 7). Fechar: espera o fim dessa animação (mesmo que os dados
  * fiquem prontos antes), e depois o texto sai, letra a letra ([TextExitMs]), e o véu e o desfoque
  * descem logo atrás ([CycloSprings.VeilOut]). A entrada corre num âmbito próprio,
  * para não ser cortada a meio se os dados ficarem prontos.
@@ -180,7 +180,7 @@ fun Modifier.loadingDataBlur(state: LoadingDataState, effects: VisualEffects): M
 /**
  * loading-data (Componentes, 80:726): enquanto os dados são repostos, tapa o ecrã com o véu
  * (#101011 em Luminosity sobre o ecrã desfocado, ver [loadingDataBlur]) e "Bringing your data
- * back…", com a mesma animação do texto do Introduction 6 (Beta 2.1: sem a argola de fundo).
+ * back…", com a mesma animação do texto do Introduction 7 (Beta 2.1: sem a argola de fundo).
  *
  * O véu não está numa camada à parte (sem alpha no grupo): a mistura Luminosity faz-se com o ecrã
  * desfocado que está mesmo por baixo, também durante a entrada e a saída. Bloqueia os toques e o
