@@ -44,6 +44,9 @@ import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import com.gaebriu.cyclo.ui.theme.smoothStep
 import kotlinx.coroutines.Job
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import com.gaebriu.cyclo.ui.theme.CycloMotion
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -60,17 +63,23 @@ private const val VeilAlpha = 0.63f
 private val TextAboveCenter = 41.dp
 
 /**
- * As letras começam quando o desfoque do fundo vai a meio (a mola [CycloSprings.VeilIn] chega lá
- * em ~0,16 s): entram sobre o véu ainda a crescer, como um só movimento.
+ * O relógio das letras começa com o véu (Beta 2.2; antes esperava que o véu fosse a meio): com o
+ * atraso das letras ([CycloMotion.LettersStartDelayMs]), a primeira pousa quando o véu já vai a
+ * ~70 % ([CycloSprings.VeilIn]), e as seguintes entram com ele a assentar, num só movimento.
  */
-private const val ContentStartsAt = 0.5f
-private const val ContentLeadMs = 200
+private const val ContentLeadMs = 0
 
 /** A pausa no fim, com o texto todo à vista, antes de o loading-data sair. */
 private const val ReadHoldMs = 450L
 
-/** À saída, o véu espera um pouco pelo texto (o que está à frente sai primeiro). */
-private const val VeilExitDelayMs = 90L
+/**
+ * A saída das letras (uma a uma, ver [LetterRevealText]): um relógio linear, porque cada letra já
+ * tem a sua curva; com uma mola, as últimas ficavam presas na cauda dela.
+ */
+private const val TextExitMs = 520
+
+/** À saída, o véu espera pelo texto (o que está à frente sai primeiro) e acompanha o fim dele. */
+private const val VeilExitDelayMs = 300L
 
 /**
  * Quanto tempo o loading-data fica à vista, no mínimo, com o texto [text]: o véu a entrar, as
@@ -112,9 +121,9 @@ class LoadingDataState internal constructor() {
 /**
  * Liga o loading-data a [visible] (o ViewModel a repor os dados).
  *
- * Abrir: o desfoque do ecrã e o véu sobem com uma mola ([CycloSprings.VeilIn]); a meio, as letras
+ * Abrir: o desfoque do ecrã e o véu sobem com uma mola ([CycloSprings.VeilIn]) e, com eles, as letras
  * começam (a animação do Introduction 6). Fechar: espera o fim dessa animação (mesmo que os dados
- * fiquem prontos antes), e depois o texto sai ([CycloSprings.ContentOut]) e o véu e o desfoque
+ * fiquem prontos antes), e depois o texto sai, letra a letra ([TextExitMs]), e o véu e o desfoque
  * descem logo atrás ([CycloSprings.VeilOut]). A entrada corre num âmbito próprio,
  * para não ser cortada a meio se os dados ficarem prontos.
  */
@@ -135,7 +144,6 @@ fun rememberLoadingDataState(visible: Boolean): LoadingDataState {
             entry[0] = scope.launch {
                 coroutineScope {
                     launch { state.veil.animateTo(1f, CycloSprings.VeilIn.float) }
-                    snapshotFlow { state.veil.value }.first { it >= ContentStartsAt }
                     reveal.play()
                 }
             }
@@ -143,7 +151,7 @@ fun rememberLoadingDataState(visible: Boolean): LoadingDataState {
             entry[0]?.join()
             state.leaving = true
             coroutineScope {
-                launch { state.exit.animateTo(1f, CycloSprings.ContentOut.float) }
+                launch { state.exit.animateTo(1f, tween(TextExitMs, easing = LinearEasing)) }
                 launch {
                     delay(VeilExitDelayMs)
                     state.veil.animateTo(0f, CycloSprings.VeilOut.float)
@@ -211,22 +219,15 @@ fun LoadingDataOverlay(state: LoadingDataState, modifier: Modifier = Modifier) {
                 .offset(y = -TextAboveCenter),
             contentAlignment = Alignment.Center,
         ) {
-            // A saída: o texto sai antes do véu, com uma curva sem esquinas.
-            val out = { smoothStep(state.exit.value) }
+            // A saída: o texto sai antes do véu, letra a letra (Beta 2.2), cada uma a voltar a
+            // desfocar-se como no início, a apagar-se e a descer um pouco. Sem animações, um fade.
             LetterRevealText(
                 state = reveal,
                 style = CycloType.Body,
+                exit = { if (effects.animationsEnabled) state.exit.value else 0f },
                 modifier = Modifier
                     .graphicsLayer {
-                        val e = out()
-                        alpha = 1f - e
-                        // À saída, as letras voltam a desfocar-se como no início (o desfoque do "Hello!").
-                        val sigma = figmaBlurPx(FigmaBlur.HelloReveal) * (CycloType.Body.fontSize.value / LetterRevealState.HelloFontSizeSp) * e
-                        renderEffect = if (effects.blurEnabled && effects.animationsEnabled && sigma > 0.05f) {
-                            BlurEffect(sigma, sigma, TileMode.Decal)
-                        } else {
-                            null
-                        }
+                        if (!effects.animationsEnabled) alpha = 1f - state.exit.value
                         clip = false
                     }
                     .padding(horizontal = 24.dp),

@@ -102,6 +102,7 @@ import com.gaebriu.cyclo.data.SleepFactor
 import com.gaebriu.cyclo.data.FeedSection
 import com.gaebriu.cyclo.ui.components.ReorderableColumn
 import com.gaebriu.cyclo.ui.components.CycloMeter
+import com.gaebriu.cyclo.ui.components.MeterStyle
 import com.gaebriu.cyclo.data.bedtimesFor
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
@@ -131,8 +132,8 @@ import java.time.format.TextStyle as DateTextStyle
 import kotlin.math.roundToInt
 
 // Medidas do Figma (Feed, frame de 393 x 852).
-/** O conteúdo começa a 130 dp do topo ("Good afternoon"). */
-val FeedContentTop = 130.dp
+/** O conteúdo começa a 126 dp do topo ("Good afternoon"; Cyclo-2 24:10, Beta 2.2: era 130). */
+val FeedContentTop = 126.dp
 private val GreetingToDate = 9.dp
 private val SectionGap = 39.dp
 private val LabelToCard = 15.dp
@@ -770,6 +771,7 @@ private fun FeelingCard(mood: Float, onMoodChange: (Float) -> Unit, modifier: Mo
             ),
             description = stringResource(R.string.feed_feeling_meter),
             onValueChange = onMoodChange,
+            style = MeterStyle.Emotion,
         )
     }
 }

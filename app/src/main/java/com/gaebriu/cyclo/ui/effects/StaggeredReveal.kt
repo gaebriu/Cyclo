@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.coroutineScope
@@ -35,7 +36,9 @@ class StaggeredReveal(count: Int, startRevealed: Boolean) {
         items.forEachIndexed { index, item ->
             launch {
                 delay((index * CycloMotion.FeedRevealStaggerMs).toLong())
-                item.animateTo(1f, tween(CycloMotion.FeedRevealDurationMs, easing = CycloMotion.Decelerate))
+                // Beta 2.2: uma mola crítica (sem passar do fim: a opacidade e o desfoque não podem
+                // passar de 1), em vez de uma curva de 900 ms; arranca e assenta sem esquinas.
+                item.animateTo(1f, CycloSprings.Reveal.float)
             }
         }
     }

@@ -45,12 +45,16 @@ import com.gaebriu.cyclo.ui.effects.Backdrop
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSource
+import com.gaebriu.cyclo.ui.effects.BackGestureVelocity
+import com.gaebriu.cyclo.ui.effects.sideBySidePage
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.routine.RepeatOption
 import com.gaebriu.cyclo.ui.routine.rememberRepeatSelection
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import com.gaebriu.cyclo.ui.theme.CycloSprings
+import com.gaebriu.cyclo.ui.theme.smoothStep
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.CancellationException
@@ -61,6 +65,12 @@ enum class IntroductionMode { Tutorial, Editor }
 
 /** Passos do tutorial com barra de progresso (Introduction 1 a 6). */
 private const val TutorialStepCount = 6
+
+/** Na troca Next / Done, o "Next" sai até aqui e o "Done" entra a partir de 1 - isto. */
+private const val DoneSwapSplit = 0.55f
+
+/** O limiar de visibilidade da posição das páginas (fração de página, ~0,5 px). */
+private const val PageThreshold = 0.0005f
 
 /** Primeiro e último passo do editor de rotinas (Introduction 2 a 5). */
 private const val EditorFirstStep = 2
@@ -73,9 +83,12 @@ private const val LastRoutineStep = 5
  * - O Introduction 1 sobe de baixo para cima e sobrepõe-se ao 0, com uma mola sem ressalto,
  *   enquanto o 0 recua (zoom out, desfoque, véu escuro, e o brilho roxo some de cima para baixo).
  *   O X e o gesto/botão de voltar do Android fazem-no descer de volta, e o 0 avança com zoom in.
- * - Do Introduction 1 em diante, só as páginas deslizam na horizontal (a que sai desloca-se um
- *   pouco menos). O botão de cima, a barra de progresso e o Next são FIXOS: não se mexem; o ícone
- *   do botão muda por fade (X para seta) e a barra cresce.
+ * - Do Introduction 1 em diante, só as páginas deslizam na horizontal, lado a lado, como o Feed,
+ *   as rotinas guardadas e a Tracking ([sideBySidePage], Beta 2.2: antes a nova passava por cima
+ *   da anterior): uma só posição contínua ([position]) com a mola das páginas
+ *   ([CycloSprings.Page]); a que entra vem encostada à que sai, que escurece um pouco. O botão de
+ *   cima, a barra de progresso e o Next são FIXOS: não se mexem; o ícone do botão muda por fade
+ *   (X para seta) e a barra cresce.
  * - O Next do Introduction 5 guarda a rotina (e marca o tutorial como feito) e passa ao 6.
  *   No Introduction 6, o botão de cima e o Next saem com um fade e deixam de responder, e os
  *   gestos de voltar ficam bloqueados; no fim das animações chama [onFinished].
@@ -167,25 +180,35 @@ fun IntroductionFlow(
         )
     }
 
-    // enter: o Introduction 1 sobe (0 a 1). position: página horizontal, de [firstPage] em diante.
-    // progress: a barra de progresso (0 a 1).
-    val enter = remember { Animatable(if (step >= 1) 1f else 0f) }
-    val position = remember { Animatable(maxOf(step, firstPage).toFloat()) }
-    fun progressOf(s: Int): Float = if (isEditor) {
-        (s - EditorFirstStep + 1) / (LastRoutineStep - EditorFirstStep + 1).toFloat()
+    // enter: o Introduction 1 sobe (0 a 1). position: página horizontal, de [firstPage] em diante
+    // (limiar fino: com o de omissão, 0,01 de página, a mola parava ~10 px antes e saltava no fim).
+    val enter = remember { Animatable(if (step >= 1) 1f else 0f, visibilityThreshold = PageThreshold) }
+    val position = remember { Animatable(maxOf(step, firstPage).toFloat(), visibilityThreshold = PageThreshold) }
+    // A barra de progresso (0 a 1) sai da posição das páginas (Beta 2.2): anda com elas, segue o
+    // gesto de voltar e chega quando a página chega. Antes tinha uma mola própria (~0,55 s), que
+    // chegava ~0,2 s depois da página e não acompanhava o dedo. No tutorial, sobe com o Introduction 1.
+    fun progressAt(p: Float): Float = if (isEditor) {
+        (p - EditorFirstStep + 1f) / (LastRoutineStep - EditorFirstStep + 1).toFloat()
     } else {
-        s / TutorialStepCount.toFloat()
+        p / TutorialStepCount.toFloat()
     }
-    val progress = remember { Animatable(if (step >= 1) progressOf(step) else 0f) }
+    val progress: () -> Float = { progressAt(position.value) * (if (isEditor) 1f else enter.value) }
+    // As páginas mudam com a mola das páginas do Feed (sem animações, com o fade dela).
+    val pageSpring = if (effects.animationsEnabled) CycloSprings.Page.float else CycloMotion.FadeSpring
 
+    // A velocidade com que o gesto de voltar largou a posição (páginas/s; 0 = nenhuma).
+    val releaseVelocity = remember { floatArrayOf(0f) }
     LaunchedEffect(step) {
         if (step >= 1) {
             launch { enter.animateTo(1f, CycloMotion.ScreenRiseSpring) }
-            launch { position.animateTo(step.toFloat(), CycloMotion.ScreenRiseSpring) }
-            launch { progress.animateTo(progressOf(step), CycloMotion.ProgressSpring) }
+            launch {
+                val v = releaseVelocity[0]
+                releaseVelocity[0] = 0f
+                // Sem gesto, continua com a velocidade que já tiver (ex.: Next carregado a meio).
+                if (v != 0f) position.animateTo(step.toFloat(), pageSpring, initialVelocity = v) else position.animateTo(step.toFloat(), pageSpring)
+            }
         } else {
             enter.animateTo(0f, CycloMotion.ScreenRiseSpring)
-            progress.snapTo(0f)
         }
     }
 
@@ -197,14 +220,22 @@ fun IntroductionFlow(
 
     BackHandler(enabled = !isEditor && step == 1) { step = 0 }
 
-    // Gesto de voltar do Android: o ecrã acompanha o dedo; ao confirmar volta, ao cancelar regressa.
+    // Gesto de voltar do Android: como nas páginas do Feed, a anterior entra a seguir ao dedo (até
+    // [CycloMotion.PageBackReach] da largura) e, ao largar, a mola acaba o caminho (ou volta atrás).
     PredictiveBackHandler(enabled = step in (firstPage + 1)..LastRoutineStep) { backProgress ->
         val from = step
+        val gesture = BackGestureVelocity()
         try {
-            backProgress.collect { event -> position.snapTo(from - event.progress) }
+            backProgress.collect { event ->
+                gesture.add(event.progress)
+                position.snapTo(from - event.progress * CycloMotion.PageBackReach)
+            }
+            releaseVelocity[0] = -gesture.progressPerSecond * CycloMotion.PageBackReach
             step = from - 1
         } catch (e: CancellationException) {
-            scope.launch { position.animateTo(from.toFloat(), CycloMotion.ScreenRiseSpring) }
+            scope.launch {
+                position.animateTo(from.toFloat(), pageSpring, initialVelocity = -gesture.progressPerSecond * CycloMotion.PageBackReach)
+            }
         }
     }
 
@@ -309,7 +340,7 @@ fun IntroductionFlow(
                     IntroTopBar(
                         leadingIsBack = step > firstPage,
                         backAmount = { (position.value - firstPage).coerceIn(0f, 1f) },
-                        progress = { progress.value },
+                        progress = progress,
                         progressDescription = stringResource(
                             R.string.introduction_progress,
                             if (isEditor) step - EditorFirstStep + 1 else step.coerceAtLeast(1),
@@ -332,13 +363,13 @@ fun IntroductionFlow(
                     // As páginas deslizam aqui, entre a parte de cima e o Next.
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         if (!isEditor) {
-                            IntroPage(1, { position.value }, effects.animationsEnabled, covered = step >= 2) {
+                            IntroPage(1, { position.value }, effects.animationsEnabled, active = step == 1) {
                                 Introduction1Page(enter = { enter.value })
                             }
                         }
 
                         if (showIntroduction2) {
-                            IntroPage(2, { position.value }, effects.animationsEnabled, covered = step >= 3) {
+                            IntroPage(2, { position.value }, effects.animationsEnabled, active = step == 2) {
                                 Introduction2Page(
                                     wakeHour = wakeHour,
                                     wakeMinute = wakeMinute,
@@ -360,7 +391,7 @@ fun IntroductionFlow(
                         }
 
                         if (showIntroduction3) {
-                            IntroPage(3, { position.value }, effects.animationsEnabled, covered = step >= 4) {
+                            IntroPage(3, { position.value }, effects.animationsEnabled, active = step == 3) {
                                 Introduction3Page(
                                     name = routineName,
                                     onNameChange = { routineName = it },
@@ -369,7 +400,7 @@ fun IntroductionFlow(
                         }
 
                         if (showIntroduction4) {
-                            IntroPage(4, { position.value }, effects.animationsEnabled, covered = step >= 5) {
+                            IntroPage(4, { position.value }, effects.animationsEnabled, active = step == 4) {
                                 Introduction4Page(
                                     name = savedRoutineName,
                                     // O que se muda aqui passa também para a caixa do Introduction 3.
@@ -383,7 +414,7 @@ fun IntroductionFlow(
                         }
 
                         if (showIntroduction5) {
-                            IntroPage(5, { position.value }, effects.animationsEnabled, covered = step >= 6) {
+                            IntroPage(5, { position.value }, effects.animationsEnabled, active = step == 5) {
                                 Introduction5Page(
                                     name = savedRoutineName,
                                     // Como no Introduction 4: o que se muda aqui passa também para a
@@ -399,7 +430,7 @@ fun IntroductionFlow(
                         }
 
                         if (showIntroduction6) {
-                            IntroPage(6, { position.value }, effects.animationsEnabled, covered = false) {
+                            IntroPage(6, { position.value }, effects.animationsEnabled, active = step == 6) {
                                 Introduction6Page(
                                     active = introduction6Settled,
                                     onFinished = onFinished,
@@ -437,8 +468,14 @@ fun IntroductionFlow(
                                     LastRoutineStep -> save()
                                 }
                             },
+                            // A troca é UM botão a mudar (Beta 2.2): a forma fica, o vidro fica opaco por
+                            // baixo enquanto o roxo enche por cima, e os textos não se cruzam ("Next"
+                            // sai na primeira parte, "Done" entra na segunda). Antes os dois botões
+                            // cruzavam-se meio transparentes. Com o "Done" já inteiro, o vidro sai
+                            // (o gel do "Done" a encolher não o deixa ver por baixo).
+                            textAlpha = { 1f - smoothStep(done, 0f, DoneSwapSplit) },
                             modifier = Modifier
-                                .graphicsLayer { alpha = 1f - done }
+                                .graphicsLayer { alpha = if (done >= 0.999f) 0f else 1f }
                                 .then(if (done > 0.5f) Modifier.clearAndSetSemantics { } else Modifier),
                         )
                         if (done > 0f) {
@@ -446,6 +483,7 @@ fun IntroductionFlow(
                                 text = stringResource(R.string.editor_done),
                                 enabled = step == LastRoutineStep,
                                 onClick = { save() },
+                                textAlpha = { smoothStep(done, 1f - DoneSwapSplit, 1f) },
                                 modifier = Modifier.graphicsLayer { alpha = done },
                             )
                         }
@@ -462,44 +500,24 @@ fun IntroductionFlow(
     }
 }
 
-/** Uma página do fluxo: desliza na horizontal com a posição e fica opaca, para tapar a anterior. */
+/**
+ * Uma página do fluxo: lado a lado com as outras ([sideBySidePage]). Só a do passo atual chega ao
+ * TalkBack (as outras estão fora do ecrã ou a sair).
+ */
 @Composable
 private fun IntroPage(
     index: Int,
     position: () -> Float,
     animationsEnabled: Boolean,
-    covered: Boolean,
+    active: Boolean,
     content: @Composable () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .introPage(index, position, animationsEnabled)
-            .background(CycloColors.Background)
-            // Tapada pela página seguinte: fica fora do alcance do TalkBack.
-            .then(if (covered) Modifier.clearAndSetSemantics { } else Modifier),
+            .sideBySidePage(index, position, animationsEnabled)
+            .then(if (active) Modifier else Modifier.clearAndSetSemantics { }),
     ) {
         content()
-    }
-}
-
-/**
- * Posição horizontal de uma página: antes de lhe chegar a vez vem da direita; depois de entrar,
- * quando a seguinte chega, desloca-se um pouco para a esquerda (parallax). Sem animações, só fade.
- */
-private fun Modifier.introPage(
-    index: Int,
-    position: () -> Float,
-    animationsEnabled: Boolean,
-): Modifier = graphicsLayer {
-    val local = position() - index
-    if (animationsEnabled) {
-        translationX = if (local < 0f) {
-            -local * size.width
-        } else {
-            -local * size.width * CycloMotion.PageParallax
-        }
-    } else {
-        alpha = if (local < 0f) (1f + local).coerceIn(0f, 1f) else 1f
     }
 }

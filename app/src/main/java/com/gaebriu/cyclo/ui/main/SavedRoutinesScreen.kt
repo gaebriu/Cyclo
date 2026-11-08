@@ -18,6 +18,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -87,6 +88,8 @@ import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.routine.RepeatOption
 import com.gaebriu.cyclo.ui.routine.Weekday
 import com.gaebriu.cyclo.ui.routine.hasDay
+import com.gaebriu.cyclo.ui.scroll.ClimbNearTop
+import com.gaebriu.cyclo.ui.scroll.climbToTop
 import com.gaebriu.cyclo.ui.scroll.cycloVerticalScroll
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
@@ -172,8 +175,18 @@ fun SavedRoutinesScreen(
     val view = LocalView.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val scroll = rememberScrollState()
+    // A lupa com a página lá em baixo: primeiro a página sobe até ao topo (a mola das páginas, o
+    // movimento do aviso de atualização da release-1.1) e só então a caixa abre, já à vista e sem
+    // empurrar a lista a meio da subida. Um dedo que interrompa a subida abre-a logo.
+    var searchShown by remember { mutableStateOf(searchOpen) }
+    val climbNear = with(density) { ClimbNearTop.roundToPx() }
+    LaunchedEffect(searchOpen) {
+        if (searchOpen && !searchShown) scroll.climbToTop(scope, effects.animationsEnabled, climbNear)
+        searchShown = searchOpen
+    }
     val search = animateFloatAsState(
-        targetValue = if (searchOpen) 1f else 0f,
+        targetValue = if (searchShown) 1f else 0f,
         animationSpec = CycloMotion.SearchSpring,
         label = "search",
     )
@@ -186,7 +199,6 @@ fun SavedRoutinesScreen(
     }
     val shatter = remember { ShatterState() }
     val overlayCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
-    val scroll = rememberScrollState()
 
     Box(modifier = modifier.fillMaxSize().onGloballyPositioned { overlayCoordinates[0] = it }) {
         Column(
@@ -196,13 +208,13 @@ fun SavedRoutinesScreen(
                 // O espaço entre cartões vai dentro de cada um (encolhe com ele ao sair): tira-se o do último.
                 .padding(top = SavedContentTop, bottom = (bottomReserve - CycloDimens.Spacing).coerceAtLeast(0.dp)),
         ) {
-            if (searchOpen || search.value > 0f) {
+            if (searchShown || search.value > 0f) {
                 SearchBox(
                     query = query,
                     onQueryChange = onQueryChange,
                     onFinished = onSearchFinished,
                     onEnter = { onSearchEnter(visible.isNotEmpty()) },
-                    open = searchOpen,
+                    open = searchShown,
                     progress = { search.value },
                 )
             }

@@ -1,5 +1,7 @@
 ﻿package com.gaebriu.cyclo.ui.components
 
+import androidx.compose.ui.util.lerp
+import com.gaebriu.cyclo.ui.theme.smoothStep
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -78,13 +80,37 @@ fun CycloCircleButton(
             // O vetor vem em unidades do Figma (1 unidade = 1 dp).
             val pxPerDp = density
             withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
-                // O ícone muda por fade cruzado: o círculo fica sempre parado.
+                // O ícone muda no sítio, o círculo fica sempre parado. Beta 2.2: o que sai apaga-se
+                // na primeira parte e encolhe até [IconSwapScale]; o que entra cresce de lá e acende
+                // na segunda (antes cruzavam-se do mesmo tamanho, os dois a meio, sobrepostos).
+                // Sem animações, só o fade cruzado.
                 val amount = secondaryIconAmount().coerceIn(0f, 1f)
-                drawPath(path = icon, color = CycloColors.TextPrimary, alpha = 1f - amount)
-                if (secondaryIcon != null) {
-                    drawPath(path = secondaryIcon, color = CycloColors.TextPrimary, alpha = amount)
+                val pivot = Offset(IconGridCenter, IconGridCenter)
+                val animated = effects.animationsEnabled && secondaryIcon != null
+                val outAlpha = if (animated) 1f - smoothStep(amount, 0f, IconSwapSplit) else 1f - amount
+                val inAlpha = if (animated) smoothStep(amount, 1f - IconSwapSplit, 1f) else amount
+                val outScale = if (animated) lerp(1f, IconSwapScale, amount) else 1f
+                val inScale = if (animated) lerp(IconSwapScale, 1f, amount) else 1f
+                if (outAlpha > 0f) {
+                    withTransform({ scale(outScale, outScale, pivot) }) {
+                        drawPath(path = icon, color = CycloColors.TextPrimary, alpha = outAlpha)
+                    }
+                }
+                if (secondaryIcon != null && inAlpha > 0f) {
+                    withTransform({ scale(inScale, inScale, pivot) }) {
+                        drawPath(path = secondaryIcon, color = CycloColors.TextPrimary, alpha = inAlpha)
+                    }
                 }
             }
         }
     }
 }
+
+/** O centro da grelha de 39 x 39 dos ícones (o centro do círculo). */
+private const val IconGridCenter = 19.5f
+
+/** Na troca de ícone, o tamanho a que o que sai chega e de onde o que entra parte. */
+private const val IconSwapScale = 0.85f
+
+/** O ícone que sai apaga-se até aqui; o que entra acende a partir de 1 - isto. */
+private const val IconSwapSplit = 0.6f

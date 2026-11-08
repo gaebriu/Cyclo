@@ -1,5 +1,6 @@
 ﻿package com.gaebriu.cyclo.ui.components
 
+import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
@@ -9,6 +10,7 @@ import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellati
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,12 +25,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -38,9 +53,15 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.drawBlurredPath
+import com.gaebriu.cyclo.ui.effects.drawInnerShadow
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.main.excludeFromPageSwipe
 import com.gaebriu.cyclo.ui.theme.CycloColors
@@ -48,21 +69,42 @@ import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.rubberBand
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.exp
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
+ * O aspeto do medidor. São o mesmo componente no Figma, mas a Beta 2.2 mudou só o do Feed:
+ * - [Emotion] (emotion-meter, Cyclo-2 40:131): o fundo numa camada a 70 %, com o gradiente a 63 %,
+ *   uma sombra interior #FCFCFE a 15 % (0, -4, desfoque 9) e um brilho #FCFCFE a 15 % por cima
+ *   (0, -6, desfoque 9, só fora da forma); os pontos a #FCFCFE a 15 % em Luminosity.
+ * - [Sleep] (sleep-quality-meter, Componentes 5 2013:81, sem mudanças): gradiente a 39 %, pontos
+ *   #A3A2A7 a 15 % em Luminosity.
+ */
+enum class MeterStyle { Emotion, Sleep }
+
+/**
  * O medidor de pontos do Cyclo: o emotion-meter do Feed ("How are you feeling tonight?") e o
- * sleep-quality-meter do action-menu-log-sleep (Componentes 5, 2013:81). Os dois são o mesmo
- * componente do Figma: gradiente a 39 % (violeta, azul, céu, menta), cinco pontos de 9 dp (#A3A2A7 a
- * 15 % em Luminosity) e a bola de 15 dp.
+ * sleep-quality-meter do action-menu-log-sleep (Componentes 5, 2013:81): o gradiente (violeta, azul,
+ * céu, menta), cinco pontos de 9 dp e a bola de 15 dp. O aspeto de cada um vem de [style].
  *
+ * Física (Beta 2.2):
  * - A bola segue o dedo (com resistência para lá das pontas e um encaixe suave nos pontos) e, ao
- *   largar, escolhe o ponto pela posição e pelo lançamento, e assenta lá com uma mola que parte com
- *   a velocidade do dedo. Cresce um pouco enquanto se segura. Um tique em cada ponto que passa.
- * - Tocar num sítio leva a bola para o ponto mais perto.
- * - Começa onde está (a meio de uma mola, se for o caso) e não salta para o dedo.
+ *   largar, escolhe o ponto pela posição e pelo lançamento e vai para lá com uma mola que parte
+ *   com a velocidade do dedo ([CycloSprings.MoodSettle]: assenta com peso, sem ressalto de
+ *   brinquedo). Tocar num sítio leva a bola para o ponto mais perto. Começa sempre onde está
+ *   desenhada (a meio de uma mola, se for o caso) e não salta para o dedo.
+ * - Peso: a bola cresce um pouco enquanto se segura e, a andar, estica no sentido do movimento e
+ *   achata (gel, como os botões; até [MaxStretch]), proporcional à velocidade a que se mexe mesmo.
+ * - Háptico: um tique quando a bola DESENHADA passa ou chega a um ponto (também durante a mola e
+ *   no fim dela, quando assenta), e não quando o ponto mais perto muda a meio do caminho; com
+ *   histerese, para não repetir no mesmo ponto com o ressalto final ou um dedo a tremer.
+ * - Desenho: o fundo é uma camada própria, gravada uma vez (não se redesenha ao arrastar); a bola
+ *   é uma imagem feita uma vez (os desfoques são caros) e só se move, escala e estica.
  *
  * @param value o valor guardado, de 0 (ponto da esquerda) a 1 (o da direita).
  * @param levels o nome de cada ponto (TalkBack); o número de pontos é o tamanho da lista.
@@ -78,6 +120,7 @@ fun CycloMeter(
     description: String,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
+    style: MeterStyle = MeterStyle.Sleep,
     onStepChange: (Int) -> Unit = {},
 ) {
     val effects = LocalVisualEffects.current
@@ -100,13 +143,14 @@ fun CycloMeter(
     var grabJob by remember { mutableStateOf<Job?>(null) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
     var held by remember { mutableStateOf(false) }
-    // State (sem "by"): o tamanho da bola só se lê ao desenhar, por isso a mola dela redesenha o
-    // medidor sem o recompor.
+    // State (sem "by"): o tamanho e o esticão da bola só se leem ao desenhar, por isso redesenham a
+    // bola sem recompor o medidor.
     val ballScale = animateFloatAsState(
         targetValue = if ((held || dragging) && effects.animationsEnabled) CycloMotion.MoodBallHeldScale else 1f,
         animationSpec = CycloMotion.MoodBallScaleSpring,
         label = "meterBall",
     )
+    val stretch = remember { mutableFloatStateOf(0f) }
     // A última escolha feita aqui (e quando): um valor guardado mais antigo que chegue depois (duas
     // escolhas seguidas) não leva a bola para trás.
     var localStep by remember { mutableIntStateOf(-1) }
@@ -128,11 +172,11 @@ fun CycloMeter(
         }
     }
 
-    fun setStep(newStep: Int, haptic: Boolean) {
+    /** O ponto mais perto da bola (o texto do medidor do sono e o TalkBack seguem-no). Sem háptico. */
+    fun setStep(newStep: Int) {
         if (newStep != step) {
             step = newStep
             latestOnStepChange(newStep)
-            if (haptic) CycloHaptics.pickerTick(view, manyChoices = false)
         }
     }
 
@@ -168,12 +212,70 @@ fun CycloMeter(
      */
     fun dragPosition(): Float = rubberBandFraction(meterDetent(dragFinger, last) + grabOffset)
 
+    /** Onde a bola está desenhada agora. */
+    fun drawnPosition(): Float = if (dragging) dragPosition() else ball.value
+
     val ballInset = with(density) { 11.5.dp.toPx() }
+    val trackWidth = remember { mutableFloatStateOf(0f) }
+
+    // O movimento da bola, fotograma a fotograma, enquanto ela anda: a velocidade a que se mexe
+    // mesmo (filtrada), que dá o esticão, e os tiques quando passa ou chega a um ponto. Parado,
+    // espera sem trabalho nenhum.
+    LaunchedEffect(effects.animationsEnabled) {
+        var lastPos = drawnPosition()
+        var lastNanos = -1L
+        var velocity = 0f
+        var lastTickAt = 0L
+        var tickedDot = -1
+        while (true) {
+            if (!dragging && !ball.isRunning && abs(stretch.floatValue) < 0.001f) {
+                stretch.floatValue = 0f
+                velocity = 0f
+                snapshotFlow { dragging || ball.isRunning }.first { it }
+                lastNanos = -1L
+                lastPos = drawnPosition()
+            }
+            withFrameNanos { now ->
+                val pos = drawnPosition()
+                if (lastNanos >= 0L) {
+                    val dt = (now - lastNanos) / 1_000_000_000f
+                    if (dt > 0f) {
+                        val instant = (pos - lastPos) / dt
+                        velocity += (instant - velocity) * (1f - exp(-dt / VelocitySmoothingS))
+                    }
+                    // Histerese: o ponto do último tique só volta a contar depois de a bola se afastar dele.
+                    if (tickedDot >= 0 && abs(pos * last - tickedDot) > TickRearm) tickedDot = -1
+                    val dot = crossedDot(lastPos * last, pos * last, last)
+                    if (dot >= 0 && dot != tickedDot) {
+                        tickedDot = dot
+                        val t = SystemClock.uptimeMillis()
+                        if (t - lastTickAt >= MinTickIntervalMs) {
+                            lastTickAt = t
+                            CycloHaptics.pickerTick(view, manyChoices = false)
+                        }
+                    }
+                }
+                lastPos = pos
+                lastNanos = now
+                // A velocidade em dp/s dá o esticão (0 a 1); sem animações, nada estica.
+                val trackDp = trackWidth.floatValue / density.density
+                val speedDp = abs(velocity) * trackDp
+                stretch.floatValue = if (effects.animationsEnabled) {
+                    (speedDp / FullStretchSpeedDp).coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+            }
+        }
+    }
+
+    val ballSprite = remember(density) { ballSprite(density) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(24.dp)
+            .onSizeChanged { trackWidth.floatValue = it.width - 2f * ballInset }
             // O medidor arrasta na horizontal: o swipe entre páginas não começa aqui.
             .excludeFromPageSwipe()
             .semantics {
@@ -181,12 +283,14 @@ fun CycloMeter(
                 stateDescription = levels[step]
                 progressBarRangeInfo = ProgressBarRangeInfo(step.toFloat(), 0f..last.toFloat(), steps - 2)
                 setProgress { target ->
-                    setStep(target.roundToInt().coerceIn(0, last), haptic = false)
+                    setStep(target.roundToInt().coerceIn(0, last))
                     settle(ball.value)
                     true
                 }
             },
     ) {
+        // O fundo e os pontos: não mudam, por isso gravam-se uma vez (arrastar só redesenha a bola).
+        MeterTrack(style = style, steps = steps, ballInset = ballInset, luminosity = effects.luminosity)
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -199,8 +303,8 @@ fun CycloMeter(
                         },
                     ) { offset ->
                         val trackPx = (size.width - 2f * ballInset).coerceAtLeast(1f)
-                        setStep((((offset.x - ballInset) / trackPx).coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
-                        settle(if (dragging) dragPosition() else ball.value)
+                        setStep((((offset.x - ballInset) / trackPx).coerceIn(0f, 1f) * last).roundToInt())
+                        settle(drawnPosition())
                     }
                 }
                 .pointerInput(Unit) {
@@ -215,7 +319,7 @@ fun CycloMeter(
                         tracker.addPosition(start.uptimeMillis, start.position)
                         // A mola anterior pára já (antes, ao acabar, devolvia a bola a meio do arrasto).
                         settleJob?.cancel()
-                        val shown = if (dragging) dragPosition() else ball.value
+                        val shown = drawnPosition()
                         val finger = rawFractionAt(start.position.x)
                         dragFinger = finger
                         // Medida a partir do dedo já com o encaixe: a bola não salta no primeiro frame.
@@ -228,54 +332,204 @@ fun CycloMeter(
                             grabOffset = 0f
                             null
                         }
-                        setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                        setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt())
                         horizontalDrag(start.id) { change ->
                             change.consume()
                             tracker.addPosition(change.uptimeMillis, change.position)
                             dragFinger = rawFractionAt(change.position.x)
-                            setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt(), haptic = true)
+                            setStep((dragPosition().coerceIn(0f, 1f) * last).roundToInt())
                         }
                         // Larga-se onde a bola está desenhada; a mola parte daí, com a velocidade do dedo.
                         grabJob?.cancel()
                         val released = dragPosition()
                         val velocity = tracker.calculateVelocity().x / trackPx
                         val projected = (released + velocity * CycloMotion.MoodFlingProjectionS).coerceIn(0f, 1f)
-                        setStep((projected * last).roundToInt(), haptic = true)
+                        setStep((projected * last).roundToInt())
                         settle(released, velocity)
                     }
                 },
         ) {
-            val blend = effects.luminosity
-            // emotion-meter-background: gradiente a 39 %, de violeta a menta.
-            drawRoundRect(
-                brush = Brush.horizontalGradient(
-                    0f to CycloColors.MoodViolet.copy(alpha = 0.39f),
-                    0.25f to CycloColors.MoodBlue.copy(alpha = 0.39f),
-                    0.75f to CycloColors.MoodSky.copy(alpha = 0.39f),
-                    1f to CycloColors.MoodMint.copy(alpha = 0.39f),
-                ),
-                cornerRadius = CornerRadius(size.height / 2f),
-            )
-            // Os pontos (9 dp, #A3A2A7 a 15 % em Luminosity), nas posições da bola.
             val y = size.height / 2f
-            for (i in 0 until steps) {
-                val x = lerp(ballInset, size.width - ballInset, i / last.toFloat())
-                drawCircle(
-                    color = CycloColors.TextSecondary.copy(alpha = 0.15f),
-                    radius = 4.5.dp.toPx(),
-                    center = Offset(x, y),
-                    blendMode = blend,
-                )
-            }
             // Enquanto arrasta: o dedo mais o que falta fechar da distância inicial (lido aqui, a cada fotograma).
-            val position = if (dragging) dragPosition() else ball.value
-            drawCycloBall(Offset(lerp(ballInset, size.width - ballInset, position), y), ballScale.value)
+            val center = Offset(lerp(ballInset, size.width - ballInset, drawnPosition()), y)
+            val s = stretch.floatValue
+            val scale = ballScale.value
+            drawBallSprite(
+                sprite = ballSprite,
+                center = center,
+                scaleX = scale * (1f + MaxStretch * s),
+                scaleY = scale * (1f - MaxStretch * StretchFlatten * s),
+            )
         }
+    }
+}
+
+/**
+ * O fundo do medidor (gradiente, sombras do [MeterStyle.Emotion]) e os pontos. Lê só o tamanho:
+ * desenha-se uma vez por tamanho, e a bola por cima não o volta a desenhar.
+ */
+@Composable
+private fun MeterTrack(style: MeterStyle, steps: Int, ballInset: Float, luminosity: BlendMode) {
+    val last = steps - 1
+    Spacer(
+        modifier = Modifier
+            .fillMaxSize()
+            // A camada a 70 % corta o que sai dela: fica maior do que o medidor (o brilho de cima
+            // sai até ~20 dp), e o fundo desenha-se no meio dela.
+            .layout { measurable, constraints ->
+                val bleed = TrackBleed.roundToPx()
+                val placeable = measurable.measure(
+                    constraints.copy(
+                        minWidth = constraints.minWidth + 2 * bleed,
+                        maxWidth = constraints.maxWidth + 2 * bleed,
+                        minHeight = constraints.minHeight + 2 * bleed,
+                        maxHeight = constraints.maxHeight + 2 * bleed,
+                    ),
+                )
+                layout(placeable.width - 2 * bleed, placeable.height - 2 * bleed) { placeable.place(-bleed, -bleed) }
+            }
+            .then(
+                if (style == MeterStyle.Emotion) {
+                    // emotion-meter-background: a opacidade de 70 % do Figma é do nó inteiro
+                    // (o gradiente, as sombras e o brilho juntos).
+                    Modifier.graphicsLayer {
+                        alpha = EmotionTrackAlpha
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .drawWithCache {
+                val bleed = TrackBleed.toPx()
+                val track = Rect(bleed, bleed, size.width - bleed, size.height - bleed)
+                val radius = track.height / 2f
+                val pill = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(track, CornerRadius(radius))) }
+                val gradientAlpha = if (style == MeterStyle.Emotion) EmotionGradientAlpha else SleepGradientAlpha
+                val gradient = Brush.horizontalGradient(
+                    0f to CycloColors.MoodViolet.copy(alpha = gradientAlpha),
+                    0.25f to CycloColors.MoodBlue.copy(alpha = gradientAlpha),
+                    0.75f to CycloColors.MoodSky.copy(alpha = gradientAlpha),
+                    1f to CycloColors.MoodMint.copy(alpha = gradientAlpha),
+                    startX = track.left,
+                    endX = track.right,
+                )
+                val glow = CycloColors.TextPrimary.copy(alpha = 0.15f)
+                val lifted = Path().apply { addPath(pill, Offset(0f, -6.dp.toPx())) }
+                onDrawBehind {
+                    if (style == MeterStyle.Emotion) {
+                        // O brilho de cima (0, -6, desfoque 9), só fora da forma ("show behind" desligado).
+                        drawBlurredPath(lifted, glow, 9.dp.toPx())
+                        drawPath(pill, Color.Black, blendMode = BlendMode.Clear)
+                    }
+                    drawPath(pill, gradient)
+                    if (style == MeterStyle.Emotion) {
+                        drawInnerShadow(pill, glow, Offset(0f, -4.dp.toPx()), cssBlurPx = 9.dp.toPx())
+                    }
+                }
+            },
+    )
+    // Os pontos (9 dp, a 15 % em Luminosity), nas posições da bola. Fora da camada do fundo.
+    Spacer(
+        modifier = Modifier
+            .fillMaxSize()
+            .drawWithCache {
+                val dot = if (style == MeterStyle.Emotion) CycloColors.TextPrimary else CycloColors.TextSecondary
+                onDrawBehind {
+                    val y = size.height / 2f
+                    for (i in 0 until steps) {
+                        val x = lerp(ballInset, size.width - ballInset, i / last.toFloat())
+                        drawCircle(
+                            color = dot.copy(alpha = 0.15f),
+                            radius = 4.5.dp.toPx(),
+                            center = Offset(x, y),
+                            blendMode = luminosity,
+                        )
+                    }
+                }
+            },
+    )
+}
+
+/** A bola (ball-b) desenhada uma vez, já à maior escala a que pode aparecer, com margem para os brilhos. */
+private class BallSprite(val image: ImageBitmap, val scale: Float)
+
+private fun ballSprite(density: Density): BallSprite {
+    val scale = SpriteScale
+    val side = with(density) { (BallSpriteSide * scale).dp.toPx() }.roundToInt()
+    val image = ImageBitmap(side, side)
+    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+        density,
+        LayoutDirection.Ltr,
+        androidx.compose.ui.graphics.Canvas(image),
+        androidx.compose.ui.geometry.Size(side.toFloat(), side.toFloat()),
+    ) {
+        drawCycloBall(center, scale)
+    }
+    return BallSprite(image, scale)
+}
+
+/** A bola em [center], a [scaleX] x [scaleY] do tamanho do Figma (o esticão do gel). */
+private fun DrawScope.drawBallSprite(sprite: BallSprite, center: Offset, scaleX: Float, scaleY: Float) {
+    val w = sprite.image.width * scaleX / sprite.scale
+    val h = sprite.image.height * scaleY / sprite.scale
+    drawImage(
+        image = sprite.image,
+        srcOffset = IntOffset.Zero,
+        srcSize = IntSize(sprite.image.width, sprite.image.height),
+        dstOffset = IntOffset((center.x - w / 2f).roundToInt(), (center.y - h / 2f).roundToInt()),
+        dstSize = IntSize(w.roundToInt().coerceAtLeast(1), h.roundToInt().coerceAtLeast(1)),
+        filterQuality = FilterQuality.High,
+    )
+}
+
+/**
+ * O ponto (0 a [last]) por onde a bola passou ou a que chegou entre [from] e [to] (posições em
+ * passos); -1 se nenhum. Com vários no mesmo fotograma, o último (o mais perto de [to]).
+ */
+private fun crossedDot(from: Float, to: Float, last: Int): Int {
+    if (from == to) return -1
+    return if (to > from) {
+        // (from, to]
+        val k = floor(to).toInt()
+        if (k > from && k in 0..last) k else -1
+    } else {
+        // [to, from)
+        val k = ceil(to).toInt()
+        if (k < from && k in 0..last) k else -1
     }
 }
 
 /** Quanto tempo uma escolha feita no medidor manda sobre valores guardados diferentes (ms). */
 private const val PendingMeterMs = 2_000L
+
+/** Margem da camada do fundo para o brilho de cima (6 de deslocamento + o desfoque 9). */
+private val TrackBleed = 24.dp
+
+/** Opacidades do fundo: o emotion-meter (Beta 2.2) e o sleep-quality-meter. */
+private const val EmotionTrackAlpha = 0.7f
+private const val EmotionGradientAlpha = 0.63f
+private const val SleepGradientAlpha = 0.39f
+
+/** O esticão máximo da bola a andar (+12 % na largura) e quanto ela achata em proporção (metade). */
+private const val MaxStretch = 0.12f
+private const val StretchFlatten = 0.5f
+
+/** A esta velocidade (dp/s) a bola já estica tudo. */
+private const val FullStretchSpeedDp = 1_400f
+
+/** O filtro da velocidade da bola (s): tira o tremor dos eventos do dedo e devolve a forma com suavidade. */
+private const val VelocitySmoothingS = 0.045f
+
+/** Depois de um tique, o mesmo ponto só volta a contar a esta distância dele (em passos). */
+private const val TickRearm = 0.3f
+
+/** Intervalo mínimo entre dois tiques (uma passagem rápida por vários pontos não vira um zumbido). */
+private const val MinTickIntervalMs = 35L
+
+/** A imagem da bola: 15 dp mais os brilhos (6 de deslocamento e o desfoque 9), à maior escala possível. */
+private const val BallSpriteSide = 15f + 2f * (6f + 9f * 1.5f)
+private val SpriteScale = CycloMotion.MoodBallHeldScale * (1f + MaxStretch)
 
 /**
  * Para lá das pontas, a bola anda cada vez menos do que o dedo (a resistência do iOS, [rubberBand]):
@@ -298,7 +552,7 @@ private fun meterDetent(f: Float, last: Int): Float {
     val s = f * last
     val nearest = s.roundToInt().coerceIn(0, last)
     val d = s - nearest
-    val u = (kotlin.math.abs(d) / DetentReach).coerceIn(0f, 1f)
+    val u = (abs(d) / DetentReach).coerceIn(0f, 1f)
     val smooth = u * u * (3f - 2f * u)
     val eased = d * (1f - DetentPull * (1f - smooth))
     return (nearest + eased) / last

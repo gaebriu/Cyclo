@@ -108,6 +108,9 @@ private const val FigmaContent = 315f
 /** Do título (18 dp de altura) à linha de cima dos gráficos. */
 private val TitleToChart = 7.dp
 
+/** A cara da média ("average", "average-mood") desce isto do topo do título. */
+private val AverageTop = 1.dp
+
 /** Do título à grelha do Mood. */
 private val TitleToMoodGrid = 15.dp
 
@@ -434,7 +437,8 @@ private fun TrackingCard(
     ) {
         Row(modifier = Modifier.fillMaxWidth().heightIn(min = 18.dp)) {
             BasicText(text = title, style = CycloType.CardTitle, modifier = Modifier.weight(1f))
-            // "average": a cara da média do mês, a 3 dp do topo do título (Figma).
+            // "average": a cara da média do mês, a 1 dp do topo do título (Figma, Beta 2.2: 142,
+            // 395 e 648 com os títulos a 141, 394 e 647).
             val (path, tint) = average ?: (null to Color.Transparent)
             val avgAlpha by animateFloatAsState(
                 targetValue = if (average != null) 1f else 0f,
@@ -444,7 +448,7 @@ private fun TrackingCard(
             val avgColor by animateColorAsState(tint.takeIf { average != null } ?: CycloColors.MoodViolet, CycloSprings.ChartChange.spec(), label = "averageColor")
             var shownPath by remember { mutableStateOf(path) }
             if (path != null) shownPath = path
-            Box(modifier = Modifier.padding(top = 3.dp).size(15.dp)) {
+            Box(modifier = Modifier.padding(top = AverageTop).size(15.dp)) {
                 shownPath?.let { p ->
                     com.gaebriu.cyclo.ui.components.CycloIcon(
                         path = p,
@@ -541,11 +545,13 @@ private fun MoodCard(summary: TrackingSummary, grow: State<Float>, modifier: Mod
         append(stringResource(R.string.tracking_mood)).append(". ")
         append(stringResource(R.string.tracking_month_chart)).append(": ")
         append(summary.moodMonth.filter { it.value != null }.joinToString(", ") { "${it.date.dayOfMonth} ${labels[it.value!!]}" }.ifEmpty { notLogged })
+        summary.moodMonthAverage?.let { append(". ").append(stringResource(R.string.tracking_average)).append(", ").append(labels[it]) }
     }
     TrackingCard(
         title = stringResource(R.string.tracking_mood),
         description = description,
-        average = null,
+        // average-mood (Cyclo-2 2032:48): a cara da média do mês, como a do Restfulness.
+        average = summary.moodMonthAverage?.let(::moodFace),
         titleToContent = TitleToMoodGrid,
         modifier = modifier,
     ) {
@@ -831,7 +837,11 @@ private fun MoodGrid(days: List<TrackedDay<Int>>, grow: State<Float>) {
                         cellPx.roundToInt(),
                         cellPx.roundToInt(),
                         (6f * scale).dp.toPx(),
-                        listOf(InnerShadowSpec(Color.Black.copy(alpha = 0.15f), Offset(0f, 2.dp.toPx() * scale), 9.dp.toPx() * scale)),
+                        // Os blocos do Mood (2006:238, Beta 2.2): 0, 2, 9 preto a 15 % e 0, -4, 4 #FCFCFE a 63 %.
+                        listOf(
+                            InnerShadowSpec(Color.Black.copy(alpha = 0.15f), Offset(0f, 2.dp.toPx() * scale), 9.dp.toPx() * scale),
+                            InnerShadowSpec(CycloColors.TextPrimary.copy(alpha = 0.63f), Offset(0f, -4.dp.toPx() * scale), 4.dp.toPx() * scale),
+                        ),
                         this,
                     )
                     val path = smoothRoundRectPath(cellPx, cellPx, (6f * scale).dp.toPx())

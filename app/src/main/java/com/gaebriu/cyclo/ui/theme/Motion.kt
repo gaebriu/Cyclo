@@ -15,16 +15,24 @@ import androidx.compose.ui.unit.dp
 object CycloMotion {
     // Introduction 0
     const val GlowDurationMs = 1800
-    const val LettersStartDelayMs = 250
+    /**
+     * Beta 2.2: as letras começam quando a luz do Introduction 0 já vai a ~1/3 (a mola [LightRise]
+     * do brilho); o "Hello!" acaba com a cena já assente e a respiração do brilho começa aí.
+     */
+    const val LettersStartDelayMs = 300
 
-    /** O "Hello" dura 2 s, do início da primeira letra ao fim da última. */
-    const val HelloDurationMs = 2000
-    const val LetterStaggerMs = 100
+    /**
+     * O "Hello" dura 2,3 s, do início da primeira letra ao fim da última (Beta 2.2; era 2 s): cada
+     * letra 1,7 s, 120 ms depois da anterior. É o ritmo de todos os textos letra a letra.
+     */
+    const val HelloDurationMs = 2300
+    const val LetterStaggerMs = 120
 
-    /** Espaçamento máximo entre letras do "Hello" (15 % do tamanho da letra), a fechar até zero. */
-    const val HelloLetterSpacingEm = 0.15f
+    /** Espaçamento máximo entre letras do "Hello" (20 % do tamanho da letra; era 15 %), a fechar até zero. */
+    const val HelloLetterSpacingEm = 0.2f
 
-    const val ButtonsDelayMs = 1600
+    /** O Get started entra com a última letra a meio (o "Hello!" acaba aos 2,6 s). */
+    const val ButtonsDelayMs = 1900
     const val ButtonsDurationMs = 700
 
     /** Distância de onde os botões sobem. */
@@ -40,12 +48,16 @@ object CycloMotion {
      */
     val ScreenRiseSpring = CycloSprings.Sheet.float
 
+    /**
+     * Páginas lado a lado (Feed / rotinas guardadas / Tracking e, desde a Beta 2.2, as do
+     * Introduction 1 a 6): quanto andam com o gesto de voltar completo (o resto faz a mola ao largar).
+     */
+    const val PageBackReach = 0.35f
+
     /** Ecrã que recua por baixo de outro: zoom out até 92 % e um véu #010101 a 24 %. */
     const val BackgroundScale = 0.92f
     const val BackgroundOverlayAlpha = 0.24f
 
-    /** Paginação horizontal (Introduction 2...): o ecrã que sai desloca-se 30 % da largura. */
-    const val PageParallax = 0.3f
 
     /** Desaparecimento do texto "Scroll or tap to interact". */
     const val HintFadeDurationMs = 350
@@ -77,30 +89,20 @@ object CycloMotion {
     val OverlaySpring = CycloSprings.Overlay.float
 
     /**
-     * Crescimento da barra de progresso. O limiar de visibilidade é fino: com o de omissão (0,01)
-     * a mola parava ~3,5 dp antes do fim e a barra saltava esse bocado no último frame.
-     */
-    val ProgressSpring = spring(
-        dampingRatio = Spring.DampingRatioNoBouncy,
-        stiffness = 130f,
-        visibilityThreshold = 0.0005f,
-    )
-
-    /**
      * Fade do ecrã de abertura (#010101) para o primeiro ecrã. Curto, porque a entrada do
      * Introduction 0 já começa por trás da abertura.
      */
     const val SplashFadeDurationMs = 250L
 
     /**
-     * Rotação do sol do Introduction 2 por cada valor que muda: uma volta inteira por volta do
-     * seletor (360 / 24 = 15° por hora, 360 / 60 = 6° por minuto). Sentido horário ao aumentar,
-     * anti-horário ao diminuir.
+     * O sol do Introduction 2 roda com as rodas da hora (Beta 2.2: com o movimento CONTÍNUO delas,
+     * e não um salto por valor). Graus por valor, iguais nos dois formatos (a mesma deslizada dá a
+     * mesma rotação): uma hora 15° (as 24 horas, uma volta), o AM/PM 180° (são 12 horas), um
+     * minuto 6° (os 60, uma volta). Sentido horário ao aumentar, anti-horário ao diminuir.
      */
-    const val SunDegreesPerTurn = 360f
-
-    /** Mola da rotação do sol: sem ressalto e suave, para acompanhar mudanças rápidas sem saltos. */
-    val SunRotationSpring = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 90f)
+    const val SunDegreesPerHour = 15f
+    const val SunDegreesPerPeriod = 180f
+    const val SunDegreesPerMinute = 6f
 
     /**
      * Regresso do scroll à ponta depois de esticar (rubber band) e o bounce de um lançamento que
@@ -122,11 +124,13 @@ object CycloMotion {
      * desfoque 6 a 0 e uma subida curta, um a seguir ao outro. PROPOSTAS.
      */
     const val FeedRevealStaggerMs = 90
-    const val FeedRevealDurationMs = 900
     val FeedRevealRise = 24.dp
 
-    /** O brilho do topo do Feed a nascer (como o do Introduction 0). */
-    const val FeedGlowDurationMs = 1600
+    /**
+     * Os blocos do Feed começam a entrar quando o brilho do topo ([CycloSprings.FeedGlow]) já vai
+     * nesta fração (Beta 2.2: ~0,2 s depois de ele nascer).
+     */
+    const val FeedRevealGlowStart = 0.3f
 
     /** Troca entre o Feed e as rotinas guardadas sem animações no sistema: só o fade. */
     const val TabSwitchDurationMs = 320
@@ -158,12 +162,6 @@ object CycloMotion {
 
     /** Cartões das rotinas a mudar (ligar/desligar, aparecer, desaparecer). */
     val CardSpring = CycloSprings.Gentle.float
-
-    /**
-     * Brilho do topo ao mudar entre o Feed e as rotinas guardadas: volta a crescer e a acender, e
-     * passa para o gradiente da outra página. Um pouco mais longo do que a troca do conteúdo. PROPOSTA.
-     */
-    const val GlowTabDurationMs = 900
 
     /** Cores do brilho a mudar de faixa horária (ex.: às 15 h). Lento, para quase não se notar. PROPOSTA. */
     const val SkyChangeDurationMs = 2400

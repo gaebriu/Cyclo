@@ -63,6 +63,7 @@ import com.gaebriu.cyclo.data.CycloViewModel
 import com.gaebriu.cyclo.data.RoutineDraft
 import com.gaebriu.cyclo.ui.components.CycloMessageBar
 import androidx.compose.runtime.CompositionLocalProvider
+import com.gaebriu.cyclo.ui.effects.BackGestureVelocity
 import com.gaebriu.cyclo.ui.effects.Backdrop
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
@@ -91,6 +92,7 @@ import com.gaebriu.cyclo.ui.screens.IntroductionMode
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
+import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlinx.coroutines.CancellationException
@@ -157,9 +159,15 @@ fun CycloApp(viewModel: CycloViewModel) {
     var editorRoutineId by rememberSaveable { mutableLongStateOf(-1L) }
 
     // cover: 0 = nada por cima, 1 = o que está por cima tapa tudo.
-    val cover = remember { Animatable(if (overlayOpen) 1f else 0f) }
+    // Limiar fino (Beta 2.2): com o de omissão (0,01) a mola parava ~24 px antes e saltava no fim.
+    val cover = remember { Animatable(if (overlayOpen) 1f else 0f, visibilityThreshold = 0.0005f) }
+    // A velocidade com que o gesto de voltar largou o ecrã de cima (Beta 2.2): a mola continua dela.
+    val coverRelease = remember { floatArrayOf(0f) }
     LaunchedEffect(overlayOpen) {
-        cover.animateTo(if (overlayOpen) 1f else 0f, CycloMotion.ScreenRiseSpring)
+        val v = coverRelease[0]
+        coverRelease[0] = 0f
+        val target = if (overlayOpen) 1f else 0f
+        if (v != 0f) cover.animateTo(target, CycloMotion.ScreenRiseSpring, initialVelocity = v) else cover.animateTo(target, CycloMotion.ScreenRiseSpring)
         if (!overlayOpen) overlay = OverlayNone
     }
 
@@ -171,7 +179,11 @@ fun CycloApp(viewModel: CycloViewModel) {
     LaunchedEffect(feedVisible) {
         if (feedVisible && !revealPlayed) {
             revealPlayed = true
-            launch { glow.animateTo(1f, tween(CycloMotion.FeedGlowDurationMs, easing = CycloMotion.Decelerate)) }
+            // Uma só composição (Beta 2.2, como o "Hello!" e o brilho do Introduction 0): o brilho
+            // nasce numa mola e os blocos só começam quando ele já vai a [FeedRevealGlowStart],
+            // entrando sobre a luz a crescer. Antes eram dois relógios lançados juntos.
+            launch { glow.animateTo(1f, CycloSprings.FeedGlow.float) }
+            snapshotFlow { glow.value }.first { it >= CycloMotion.FeedRevealGlowStart }
             reveal.play()
         }
     }
@@ -435,11 +447,19 @@ fun CycloApp(viewModel: CycloViewModel) {
         // editor: no primeiro passo, o gesto de voltar faz o editor descer a seguir ao dedo. Os passos
         // seguintes e os menus abertos têm os seus próprios gestos, declarados depois (com prioridade).
         PredictiveBackHandler(enabled = (overlay == OverlayEditor || overlay == OverlaySettings) && overlayOpen) { progress ->
+            // Beta 2.2: o mesmo alcance das páginas e, ao largar, a velocidade do dedo.
+            val gesture = BackGestureVelocity()
             try {
-                progress.collect { event -> cover.snapTo(1f - event.progress * BackGestureReach) }
+                progress.collect { event ->
+                    gesture.add(event.progress)
+                    cover.snapTo(1f - event.progress * CycloMotion.PageBackReach)
+                }
+                coverRelease[0] = -gesture.progressPerSecond * CycloMotion.PageBackReach
                 overlayOpen = false
             } catch (e: CancellationException) {
-                scope.launch { cover.animateTo(1f, CycloMotion.ScreenRiseSpring) }
+                scope.launch {
+                    cover.animateTo(1f, CycloMotion.ScreenRiseSpring, initialVelocity = -gesture.progressPerSecond * CycloMotion.PageBackReach)
+                }
             }
         }
 
@@ -633,4 +653,4 @@ private const val LanguageChangeTimeoutMs = 1_500L
 private fun nextRoutineId(data: com.gaebriu.cyclo.data.CycloData): Long = (data.routines.maxOfOrNull { it.id } ?: 0L) + 1L
 
 /** Quanto o editor desce com o gesto de voltar completo (o resto faz a mola ao largar). */
-private const val BackGestureReach = 0.4f
+

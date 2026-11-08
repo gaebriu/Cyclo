@@ -4,12 +4,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,11 +41,15 @@ private fun rememberKeyboardTargetHeight(): Int {
 fun rememberIsKeyboardOpen(): Boolean = rememberKeyboardTargetHeight() > 0
 
 /**
- * Faz só este conteúdo ir da sua posição em repouso para [gap] acima do teclado, com uma mola
- * suave (ao estilo iOS / Material You), e voltar quando o teclado fecha. O resto do ecrã não se mexe.
+ * Faz só este conteúdo ir da sua posição em repouso para [gap] acima do teclado, e voltar quando o
+ * teclado fecha. O resto do ecrã não se mexe.
  *
- * O destino conta-se com a altura final do teclado, por isso a mola arranca logo a direito,
- * sem esperar que o sistema acabe de abrir o teclado.
+ * Beta 2.2: o conteúdo anda COLADO ao teclado, fotograma a fotograma (como no iOS): a deslocação é a
+ * final ([gap] acima da altura final do teclado) vezes a fração do teclado já aberta, lida da
+ * animação do próprio sistema (`WindowInsets.ime`, que o Compose anima com o WindowInsetsAnimation
+ * da janela edge-to-edge com adjustResize). Antes ia numa mola própria até à altura final: o
+ * conteúdo e o teclado andavam com curvas diferentes e um adiantava-se ao outro. Lido só na
+ * colocação (o teclado a andar não recompõe nada).
  */
 @Composable
 fun KeyboardLift(
@@ -53,22 +59,25 @@ fun KeyboardLift(
 ) {
     val density = LocalDensity.current
     val keyboardHeight = rememberKeyboardTargetHeight()
+    val ime = WindowInsets.ime
 
     // Posição em repouso do conteúdo, medida ANTES da deslocação.
     var restBottom by remember { mutableFloatStateOf(0f) }
     var rootHeight by remember { mutableFloatStateOf(0f) }
+    // A última altura final do teclado aberto (ao fechar, a final é 0, e a fração conta-se desta).
+    var openHeight by remember { mutableIntStateOf(0) }
+    if (keyboardHeight > 0) openHeight = keyboardHeight
 
     val gapPx = with(density) { gap.toPx() }
-    val targetShift = if (keyboardHeight > 0 && rootHeight > 0f) {
-        rootHeight - keyboardHeight - gapPx - restBottom
-    } else {
-        0f
+    val shift: () -> Float = {
+        val full = openHeight
+        if (full <= 0 || rootHeight <= 0f) {
+            0f
+        } else {
+            val fraction = (ime.getBottom(density).toFloat() / full).coerceIn(0f, 1f)
+            (rootHeight - full - gapPx - restBottom) * fraction
+        }
     }
-    val shift by animateFloatAsState(
-        targetValue = targetShift,
-        animationSpec = CycloMotion.KeyboardSpring,
-        label = "keyboardLift",
-    )
 
     Box(
         modifier = modifier
@@ -78,7 +87,7 @@ fun KeyboardLift(
             }
             // Deslocação no LAYOUT (e não só no desenho, com graphicsLayer): assim o cursor, as pegas de
             // seleção e o que o teclado sabe da posição do texto acompanham a caixa a cada frame.
-            .offset { IntOffset(0, shift.roundToInt()) },
+            .offset { IntOffset(0, shift().roundToInt()) },
     ) {
         content()
     }

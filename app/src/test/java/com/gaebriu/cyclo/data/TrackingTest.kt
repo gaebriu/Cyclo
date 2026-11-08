@@ -90,6 +90,7 @@ class TrackingTest {
         assertEquals(0, s.caffeineWeekMax)
         assertTrue(s.caffeineMonth.all { it.value == null })
         assertTrue(s.moodMonth.all { it.value == null })
+        assertNull(s.moodMonthAverage)
     }
 
     @Test
@@ -111,6 +112,19 @@ class TrackingTest {
         assertEquals(4, mood[today.minusDays(2)]) // Bad
         assertNull(mood[today.minusDays(1)])
         assertEquals(2, mood[today]) // aberta sem mexer = Okay
+        // average-mood: só os dias abertos, arredondada ao nível mais perto ((4 + 2) / 2 = Not great).
+        assertEquals(3, s.moodMonthAverage)
+    }
+
+    @Test
+    fun moodAverageRoundsToTheNearestLevel() {
+        val history = listOf(
+            DailyLog(today.minusDays(2), mood = 0f, opened = true), // Great
+            DailyLog(today.minusDays(1), mood = 0f, opened = true), // Great
+        )
+        val current = DailyLog(today, mood = 0.25f, opened = true) // Good
+        // (0 + 0 + 1) / 3 = 0,33: Great.
+        assertEquals(0, trackingSummary(history, current, today).moodMonthAverage)
     }
 
     @Test

@@ -7,6 +7,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
@@ -401,10 +402,14 @@ fun SettingsScreen(
             Description(stringResource(R.string.settings_data_description), labelStyle)
             Spacer(Modifier.height(DescriptionToSection))
 
-            // Sobre.
+            // Sobre (Cyclo-2 54:36): "Beta updates" e o texto dele, "View on GitHub" e a versão,
+            // tudo a 15 dp.
             SectionLabel(stringResource(R.string.settings_about), labelStyle)
+            BetaUpdatesRow()
+            Description(stringResource(R.string.settings_beta_updates_description), labelStyle)
+            Spacer(Modifier.height(DescriptionToSection))
             SettingsButton(stringResource(R.string.settings_github), onClick = { githubOpen = true })
-            // A versão é o fim da página (Beta 2.0: sem o "Beta updates", a app já é uma beta).
+            // A versão é o fim da página.
             Description(stringResource(R.string.settings_version, rememberVersionLabel()), labelStyle)
         }
 
@@ -658,6 +663,8 @@ private fun SwitchRow(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
     toggleHaptic: Boolean = true,
+    pressHaptic: Boolean = !toggleHaptic,
+    shake: () -> Float = { 0f },
 ) {
     val view = LocalView.current
     val stateText = stringResource(if (on) R.string.saved_state_on else R.string.saved_state_off)
@@ -665,12 +672,14 @@ private fun SwitchRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = CycloDimens.InputHeight)
+            // A recusa: a linha toda abana, como a caixa da idade (ver [playRejectShake]).
+            .graphicsLayer { translationX = shake().dp.toPx() }
             .cycloPressable(
                 onClick = {
                     if (toggleHaptic) CycloHaptics.toggle(view, !on)
                     onToggle()
                 },
-                haptic = !toggleHaptic,
+                haptic = pressHaptic,
                 role = Role.Switch,
             )
             .semantics(mergeDescendants = true) {
@@ -703,16 +712,18 @@ private fun SwitchRow(
 @Composable
 private fun CycloSwitch(on: Boolean, modifier: Modifier = Modifier) {
     val effects = LocalVisualEffects.current
-    val progress by animateFloatAsState(
-        targetValue = if (on) 1f else 0f,
-        animationSpec = if (effects.animationsEnabled) SwitchSpring else snap(),
-        label = "switch",
-    )
+    // Beta 2.2: a mola vem dos presets ([CycloSprings.Toggle]) e o esticão da bola segue a
+    // velocidade a que ela anda mesmo (como a bola do medidor), e não a posição.
+    val motion = remember { Animatable(if (on) 1f else 0f) }
+    LaunchedEffect(on, effects.animationsEnabled) {
+        val target = if (on) 1f else 0f
+        if (effects.animationsEnabled) motion.animateTo(target, CycloSprings.Toggle.float) else motion.snapTo(target)
+    }
     Box(
         modifier = modifier
             .size(width = 42.dp, height = 23.dp)
             .drawBehind {
-                val p = progress
+                val p = motion.value
                 val radius = CornerRadius(15.dp.toPx())
                 drawRoundRect(
                     color = lerp(CycloColors.TextSecondary.copy(alpha = 0.15f), CycloColors.Accent, p.coerceIn(0f, 1f)),
@@ -720,8 +731,8 @@ private fun CycloSwitch(on: Boolean, modifier: Modifier = Modifier) {
                 )
                 val knob = 15.dp.toPx()
                 val inset = 4.dp.toPx()
-                // Esticão: 0 nas pontas, até 5 dp a meio do caminho.
-                val stretch = 5.dp.toPx() * (1f - kotlin.math.abs(p.coerceIn(0f, 1f) * 2f - 1f))
+                // Esticão: até 5 dp, proporcional à velocidade da bola (0 parada).
+                val stretch = 5.dp.toPx() * (kotlin.math.abs(motion.velocity) / ToggleFullStretchSpeed).coerceIn(0f, 1f)
                 val travel = size.width - inset * 2f - knob
                 val x = inset + travel * p - stretch * p
                 val alpha = lerpFloat(0.63f, 1f, p.coerceIn(0f, 1f))
@@ -740,8 +751,8 @@ private fun CycloSwitch(on: Boolean, modifier: Modifier = Modifier) {
     )
 }
 
-/** Mola do interruptor: rápida, com um ressalto quase impercetível. PROPOSTA. */
-private val SwitchSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 520f)
+/** A esta velocidade (percursos por segundo) a bola do interruptor já estica os 5 dp todos. */
+private const val ToggleFullStretchSpeed = 6f
 
 /**
  * A idade. Sem estar a escrever, é uma linha como as outras ("Your age", e o valor ou
@@ -803,20 +814,7 @@ private fun AgeInputBox(initial: Int?, onDone: (Int) -> Unit, onCancel: () -> Un
             CycloHaptics.reject(view)
             // Para o TalkBack, o porquê (a caixa só abana).
             view.announceForAccessibility(invalidText)
-            if (effects.animationsEnabled) {
-                scope.launch {
-                    shake.snapTo(0f)
-                    shake.animateTo(0f, keyframes {
-                        durationMillis = ShakeDurationMs
-                        -8f at 50
-                        7f at 110
-                        -5f at 170
-                        4f at 230
-                        -2f at 290
-                        0f at ShakeDurationMs
-                    })
-                }
-            }
+            if (effects.animationsEnabled) scope.launch { shake.playRejectShake() }
         }
     }
 
@@ -873,6 +871,53 @@ private fun AgeInputBox(initial: Int?, onDone: (Int) -> Unit, onCancel: () -> Un
 }
 
 private const val ShakeDurationMs = 360
+
+/**
+ * A recusa da caixa da idade (tap-to-write-box-age: um valor fora de 5–100): um abanão horizontal
+ * curto que vai morrendo (dp). Partilhado com a linha "Beta updates", que não se pode desligar numa
+ * versão beta. O háptico ([CycloHaptics.reject]) toca quem chama.
+ */
+private suspend fun Animatable<Float, AnimationVector1D>.playRejectShake() {
+    snapTo(0f)
+    animateTo(0f, keyframes {
+        durationMillis = ShakeDurationMs
+        -8f at 50
+        7f at 110
+        -5f at 170
+        4f at 230
+        -2f at 290
+        0f at ShakeDurationMs
+    })
+}
+
+/**
+ * beta-updates (Cyclo-2 2006:691): o interruptor das atualizações beta. Esta app é uma beta e
+ * recebe sempre as duas (ver [com.gaebriu.cyclo.update.CycloUpdates]), por isso fica sempre ligado
+ * e não se pode desligar: está cá pela paridade com as versões estáveis. Tocar não muda nada e
+ * responde como a caixa da idade quando recusa um valor: abana, com o háptico de erro (e, para o
+ * TalkBack, diz porquê). Numa versão estável, esta linha precisa da lógica dos canais
+ * (release-1.1: `setBetaEnabled`), que hoje não existe.
+ */
+@Composable
+private fun BetaUpdatesRow() {
+    val view = LocalView.current
+    val effects = LocalVisualEffects.current
+    val scope = rememberCoroutineScope()
+    val shake = remember { Animatable(0f) }
+    val lockedText = stringResource(R.string.settings_beta_updates_locked)
+    SwitchRow(
+        label = stringResource(R.string.settings_beta_updates),
+        on = true,
+        onToggle = {
+            CycloHaptics.reject(view)
+            view.announceForAccessibility(lockedText)
+            if (effects.animationsEnabled) scope.launch { shake.playRejectShake() }
+        },
+        toggleHaptic = false,
+        pressHaptic = false,
+        shake = { shake.value },
+    )
+}
 
 /** O visto da caixa da idade (check, 24 x 24), do SVG do Componentes 3. */
 private const val AgeCheckPath =

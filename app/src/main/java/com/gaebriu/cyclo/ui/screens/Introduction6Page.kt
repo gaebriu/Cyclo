@@ -26,9 +26,10 @@ private val TextTop = 265.dp
 
 /**
  * Espaçamento extra das letras no início, no texto do Introduction 6 e do loading-data (fração do
- * tamanho da letra). Num texto de 15 abre o mesmo, a olho, que os 15 % do "Hello!" de 39.
+ * tamanho da letra). Num texto de 15 abre o mesmo, a olho, que os 20 % do "Hello!" de 39 (Beta 2.2:
+ * eram 0,3 e 15 %).
  */
-internal const val AllSetTextSpacingEm = 0.3f
+internal const val AllSetTextSpacingEm = 0.36f
 
 /**
  * Introduction 6: "You’re all set!" (o botão de cima e o Next já saíram).

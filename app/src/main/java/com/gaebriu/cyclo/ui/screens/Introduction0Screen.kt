@@ -50,6 +50,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -109,7 +110,14 @@ fun Introduction0Screen(
     val greeting = stringResource(R.string.introduction_0_greeting)
 
     val glow = remember { Animatable(0f) }
-    val reveal = rememberLetterReveal(greeting)
+    // O relógio da cena (s desde que o ecrã abre): o brilho E as letras do "Hello!" leem-no ao
+    // desenhar, por isso são uma só composição, ao mesmo fotograma (Beta 2.2: antes eram duas
+    // animações lançadas juntas). Sem animações, o "Hello!" usa o seu próprio relógio (só fade).
+    val sceneClock = remember { mutableFloatStateOf(0f) }
+    val reveal = rememberLetterReveal(
+        greeting,
+        clockMs = if (effects.animationsEnabled) ({ sceneClock.floatValue * 1000f }) else null,
+    )
     val buttons = remember { Animatable(0f) }
 
     LaunchedEffect(reveal) {
@@ -129,7 +137,7 @@ fun Introduction0Screen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CycloColors.Background)) {
-        TopGlow(glow = glow, recede = recede, effects = effects)
+        TopGlow(glow = glow, clock = sceneClock, recede = recede, effects = effects)
 
         // "fx top dark gradient": preto a 15 % em cima, transparente em baixo.
         Box(
@@ -174,10 +182,10 @@ fun Introduction0Screen(
  * aparelho. Sem animações: a cena final aparece com um fade.
  */
 @Composable
-private fun TopGlow(glow: Progress, recede: () -> Float, effects: VisualEffects) {
+private fun TopGlow(glow: Progress, clock: MutableFloatState, recede: () -> Float, effects: VisualEffects) {
     val noise = rememberFigmaNoise()
-    // O relógio da cena (s): a entrada e a respiração leem-no ao desenhar (nada se recompõe).
-    val clock = remember { mutableFloatStateOf(0f) }
+    // O relógio da cena (s): a entrada e a respiração leem-no ao desenhar (nada se recompõe), e as
+    // letras do "Hello!" também (ver Introduction0Screen).
     LaunchedEffect(effects.animationsEnabled) {
         if (!effects.animationsEnabled) return@LaunchedEffect
         var start = -1L
@@ -237,9 +245,12 @@ private val ShadeSettle = CycloSpring(response = 1.7f, dampingFraction = 1f)
 /** Quando a sombra começa (s depois da luz). */
 private const val ShadeDelayS = 0.22f
 
-/** A respiração entra devagar entre estes dois instantes (s). */
-private const val BreathFromS = 2.2f
-private const val BreathFullS = 4.2f
+/**
+ * A respiração entra devagar entre estes dois instantes (s): começa quando a última letra do
+ * "Hello!" acaba (a palavra completa é o sinal de que a cena está viva) e fica inteira 2 s depois.
+ */
+private const val BreathFromS = (CycloMotion.LettersStartDelayMs + CycloMotion.HelloDurationMs) / 1000f
+private const val BreathFullS = BreathFromS + 2f
 
 private fun glowScene(t: Float): GlowScene {
     val light = springProgress(t, LightRise)

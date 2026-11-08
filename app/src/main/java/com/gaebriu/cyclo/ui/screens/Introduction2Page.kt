@@ -1,5 +1,11 @@
 ﻿package com.gaebriu.cyclo.ui.screens
 
+import com.gaebriu.cyclo.ui.components.SpringValue
+import com.gaebriu.cyclo.ui.theme.CycloSprings
+import kotlinx.coroutines.channels.Channel
+import androidx.compose.runtime.withFrameNanos
+import kotlin.math.abs
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -79,30 +85,41 @@ fun Introduction2Page(
         label = "hint",
     )
 
-    // Rotação do sol: cada valor que muda na hora ou nos minutos roda-o em proporção (uma volta
-    // inteira do seletor = uma volta do sol): no sentido horário quando o valor aumenta e no
-    // sentido anti-horário quando diminui. A mola sem ressalto segue o
-    // alvo à medida que ele avança, por isso deslizar depressa dá uma rotação contínua, sem saltos.
+    // O sol roda com as rodas da hora, com o movimento contínuo delas (o dedo, a inércia, a mola
+    // a assentar), e não aos saltos por valor: cada roda empurra o alvo ([turnSun]) e o sol vai
+    // atrás com uma mola ([CycloSprings.SunFollow]) que tem peso e, quando a roda pára, chega com
+    // um nadinha de ressalto. Rodar depressa enche-o um pouco (até [SunMaxSwell]). Um só ciclo de
+    // fotogramas, parado quando tudo assenta; sem animações no sistema, o sol fica quieto.
     val effects = LocalVisualEffects.current
-    val scope = rememberCoroutineScope()
-    val sunRotation = remember { Animatable(0f) }
-    var sunTarget by remember { mutableFloatStateOf(0f) }
-    var lastHour by remember { mutableIntStateOf(wakeHour) }
+    val sun = remember { SpringValue(0f) }
+    val sunSwell = remember { SpringValue(1f) }
+    val sunWake = remember { Channel<Unit>(Channel.CONFLATED) }
+    fun turnSun(degrees: Float) {
+        if (!effects.animationsEnabled || degrees == 0f) return
+        sun.target += degrees
+        sunWake.trySend(Unit)
+    }
+    LaunchedEffect(Unit) {
+        var last = -1L
+        while (true) {
+            if (sun.settled && sunSwell.settled) {
+                sunWake.receive()
+                last = -1L
+            }
+            withFrameNanos { now ->
+                val dt = if (last < 0L) FrameS else ((now - last) / 1_000_000_000f).coerceIn(0f, MaxFrameS)
+                last = now
+                sun.step(dt, CycloSprings.SunFollow, restDelta = 0.02f, restVelocity = 0.5f)
+                sunSwell.target = 1f + SunMaxSwell * (abs(sun.velocity) / SunFullSwellSpeed).coerceIn(0f, 1f)
+                sunSwell.step(dt, CycloSprings.SunSwell, restDelta = 0.0005f, restVelocity = 0.005f)
+            }
+        }
+    }
     val use24Hour = LocalTimeFormat.current.use24Hour
     // 12 h: a caixa das horas tem 12 valores (0 mostra-se "12") e a do AM/PM dois.
     val hourCount = if (use24Hour) 24 else 12
     val shownHour = if (use24Hour) wakeHour else wakeHour % 12
     val pm = wakeHour >= 12
-    var lastMinute by remember { mutableIntStateOf(wakeMinute) }
-
-    fun turnSun(from: Int, to: Int, valueCount: Int) {
-        if (!effects.animationsEnabled) return
-        val steps = circularSteps(from, to, valueCount)
-        if (steps == 0) return
-        sunTarget += steps * CycloMotion.SunDegreesPerTurn / valueCount
-        val target = sunTarget
-        scope.launch { sunRotation.animateTo(target, CycloMotion.SunRotationSpring) }
-    }
 
     Column(
         modifier = modifier
@@ -112,7 +129,8 @@ fun Introduction2Page(
         Spacer(Modifier.height(46.dp))
         IntroIconHeader(
             icon = CycloHeaderIcons.Sun,
-            rotation = { sunRotation.value },
+            rotation = { sun.value },
+            scale = { sunSwell.value },
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
 
@@ -170,10 +188,9 @@ fun Introduction2Page(
                                 valueCount = hourCount,
                                 contentDescription = stringResource(R.string.introduction_2_hour),
                                 onValueChange = {
-                                    turnSun(lastHour, it, hourCount)
-                                    lastHour = it
                                     onHourChange(if (use24Hour) it else it + if (pm) 12 else 0)
                                 },
+                                onWheelMove = { turnSun(it * CycloMotion.SunDegreesPerHour) },
                                 label = if (use24Hour) TwoDigits else ::hour12Label,
                                 modifier = Modifier.width(boxWidth),
                             )
@@ -195,11 +212,8 @@ fun Introduction2Page(
                             value = wakeMinute,
                             valueCount = 60,
                             contentDescription = stringResource(R.string.introduction_2_minute),
-                            onValueChange = {
-                                turnSun(lastMinute, it, 60)
-                                lastMinute = it
-                                onMinuteChange(it)
-                            },
+                            onValueChange = { onMinuteChange(it) },
+                            onWheelMove = { turnSun(it * CycloMotion.SunDegreesPerMinute) },
                             manyChoices = true,
                             modifier = Modifier.width(boxWidth),
                         )
@@ -215,6 +229,7 @@ fun Introduction2Page(
                                     if (hour != wakeHour) onHourChange(hour)
                                 },
                                 label = { if (it == 1) "PM" else "AM" },
+                                onWheelMove = { turnSun(it * CycloMotion.SunDegreesPerPeriod) },
                                 modifier = Modifier.width(boxWidth),
                             )
                         }
@@ -235,17 +250,16 @@ fun Introduction2Page(
     }
 }
 
-/**
- * Quantos valores separam [from] de [to] num seletor que dá a volta, pelo caminho mais curto e
- * com sinal: positivo se o valor aumentou, negativo se diminuiu (23 para 00 é +1, 00 para 23 é -1).
- */
-private fun circularSteps(from: Int, to: Int, valueCount: Int): Int {
-    val forward = ((to - from) % valueCount + valueCount) % valueCount
-    return if (forward <= valueCount / 2) forward else forward - valueCount
-}
-
 /** "06", "23": dois algarismos (as horas de 24 h e os minutos). */
 private val TwoDigits: (Int) -> String = { String.format(java.util.Locale.ROOT, "%02d", it) }
 
 /** As horas de 12 h: 0 mostra-se "12", o resto com dois algarismos ("06"), como no Figma. */
 private fun hour12Label(value: Int): String = if (value == 0) "12" else String.format(java.util.Locale.ROOT, "%02d", value)
+
+/** O sol cresce no máximo isto (+3 %) a rodar depressa, a partir de [SunFullSwellSpeed] graus/s. */
+private const val SunMaxSwell = 0.03f
+private const val SunFullSwellSpeed = 540f
+
+/** O primeiro passo do ciclo do sol (um fotograma a 60 Hz) e o maior (um fotograma perdido não o lança). */
+private const val FrameS = 1f / 60f
+private const val MaxFrameS = 0.05f

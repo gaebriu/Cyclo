@@ -111,6 +111,12 @@ data class TrackingSummary(
 
     /** Os dias do mês atual: o nível do medidor de emoções (0 Great ... 4 Bad; null = por registar). */
     val moodMonth: List<TrackedDay<Int>>,
+    /**
+     * A média do mês do humor (average-mood, Cyclo-2 2032:48), arredondada ao nível mais perto;
+     * conta os dias abertos (também os "Okay" de quem não mexeu no medidor, como a grelha); null
+     * sem dias abertos.
+     */
+    val moodMonthAverage: Int?,
 ) {
     /** Opacidade de um bloco da cafeína no mês: 0 cafés a 9 %, o máximo do mês a 100 %. */
     fun caffeineBlockAlpha(count: Int): Float =
@@ -133,6 +139,7 @@ fun trackingSummary(history: List<DailyLog>, current: DailyLog?, today: LocalDat
     val caffeineMonth = monthDays.map { TrackedDay(it, caffeineOf(it)) }
     val weekCounts = caffeineWeek.mapNotNull { it.value }
     val monthCounts = caffeineMonth.mapNotNull { it.value }
+    val moodMonth = monthDays.map { TrackedDay(it, moodOf(it)) }
     return TrackingSummary(
         sleepWeek = week.map { TrackedDay(it, sleepOf(it)) },
         sleepMonth = sleepMonth,
@@ -143,7 +150,8 @@ fun trackingSummary(history: List<DailyLog>, current: DailyLog?, today: LocalDat
         caffeineMonth = caffeineMonth,
         caffeineMonthMax = monthCounts.maxOrNull() ?: 0,
         caffeineMonthAverage = monthCounts.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
-        moodMonth = monthDays.map { TrackedDay(it, moodOf(it)) },
+        moodMonth = moodMonth,
+        moodMonthAverage = moodMonth.mapNotNull { it.value }.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
     )
 }
 

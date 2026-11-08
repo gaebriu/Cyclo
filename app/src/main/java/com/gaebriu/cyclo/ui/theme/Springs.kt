@@ -146,13 +146,17 @@ object CycloSprings {
     val MenuRetract = fromStiffness(900f, Spring.DampingRatioNoBouncy)
 
     /**
-     * A bola do medidor de emoções a assentar num ponto depois de a largar (beta-1.4): parte com a
-     * velocidade do dedo e assenta com um ressalto curto e amortecido, sem tremer.
+     * A bola do medidor de emoções a assentar num ponto depois de a largar: parte com a velocidade
+     * do dedo e assenta com peso, a passar o ponto só o que a velocidade pede (Beta 2.2: 0,86; a
+     * 0,72 da beta-1.4 passava ~6 % de um passo e voltava, um ressalto de brinquedo).
      */
-    val MoodSettle = CycloSpring(response = 0.34f, dampingFraction = 0.72f)
+    val MoodSettle = CycloSpring(response = 0.36f, dampingFraction = 0.86f)
 
-    /** A bola do medidor a crescer quando se segura e a voltar ao largar: rápida, um toque de gel. */
-    val MoodHold = CycloSpring(response = 0.24f, dampingFraction = 0.66f)
+    /**
+     * A bola do medidor a crescer quando se segura e a voltar ao largar (Beta 2.2: firme, sem o
+     * tremor da 0,66 de antes).
+     */
+    val MoodHold = CycloSpring(response = 0.26f, dampingFraction = 0.84f)
 
     /*
      * Gráficos da Tracking (Beta 2.0). As colunas e os blocos crescem da base na primeira entrada da
@@ -163,6 +167,34 @@ object CycloSprings {
 
     /** Uma coluna ou um bloco a crescer da base: assenta com um ressalto quase invisível. */
     val ChartGrow = CycloSpring(response = 0.6f, dampingFraction = 0.82f)
+
+    /**
+     * O sol do Introduction 2 a seguir as rodas da hora (Beta 2.2): vai atrás delas com algum peso
+     * (não colado ao dedo) e, quando a roda pára, chega e passa um nadinha antes de assentar.
+     */
+    val SunFollow = CycloSpring(response = 0.55f, dampingFraction = 0.8f)
+
+    /**
+     * A roda da hora a assentar num valor quando se larga devagar (ou com os botões do TalkBack):
+     * rápida e firme, a parte da velocidade do dedo (Beta 2.2; antes a 0,8 da rigidez média).
+     */
+    val PickerSettle = CycloSpring(response = 0.24f, dampingFraction = 0.86f)
+
+    /**
+     * A entrada do Feed (Beta 2.2): o brilho do topo a nascer, lento e sem ressalto, e cada bloco
+     * da cascata ([com.gaebriu.cyclo.ui.effects.StaggeredReveal]) a aparecer e a subir.
+     */
+    val FeedGlow = CycloSpring(response = 1.1f, dampingFraction = 1f)
+    val Reveal = CycloSpring(response = 0.6f, dampingFraction = 1f)
+
+    /**
+     * Os interruptores das definições (Beta 2.2: preset; antes rigidez 520 e 0,72, fora do motor):
+     * rápidos, com um ressalto quase impercetível, iguais a ligar e a desligar.
+     */
+    val Toggle = CycloSpring(response = 0.28f, dampingFraction = 0.78f)
+
+    /** O sol a crescer um pouco com a velocidade a que roda, e a voltar quando abranda. */
+    val SunSwell = CycloSpring(response = 0.32f, dampingFraction = 1f)
 
     /** Um valor do gráfico a mudar: mais rápido do que a entrada, sem tremer. */
     val ChartChange = CycloSpring(response = 0.42f, dampingFraction = 0.9f)

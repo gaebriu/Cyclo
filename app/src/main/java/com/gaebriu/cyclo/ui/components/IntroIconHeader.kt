@@ -63,12 +63,14 @@ private fun Offset.rotateAround(pivot: Offset, degrees: Float): Offset {
  *
  * @param rotation rotação do ícone em graus (sentido horário), à volta do centro da caixa de 63 dp.
  *        É lida só ao desenhar, por isso animá-la não recompõe nada. O holofote não roda.
+ * @param scale escala do ícone à volta do mesmo centro (lida só ao desenhar; o holofote fica).
  */
 @Composable
 fun IntroIconHeader(
     icon: HeaderIcon,
     modifier: Modifier = Modifier,
     rotation: () -> Float = { 0f },
+    scale: () -> Float = { 1f },
 ) {
     val effects = LocalVisualEffects.current
     val shape = remember(icon) { PathParser().parsePathString(icon.path).toPath() }
@@ -103,11 +105,13 @@ fun IntroIconHeader(
                     val blend = effects.luminosity
                     val pxPerDp = density
                     val degrees = rotation()
+                    val iconScale = scale()
                     val pivot = Offset(IconCenter, IconCenter) +
                         Offset(CycloIconPaths.BedOriginX, CycloIconPaths.BedOriginY)
                     withTransform({
                         scale(pxPerDp, pxPerDp, Offset.Zero)
                         translate(-CycloIconPaths.BedOriginX, -CycloIconPaths.BedOriginY)
+                        if (iconScale != 1f) scale(iconScale, iconScale, pivot)
                         if (degrees != 0f) rotate(degrees, pivot)
                     }) {
                         // O gradiente roda ao contrário, para a luz continuar a vir de cima.

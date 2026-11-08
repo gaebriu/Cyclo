@@ -52,11 +52,13 @@ import com.gaebriu.cyclo.data.FeedSection
 import com.gaebriu.cyclo.data.TrackingSection
 import com.gaebriu.cyclo.data.Routine
 import com.gaebriu.cyclo.data.SleepFactor
+import com.gaebriu.cyclo.ui.effects.BackGestureVelocity
 import com.gaebriu.cyclo.ui.effects.Backdrop
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.StaggeredReveal
 import com.gaebriu.cyclo.ui.effects.backdropSource
+import com.gaebriu.cyclo.ui.effects.sideBySidePage
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.effects.staggeredReveal
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
@@ -68,7 +70,10 @@ import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.theme.rubberBand
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.floor
+import kotlin.math.sin
 import kotlin.math.roundToInt
 
 /** O que o Feed e as rotinas guardadas podem pedir. */
@@ -157,7 +162,8 @@ fun MainScreen(
 
     // A página escolhida (guardada ao rodar o ecrã) e a posição contínua das duas.
     var selected by rememberSaveable { mutableIntStateOf(FeedPage) }
-    val page = remember { Animatable(selected.toFloat()) }
+    // Limiar fino (Beta 2.2): com o de omissão (0,01 de página) a mola parava ~10 px antes e saltava.
+    val page = remember { Animatable(selected.toFloat(), visibilityThreshold = 0.0005f) }
     // Enquanto o dedo arrasta, a posição está aqui (sem corrotinas a cada movimento).
     var dragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
@@ -206,16 +212,24 @@ fun MainScreen(
     val sky = skyColorsAt(now.hour, now.minute)
     val skyTop by animateColorAsState(sky.top, tween(CycloMotion.SkyChangeDurationMs), label = "skyTop")
     val skyBase by animateColorAsState(sky.base, tween(CycloMotion.SkyChangeDurationMs), label = "skyBase")
-    // Ao mudar de página o brilho volta a crescer e a acender (não na primeira vez).
-    val pulse = remember { Animatable(1f) }
+    // Ao passar de página o brilho encolhe e apaga-se um pouco a meio do caminho e volta a crescer
+    // ao assentar (Beta 2.2: segue a MESMA posição contínua das páginas, como a pílula da barra; antes
+    // saltava para trás no fotograma da mudança e voltava num relógio próprio, recomeçando do zero
+    // em cada mudança rápida). O dedo, o toque na barra e o voltar dão o mesmo movimento.
+    val pagePulse: () -> Float = {
+        if (!effects.animationsEnabled) {
+            1f
+        } else {
+            val p = position().coerceIn(FeedPage.toFloat(), LastPage.toFloat())
+            1f - sin((p - floor(p)) * PI.toFloat())
+        }
+    }
     var lastTab by remember { mutableStateOf(tab) }
     LaunchedEffect(tab) {
         if (tab == lastTab) return@LaunchedEffect
         lastTab = tab
         // Sair das rotinas guardadas (para qualquer lado: barra, swipe ou voltar) fecha a pesquisa.
         if (tab != MainTab.Saved) closeSearch()
-        pulse.snapTo(0f)
-        pulse.animateTo(1f, tween(CycloMotion.GlowTabDurationMs, easing = CycloMotion.Decelerate))
     }
 
     /** Leva as páginas a [target], a partir de onde estão e com a velocidade que tiverem. */
@@ -234,14 +248,19 @@ fun MainScreen(
         if (target.ordinal != selected) settleTo(target.ordinal)
     }
 
-    // Voltar: a página anterior entra a seguir ao gesto e, ao largar, a mola acaba.
+    // Voltar: a página anterior entra a seguir ao gesto e, ao largar, a mola acaba (Beta 2.2: com a
+    // velocidade do dedo, [BackGestureVelocity]; antes recomeçava parada).
     PredictiveBackHandler(enabled = selected > FeedPage && !dragging) { progress ->
         val from = selected
+        val gesture = BackGestureVelocity()
         try {
-            progress.collect { event -> page.snapTo(from - event.progress * BackGestureReach) }
-            settleTo(from - 1)
+            progress.collect { event ->
+                gesture.add(event.progress)
+                page.snapTo(from - event.progress * CycloMotion.PageBackReach)
+            }
+            settleTo(from - 1, -gesture.progressPerSecond * CycloMotion.PageBackReach)
         } catch (e: CancellationException) {
-            settleTo(from)
+            settleTo(from, -gesture.progressPerSecond * CycloMotion.PageBackReach)
         }
     }
 
@@ -354,7 +373,7 @@ fun MainScreen(
         ) {
             FeedTopGlow(
                 growth = glow,
-                pulse = { pulse.value },
+                pulse = pagePulse,
                 sky = { SkyColors(skyTop, skyBase) },
                 saved = { position().coerceIn(0f, 1f) },
             )
@@ -512,16 +531,7 @@ private fun MainPage(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer {
-                val local = position() - index
-                val away = abs(local).coerceIn(0f, 1f)
-                if (animationsEnabled) {
-                    translationX = -local * size.width
-                    alpha = 1f - away * (1f - CycloMotion.PageOutgoingAlpha)
-                } else {
-                    alpha = 1f - away
-                }
-            }
+            .sideBySidePage(index, position, animationsEnabled)
             .then(if (active) Modifier else Modifier.clearAndSetSemantics { }),
     ) {
         content()
@@ -537,5 +547,3 @@ private const val SwipeSlopFactor = 1.5f
 /** O swipe só começa quando o movimento é pelo menos isto mais horizontal do que vertical. */
 private const val HorizontalDominance = 1.2f
 
-/** Quanto as páginas andam com o gesto de voltar completo (o resto faz a mola ao largar). */
-private const val BackGestureReach = 0.35f

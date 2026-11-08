@@ -54,3 +54,11 @@ fun moodColor(level: Int): Color = when (level.coerceIn(0, 4)) {
     3 -> CycloColors.MoodSky
     else -> CycloColors.MoodMint
 }
+
+/**
+ * A cara de cada nível do medidor de emoções (0 Great ... 4 Bad), para a média do Mood (average-mood,
+ * Cyclo-2 2032:48; o Figma mostra a de Great: mood a violeta). As mesmas caras e cores, por nível,
+ * da legenda do Restfulness ([face]): Great mood e Good satisfied a violeta, Okay neutral a azul,
+ * Not great dissatisfied a céu e Bad dissatisfied a menta (as duas pontas são as do medidor do Feed).
+ */
+fun moodFace(level: Int): Pair<String, Color> = SleepQuality.entries[level.coerceIn(0, 4)].face()

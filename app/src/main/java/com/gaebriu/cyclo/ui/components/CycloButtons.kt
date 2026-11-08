@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -38,6 +39,7 @@ fun CycloPrimaryButton(
     modifier: Modifier = Modifier,
     size: CycloButtonSize = CycloButtonSize.Large,
     enabled: Boolean = true,
+    textAlpha: () -> Float = { 1f },
 ) {
     val style = when (size) {
         CycloButtonSize.Large -> ButtonStyle(
@@ -57,7 +59,7 @@ fun CycloPrimaryButton(
             innerShadowOffsetY = 6.dp,
         )
     }
-    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier)
+    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier, textAlpha = textAlpha)
 }
 
 /**
@@ -70,6 +72,7 @@ fun CycloGlassButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    textAlpha: () -> Float = { 1f },
 ) {
     val style = ButtonStyle(
         height = CycloDimens.ButtonHeight,
@@ -88,7 +91,7 @@ fun CycloGlassButton(
         },
         innerShadowOffsetY = (-6).dp,
     )
-    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier)
+    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier, textAlpha = textAlpha)
 }
 
 /** Tudo o que muda de um botão para outro. */
@@ -108,6 +111,7 @@ private fun CycloButtonSurface(
     style: ButtonStyle,
     enabled: Boolean,
     modifier: Modifier,
+    textAlpha: () -> Float = { 1f },
 ) {
     val effects = LocalVisualEffects.current
 
@@ -150,6 +154,7 @@ private fun CycloButtonSurface(
             .then(if (style.luminosity) Modifier.cycloLightSheen(style.cornerRadius, strength = 0.8f) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        BasicText(text = text, style = CycloType.Button)
+        // A opacidade do texto lê-se só ao desenhar (a troca Next / Done não recompõe o botão).
+        BasicText(text = text, style = CycloType.Button, modifier = Modifier.graphicsLayer { alpha = textAlpha() })
     }
 }

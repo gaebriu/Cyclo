@@ -29,3 +29,6 @@ signing.properties
 *.apk
 *.aab
 *.hprof
+
+# Token pessoal do Figma (nunca no repositório)
+figma-token.txt

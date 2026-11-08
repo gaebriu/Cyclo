@@ -119,6 +119,9 @@
     <string name="settings_github">Ver no GitHub</string>
     <!-- Ex.: "Cyclo Alpha 0.7.3" -->
     <string name="settings_version">Cyclo %1$s</string>
+    <string name="settings_beta_updates">Atualizações beta</string>
+    <string name="settings_beta_updates_description">Experimenta mais cedo novas funcionalidades e melhorias. As versões beta podem ter erros ou funcionalidades por acabar</string>
+    <string name="settings_beta_updates_locked">As atualizações beta ficam ligadas nas versões beta</string>
 
     <!-- new-update-group (Definições): uma versão nova no GitHub -->
     <!-- Ex.: "Chegou o Cyclo Alpha 0.7.4" -->
@@ -207,6 +210,7 @@
     <string name="tracking_mood">Humor</string>
     <string name="tracking_week_chart">Últimos 7 dias</string>
     <string name="tracking_month_chart">Este mês</string>
+    <string name="tracking_average">Média</string>
     <string name="tracking_not_logged">Sem registo</string>
     <!-- sleep-evaluation-prompt -->
     <string name="sleep_prompt_title">Como dormiste esta noite?</string>

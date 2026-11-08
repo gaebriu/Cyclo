@@ -46,7 +46,10 @@ import com.gaebriu.cyclo.ui.theme.CycloType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.util.Locale
+import androidx.compose.runtime.withFrameNanos
 import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.sign
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -67,6 +70,9 @@ private const val MinTickIntervalMs = 35L
  * @param label o texto de cada valor (por omissão, dois algarismos: "06"); ex.: "12" para o 0
  *              das horas de 12 h, ou "AM" / "PM" (AM-PM-Slider, Figma 244:187).
  * @param onValueChange chamado cada vez que o valor mostrado muda.
+ * @param onWheelMove o movimento contínuo da roda, em valores (ex.: +0,4 a meio do caminho para o
+ *        seguinte), enquanto o dedo arrasta, a inércia corre e a mola assenta. Um valor que chega de
+ *        fora (estado restaurado) não conta. É o que faz rodar o sol do Introduction 2.
  */
 @Composable
 fun CycloTimeUnitPicker(
@@ -77,6 +83,7 @@ fun CycloTimeUnitPicker(
     modifier: Modifier = Modifier,
     manyChoices: Boolean = false,
     label: (Int) -> String = ::format,
+    onWheelMove: ((Float) -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val view = LocalView.current
@@ -90,9 +97,25 @@ fun CycloTimeUnitPicker(
     var position by remember { mutableFloatStateOf(value.toFloat()) }
     var motion by remember { mutableStateOf<Job?>(null) }
 
+    // A última posição avisada a [onWheelMove] (um salto de fora não conta como movimento).
+    val reported = remember { floatArrayOf(position) }
+    val latestOnWheelMove by rememberUpdatedState(onWheelMove)
+
     // Se o valor vier de fora com outro número (ex.: estado restaurado), a roda salta para lá.
     LaunchedEffect(value) {
-        if (position.roundToInt().mod(valueCount) != value) position = value.toFloat()
+        if (position.roundToInt().mod(valueCount) != value) {
+            position = value.toFloat()
+            reported[0] = position
+        }
+    }
+
+    // O movimento contínuo da roda (no máximo um aviso por fotograma).
+    LaunchedEffect(Unit) {
+        snapshotFlow { position }.collect { p ->
+            val delta = p - reported[0]
+            reported[0] = p
+            if (delta != 0f) latestOnWheelMove?.invoke(delta)
+        }
     }
 
     // Cada vez que o valor muda: avisa e dá um toque háptico curto.
@@ -120,7 +143,7 @@ fun CycloTimeUnitPicker(
             animate(
                 initialValue = position,
                 targetValue = position.roundToInt() + direction.toFloat(),
-                animationSpec = CycloSprings.fromStiffness(Spring.StiffnessMedium, 0.8f).float,
+                animationSpec = CycloSprings.PickerSettle.float,
             ) { v, _ -> position = v }
         }
     }
@@ -148,24 +171,7 @@ fun CycloTimeUnitPicker(
                 onDragStopped = { velocity ->
                     // Dedo para cima = valores a subir; a velocidade passa de px/s para valores/s.
                     val unitsPerSecond = -velocity / stepPx
-                    motion = scope.launch {
-                        if (abs(unitsPerSecond) > 1f) {
-                            animateDecay(
-                                initialValue = position,
-                                initialVelocity = unitsPerSecond,
-                                animationSpec = FloatExponentialDecaySpec(
-                                    frictionMultiplier = 0.6f,
-                                    absVelocityThreshold = 0.6f,
-                                ),
-                            ) { v, _ -> position = v }
-                        }
-                        // Assenta no valor inteiro mais próximo, com uma mola suave.
-                        animate(
-                            initialValue = position,
-                            targetValue = position.roundToInt().toFloat(),
-                            animationSpec = CycloSprings.fromStiffness(Spring.StiffnessMedium, 0.8f).float,
-                        ) { v, _ -> position = v }
-                    }
+                    motion = scope.launch { land(position, unitsPerSecond) { position = it } }
                 },
             ),
     ) {
@@ -196,3 +202,54 @@ fun CycloTimeUnitPicker(
 }
 
 private fun format(number: Int): String = String.format(Locale.ROOT, "%02d", number)
+
+/**
+ * A roda a assentar depois de largar (Beta 2.2: um só movimento, como o UIPickerView do iOS).
+ * Antes, a inércia corria até abrandar e depois uma mola, a partir de velocidade zero, levava-a ao
+ * valor mais perto: uma travagem visível mesmo antes de o número pousar, e o destino só se sabia no
+ * fim. Agora o destino calcula-se logo ao largar: onde a inércia ([PickerFriction]) a deixaria,
+ * arredondado ao valor mais perto. A roda vai até lá numa curva de travagem que acaba EXATAMENTE no
+ * valor, em tempo finito: posição = destino - d·(1 - t/T)^n, com T = n·d/v, por isso parte com a
+ * velocidade do dedo e chega com a velocidade e a aceleração a zero (sem a cauda lenta de uma
+ * exponencial, sem segunda fase). Largada devagar (ou com o valor mais perto para trás), uma mola
+ * que parte da velocidade do dedo ([CycloSprings.PickerSettle]).
+ */
+private suspend fun land(from: Float, velocity: Float, set: (Float) -> Unit) {
+    val projected = from + velocity / PickerFriction
+    val target = projected.roundToInt().toFloat()
+    val distance = target - from
+    if (abs(velocity) > PickerGlideVelocity && abs(distance) >= 0.5f && sign(distance) == sign(velocity)) {
+        val duration = PickerGlideExponent * distance / velocity
+        var start = -1L
+        while (true) {
+            val done = withFrameNanos { now ->
+                if (start < 0L) start = now
+                val t = (now - start) / 1_000_000_000f
+                val u = (1f - t / duration).coerceAtLeast(0f)
+                set(target - distance * u.pow(PickerGlideExponent))
+                u <= 0f
+            }
+            if (done) break
+        }
+        set(target)
+    } else {
+        animate(
+            initialValue = from,
+            targetValue = target,
+            initialVelocity = velocity,
+            animationSpec = CycloSprings.PickerSettle.float,
+        ) { v, _ -> set(v) }
+    }
+}
+
+/** O atrito da inércia da roda (por segundo): a roda anda velocidade / atrito até parar. */
+private const val PickerFriction = 2.52f
+
+/**
+ * A forma da travagem: 2 = travar sempre com a mesma força (pára seco); 3 = muito suave no fim
+ * (demora mais); 2,5 assenta com suavidade em ~1 s.
+ */
+private const val PickerGlideExponent = 2.5f
+
+/** Acima disto (valores/s) a roda faz a travagem até ao valor; abaixo, só a mola. */
+private const val PickerGlideVelocity = 1.5f
