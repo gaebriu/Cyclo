@@ -258,20 +258,6 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDismissed(undo: () -> Unit) =
         showMessage(string(R.string.update_dismissed), actionLabel = string(R.string.undo), action = undo)
 
-    /** O instalador do Android não abriu (o .apk desapareceu ou não há instalador). */
-    fun updateInstallFailed(retry: () -> Unit) =
-        showMessage(string(R.string.update_install_failed), actionLabel = string(R.string.try_again), isError = true, action = retry)
-
-    /** O download da atualização falhou: a barra de baixo diz porquê e "Try again" descarrega de novo. */
-    fun updateDownloadFailed(reason: com.gaebriu.cyclo.update.DownloadState.Failed.Reason, retry: () -> Unit) {
-        val text = when (reason) {
-            com.gaebriu.cyclo.update.DownloadState.Failed.Reason.Network -> R.string.update_failed
-            com.gaebriu.cyclo.update.DownloadState.Failed.Reason.Storage -> R.string.update_failed_storage
-            com.gaebriu.cyclo.update.DownloadState.Failed.Reason.Invalid -> R.string.update_failed_invalid
-        }
-        showMessage(string(text), actionLabel = string(R.string.try_again), isError = true, action = retry)
-    }
-
     /** Não há nada para abrir a página do GitHub. */
     fun gitHubOpenFailed() = showMessage(string(R.string.github_open_failed), isError = true)
 

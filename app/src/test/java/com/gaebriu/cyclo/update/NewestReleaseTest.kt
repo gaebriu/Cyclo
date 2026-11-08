@@ -171,4 +171,27 @@ class NewestReleaseTest {
             {"tag_name": "release-1.1", "draft": false, "prerelease": false, "published_at": "2026-01-01T00:00:00Z", "html_url": "https://y", "assets": []}]"""
         assertEquals(2L, pick(json, "release-1.1", betaEnabled = false)!!.apkSize)
     }
+
+    /** Cyclo 2.0: quem vem das betas 2.x (sempre com as betas) continua com elas ligadas. */
+    @Test
+    fun betaChannelIsKeptWhenComingFromTheTwoPointXBetas() {
+        listOf(28, 29, 31, 32, 33).forEach { assertTrue("code $it", ReleaseSelection.cameFromAlwaysBeta(it)) }
+    }
+
+    /** A release-1.1 (27) guardava a escolha; instalações novas (null) e a 1.2 de testes (30) não ligam. */
+    @Test
+    fun betaChannelStartsOffOtherwise() {
+        listOf(null, 20, 26, 27, 30, 34, 35).forEach { assertFalse("code $it", ReleaseSelection.cameFromAlwaysBeta(it)) }
+    }
+
+    /** A partir de uma beta 2.x, a release-2.0 (estável, major 2) é elegível. */
+    @Test
+    fun betaTwoPointFourGetsReleaseTwoPointZero() {
+        val json = list(
+            release("beta-2.4", day = 10, beta = true),
+            release("release-2.0", day = 11, beta = false),
+        )
+        assertEquals("release-2.0", pick(json, "beta-2.4", betaEnabled = false)!!.tag)
+        assertEquals("release-2.0", pick(json, "beta-2.4", betaEnabled = true)!!.tag)
+    }
 }

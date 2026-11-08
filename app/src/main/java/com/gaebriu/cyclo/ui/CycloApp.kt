@@ -79,7 +79,6 @@ import com.gaebriu.cyclo.ui.settings.SettingsScreen
 import com.gaebriu.cyclo.ui.settings.UpdateUi
 import com.gaebriu.cyclo.ui.screens.Introduction0Screen
 import com.gaebriu.cyclo.update.CycloUpdates
-import com.gaebriu.cyclo.update.DownloadState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import com.gaebriu.cyclo.ui.time.ProvideTimeFormat
@@ -153,8 +152,13 @@ fun CycloApp(viewModel: CycloViewModel) {
     // action-menu-log-sleep aberto (pedido pelo "Log sleep" da Tracking).
     var sleepSheetOpen by rememberSaveable { mutableStateOf(false) }
     // Esta versão já abriu: guarda-se logo (um arranque normal a seguir não volta a mostrar nada).
+    // Antes de a guardar, o "Beta updates" fica como estava na versão anterior (Cyclo 2.0: quem vem das
+    // betas 2.x continua com elas; ver CycloUpdates.keepBetaChannel).
     LaunchedEffect(versionCode) {
-        if (data.lastRunVersion != versionCode) viewModel.markVersionSeen(versionCode)
+        if (data.lastRunVersion != versionCode) {
+            CycloUpdates.keepBetaChannel(context, data.lastRunVersion)
+            viewModel.markVersionSeen(versionCode)
+        }
     }
     // Cada abertura do editor tem uma chave nova, para começar sempre do zero.
     var editorKey by rememberSaveable { mutableLongStateOf(0L) }
@@ -356,40 +360,14 @@ fun CycloApp(viewModel: CycloViewModel) {
     val showMain by remember { derivedStateOf { (overlay != OverlayTutorial && overlay != OverlayUpdated) || cover.value < 1f } }
 
     // O new-update-group das definições: a versão nova (se houver e não tiver sido dispensada há
-    // menos de 12 horas, ou se já estiver a descarregar) e o estado do download.
+    // menos de 12 horas). O botão abre a página dela no GitHub, onde se descarrega (Cyclo 2.0).
     val availableUpdate by CycloUpdates.available.collectAsState()
     val dismissedUntil by CycloUpdates.dismissedUntil.collectAsState()
-    val updateDownload by CycloUpdates.download.collectAsState()
     val updateUi = availableUpdate
-        ?.takeIf { updateDownload != DownloadState.Idle || System.currentTimeMillis() >= dismissedUntil }
-        ?.let { UpdateUi(it.tag, it.version.label(), updateDownload, canDownload = it.apkUrl != null) }
+        ?.takeIf { System.currentTimeMillis() >= dismissedUntil }
+        ?.let { UpdateUi(it.tag, it.version.label(), hasApk = it.apkUrl != null) }
+    val betaUpdates by CycloUpdates.betaEnabled.collectAsState()
 
-    // Instalar: o instalador nativo do Android (o utilizador confirma lá). Se não abrir, a barra de
-    // baixo diz e "Try again" tenta outra vez.
-    fun installUpdate() {
-        val file = (CycloUpdates.download.value as? DownloadState.Done)?.file
-        if (file == null || !CycloUpdates.install(context, file)) viewModel.updateInstallFailed { installUpdate() }
-    }
-    // O download acabou: o instalador abre logo (uma vez). Se o utilizador sair dele sem instalar,
-    // o grupo fica com "Install update". Um erro vai para a barra de baixo (undo-action) com
-    // "Try again", que descarrega de novo, e o grupo volta ao "Download now".
-    LaunchedEffect(updateDownload) {
-        when (val state = updateDownload) {
-            is DownloadState.Done -> {
-                // Com a app em segundo plano, o Android bloqueia abrir o instalador: espera-se que o
-                // utilizador volte (o pedido só se gasta quando o instalador pode mesmo abrir).
-                lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
-                if (CycloUpdates.takeAutoInstall()) installUpdate()
-            }
-            is DownloadState.Failed -> {
-                CycloUpdates.resetDownload()
-                viewModel.updateDownloadFailed(state.reason) {
-                    CycloUpdates.available.value?.let { CycloUpdates.startDownload(context, it) }
-                }
-            }
-            else -> Unit
-        }
-    }
     // Tudo o que fica por baixo da barra de baixo (undo-action), que o desfoca.
     val screens = rememberBackdropLayer()
     // loading-data: o ecrã por baixo dele desfoca-se a si próprio, em tempo real, com o véu.
@@ -560,19 +538,14 @@ fun CycloApp(viewModel: CycloViewModel) {
                         onSetAdvancedTextures = viewModel::setAdvancedTextures,
                         onClose = { overlayOpen = false },
                         update = updateUi,
-                        onUpdateDownload = {
+                        betaUpdates = betaUpdates,
+                        onSetBetaUpdates = { CycloUpdates.setBetaEnabled(context, it) },
+                        onUpdateOpen = {
                             availableUpdate?.let { update ->
-                                if (update.apkUrl != null) {
-                                    CycloUpdates.startDownload(context, update)
-                                } else if (!CycloUpdates.openReleasePage(context, update)) {
-                                    viewModel.gitHubOpenFailed()
-                                }
+                                if (!CycloUpdates.openReleasePage(context, update)) viewModel.gitHubOpenFailed()
                             }
                         },
-                        onUpdateCancel = CycloUpdates::cancelDownload,
-                        onUpdateInstall = ::installUpdate,
                         onUpdateDismiss = {
-                            CycloUpdates.cancelDownload()
                             CycloUpdates.dismiss(context)
                             viewModel.updateDismissed { CycloUpdates.undoDismiss(context) }
                         },

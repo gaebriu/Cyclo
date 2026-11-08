@@ -5,7 +5,7 @@ wake-up routines.
 
 Official releases are published on the
 [Releases page](https://github.com/gaebriu/Cyclo/releases); the app also
-updates itself from there.
+tells you when a new version is out.
 
 ## License
 

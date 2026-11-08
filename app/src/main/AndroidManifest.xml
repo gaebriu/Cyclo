@@ -9,10 +9,10 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Hápticos compostos (apagar e repor uma rotina; ver ui/haptics/CycloHaptics.kt). -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Verificar e descarregar atualizações das releases do GitHub (ver update/CycloUpdates.kt). -->
+    <!-- Ver se há uma versão nova nas releases do GitHub (ver update/CycloUpdates.kt). Desde o
+         Cyclo 2.0 a app não descarrega nem instala o .apk (sem REQUEST_INSTALL_PACKAGES): o aviso
+         abre a página da release. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Entregar o .apk descarregado ao instalador do Android (o utilizador confirma). -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
         <intent>
@@ -66,17 +66,6 @@
                 <action android:name="android.intent.action.LOCALE_CHANGED" />
             </intent-filter>
         </receiver>
-
-        <!-- O .apk de uma atualização, partilhado com o instalador do Android. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.updates"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/update_paths" />
-        </provider>
 
         <!-- Routine Widget (o nome da classe fica o de antes: os widgets já postos continuam a funcionar). -->
         <receiver

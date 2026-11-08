@@ -162,6 +162,15 @@ private val RowTextVertical = 6.dp
 /** Onde o valor acaba quando há seta (a seta de 24 dp fica a 15 dp da direita, 9 dp depois do valor). */
 private val ValueEndWithArrow = 48.dp
 
+/**
+ * Depois de ligar ou desligar "Beta updates", quanto tempo uma mudança do aviso de atualização ainda
+ * faz a página subir até ele (a verificação no GitHub pode demorar uns segundos).
+ */
+private const val BetaRevealWindowMs = 15_000L
+
+/** A essa distância do topo, o aviso já pode entrar ou sair enquanto a página acaba de subir. */
+private val RevealNearTop = 4.dp
+
 /** A lua antes da versão (Cyclo-2 2039:146): 15 dp, e 9 dp até ao texto (que começa a 63 dp do ecrã). */
 private val VersionIconSize = 15.dp
 private val VersionIconGap = 9.dp
@@ -183,6 +192,8 @@ private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Lang
  * - "View on GitHub" mostra primeiro o action-menu-big-open-github.
  * - A língua abre o action-menu-lang (Componentes 4): muda logo a língua da app toda ([onSetLanguage]).
  * - "Advanced textures" (Performance) liga e desliga o desenho completo ([onSetAdvancedTextures]).
+ * - "Beta updates" (Cyclo 2.0, como na release-1.1): ligar mostra primeiro o action-menu-beta-program
+ *   e só liga com "Continue"; desligar é logo ([onSetBetaUpdates]).
  * - Voltar (botão, gesto) fecha primeiro o menu, a folha ou a caixa da idade, se estiverem abertos.
  *
  * @param reminderOn o interruptor "Bedtime" como se vê: ligado nas definições e com autorização.
@@ -209,9 +220,9 @@ fun SettingsScreen(
     onSetAdvancedTextures: (Boolean) -> Unit,
     onClose: () -> Unit,
     update: UpdateUi? = null,
-    onUpdateDownload: () -> Unit = {},
-    onUpdateCancel: () -> Unit = {},
-    onUpdateInstall: () -> Unit = {},
+    betaUpdates: Boolean = false,
+    onSetBetaUpdates: (Boolean) -> Unit = {},
+    onUpdateOpen: () -> Unit = {},
     onUpdateDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -228,11 +239,14 @@ fun SettingsScreen(
     var menu by remember { mutableStateOf(SettingsMenu.None) }
     var menuAnchor by remember { mutableStateOf(Rect.Zero) }
     var githubOpen by remember { mutableStateOf(false) }
+    var betaSheetOpen by remember { mutableStateOf(false) }
     var ageEditing by remember { mutableStateOf(false) }
     val content = rememberBackdropLayer()
     val scroll = rememberScrollState()
     val animationsEnabled = LocalVisualEffects.current.animationsEnabled
     val latestUpdate by rememberUpdatedState(update)
+    // Até quando (uptime) uma mudança do aviso, depois de mexer em "Beta updates", sobe a página até ele.
+    var revealUntil by remember { mutableLongStateOf(0L) }
     // No fim da página a faixa de baixo some (nos últimos 48 dp de scroll), para não tapar a versão.
     val rampPx = with(density) { BottomFadeRamp.toPx() }
     val bottomAmount by remember(scroll, rampPx) {
@@ -281,14 +295,32 @@ fun SettingsScreen(
 
             // new-update-group: só com uma versão nova no GitHub (e não dispensada há menos de
             // 12 h). Entra e sai com zoom, fade e o lugar a abrir e a fechar. O que se vê ([shownTag])
-            // segue a atualização disponível; outra versão no lugar da que se via funde-se com ela.
-            // Um aviso que deixou de ser o disponível nunca responde, mesmo enquanto sai.
+            // segue a atualização disponível; depois de mexer em "Beta updates" (lá em baixo), a
+            // página sobe primeiro até ao topo (fechada a folha) e só então o aviso entra, sai ou
+            // troca, à vista e sem empurrar as linhas debaixo do dedo. Um aviso que deixou de ser o
+            // disponível nunca responde, mesmo enquanto sai.
             var shownTag by remember { mutableStateOf(update?.tag) }
             var shownUpdate by remember { mutableStateOf(update) }
             if (update != null && update.tag == shownTag) shownUpdate = update
             LaunchedEffect(update?.tag) {
                 val target = latestUpdate?.tag
                 if (target == shownTag) return@LaunchedEffect
+                if (SystemClock.uptimeMillis() < revealUntil) {
+                    snapshotFlow { betaSheetOpen }.first { !it }
+                    if (scroll.value > 0) {
+                        if (animationsEnabled) {
+                            // O aviso começa a mexer quando a página já está a chegar (a cauda da
+                            // mola, os últimos píxeis, não o atrasa).
+                            val climb = launch { scroll.animateScrollTo(0, CycloSprings.Page.float) }
+                            val near = with(density) { RevealNearTop.roundToPx() }
+                            // Se o dedo interromper a subida, o aviso muda na mesma (sem ficar à espera).
+                            snapshotFlow { scroll.value <= near || !climb.isActive }.first { it }
+                        } else {
+                            scroll.scrollTo(0)
+                        }
+                    }
+                    revealUntil = 0L
+                }
                 shownTag = target
                 latestUpdate?.let { shownUpdate = it }
             }
@@ -329,9 +361,7 @@ fun SettingsScreen(
                         Column {
                             UpdateGroup(
                                 update = shown,
-                                onDownload = forShown(shown.tag, onUpdateDownload),
-                                onCancel = forShown(shown.tag, onUpdateCancel),
-                                onInstall = forShown(shown.tag, onUpdateInstall),
+                                onOpen = forShown(shown.tag, onUpdateOpen),
                                 onDismiss = forShown(shown.tag, onUpdateDismiss),
                             )
                             Spacer(Modifier.height(SectionGap))
@@ -427,7 +457,21 @@ fun SettingsScreen(
             // Sobre (Cyclo-2 54:36): "Beta updates" e o texto dele, "View on GitHub" e a versão,
             // tudo a 15 dp.
             SectionLabel(stringResource(R.string.settings_about), labelStyle)
-            BetaUpdatesRow()
+            // beta-updates (2006:691): ligar pede primeiro o action-menu-beta-program (só liga ao
+            // confirmar); desligar é logo, sem aviso (como na release-1.1).
+            SwitchRow(
+                label = stringResource(R.string.settings_beta_updates),
+                on = betaUpdates,
+                toggleHaptic = betaUpdates,
+                onToggle = {
+                    if (betaUpdates) {
+                        revealUntil = SystemClock.uptimeMillis() + BetaRevealWindowMs
+                        onSetBetaUpdates(false)
+                    } else {
+                        betaSheetOpen = true
+                    }
+                },
+            )
             Description(stringResource(R.string.settings_beta_updates_description), labelStyle)
             Spacer(Modifier.height(DescriptionToSection))
             SettingsButton(stringResource(R.string.settings_github), onClick = { githubOpen = true })
@@ -542,14 +586,39 @@ fun SettingsScreen(
                     },
                 )
             }
+
+            // action-menu-beta-program (Componentes 5, 2007:111): a mesma folha que a do GitHub.
+            // "Continue" liga as atualizações beta (e verifica logo); fechar a folha deixa-as desligadas.
+            BottomSheetHost(
+                visible = betaSheetOpen,
+                onDismiss = { betaSheetOpen = false },
+                bottomMargin = bottomInset,
+            ) {
+                CycloBigSheet(
+                    title = stringResource(R.string.beta_sheet_title),
+                    texts = listOf(
+                        stringResource(R.string.beta_sheet_text_1),
+                        stringResource(R.string.beta_sheet_text_2),
+                        stringResource(R.string.beta_sheet_text_3),
+                        stringResource(R.string.beta_sheet_text_4),
+                    ),
+                    buttonText = stringResource(R.string.beta_sheet_continue),
+                    onButtonClick = {
+                        betaSheetOpen = false
+                        revealUntil = SystemClock.uptimeMillis() + BetaRevealWindowMs
+                        onSetBetaUpdates(true)
+                    },
+                )
+            }
         }
     }
 
     // Vem depois do voltar de quem mostra as definições: fecha primeiro o que estiver aberto.
-    BackHandler(enabled = menu != SettingsMenu.None || githubOpen || ageEditing) {
+    BackHandler(enabled = menu != SettingsMenu.None || githubOpen || betaSheetOpen || ageEditing) {
         when {
             menu != SettingsMenu.None -> menu = SettingsMenu.None
             githubOpen -> githubOpen = false
+            betaSheetOpen -> betaSheetOpen = false
             else -> ageEditing = false
         }
     }
@@ -802,8 +871,7 @@ private const val ShakeDurationMs = 360
 
 /**
  * A recusa da caixa da idade (tap-to-write-box-age: um valor fora de 5–100): um abanão horizontal
- * curto que vai morrendo (dp). Partilhado com a linha "Beta updates", que não se pode desligar numa
- * versão beta. O háptico ([CycloHaptics.reject]) toca quem chama.
+ * curto que vai morrendo (dp). O háptico ([CycloHaptics.reject]) toca quem chama.
  */
 private suspend fun Animatable<Float, AnimationVector1D>.playRejectShake() {
     snapTo(0f)
@@ -816,35 +884,6 @@ private suspend fun Animatable<Float, AnimationVector1D>.playRejectShake() {
         -2f at 290
         0f at ShakeDurationMs
     })
-}
-
-/**
- * beta-updates (Cyclo-2 2006:691): o interruptor das atualizações beta. Esta app é uma beta e
- * recebe sempre as duas (ver [com.gaebriu.cyclo.update.CycloUpdates]), por isso fica sempre ligado
- * e não se pode desligar: está cá pela paridade com as versões estáveis. Tocar não muda nada e
- * responde como a caixa da idade quando recusa um valor: abana, com o háptico de erro (e, para o
- * TalkBack, diz porquê). Numa versão estável, esta linha precisa da lógica dos canais
- * (release-1.1: `setBetaEnabled`), que hoje não existe.
- */
-@Composable
-private fun BetaUpdatesRow() {
-    val view = LocalView.current
-    val effects = LocalVisualEffects.current
-    val scope = rememberCoroutineScope()
-    val shake = remember { Animatable(0f) }
-    val lockedText = stringResource(R.string.settings_beta_updates_locked)
-    SwitchRow(
-        label = stringResource(R.string.settings_beta_updates),
-        on = true,
-        onToggle = {
-            CycloHaptics.reject(view)
-            view.announceForAccessibility(lockedText)
-            if (effects.animationsEnabled) scope.launch { shake.playRejectShake() }
-        },
-        toggleHaptic = false,
-        pressHaptic = false,
-        shake = { shake.value },
-    )
 }
 
 /** O visto da caixa da idade (check, 24 x 24), do SVG do Componentes 3. */
