@@ -131,7 +131,9 @@ private const val CaffeineWeekWidth = 199f
 private const val LegendX = 168f
 private const val CaffeineFaceX = 184f
 private const val MoodColumns = 13
-private const val MoodGridWidth = 303f
+/** O passo horizontal dos blocos do Mood (2006:237, release-2.1: 10 dp entre blocos; as linhas mantêm o [CellPitch] 24). */
+private const val MoodColumnPitch = 25f
+private const val MoodGridWidth = 315f
 
 /** A altura das colunas do Restfulness por nível (Really well 143 ... Very poor 22), alinhadas com as caras da legenda. */
 private val SleepBarHeights = floatArrayOf(143f, 112f, 82f, 52f, 22f)
@@ -911,7 +913,7 @@ private fun MoodGrid(days: List<TrackedDay<Int>>, grow: State<Float>) {
                             drawBlock(
                                 path = path,
                                 sprite = sprite,
-                                left = gridLeft + (i % MoodColumns) * CellPitch * u,
+                                left = gridLeft + (i % MoodColumns) * MoodColumnPitch * u,
                                 top = (i / MoodColumns) * CellPitch * u,
                                 grow = grown(clock, i, BlockStaggerMs).coerceIn(0f, 1.2f),
                                 logged = logged[i].value,
