@@ -152,13 +152,8 @@ fun CycloApp(viewModel: CycloViewModel) {
     // action-menu-log-sleep aberto (pedido pelo "Log sleep" da Tracking).
     var sleepSheetOpen by rememberSaveable { mutableStateOf(false) }
     // Esta versão já abriu: guarda-se logo (um arranque normal a seguir não volta a mostrar nada).
-    // Antes de a guardar, o "Beta updates" fica como estava na versão anterior (Cyclo 2.0: quem vem das
-    // betas 2.x continua com elas; ver CycloUpdates.keepBetaChannel).
     LaunchedEffect(versionCode) {
-        if (data.lastRunVersion != versionCode) {
-            CycloUpdates.keepBetaChannel(context, data.lastRunVersion)
-            viewModel.markVersionSeen(versionCode)
-        }
+        if (data.lastRunVersion != versionCode) viewModel.markVersionSeen(versionCode)
     }
     // Cada abertura do editor tem uma chave nova, para começar sempre do zero.
     var editorKey by rememberSaveable { mutableLongStateOf(0L) }
@@ -366,7 +361,6 @@ fun CycloApp(viewModel: CycloViewModel) {
     val updateUi = availableUpdate
         ?.takeIf { System.currentTimeMillis() >= dismissedUntil }
         ?.let { UpdateUi(it.tag, it.version.label(), hasApk = it.apkUrl != null) }
-    val betaUpdates by CycloUpdates.betaEnabled.collectAsState()
 
     // Tudo o que fica por baixo da barra de baixo (undo-action), que o desfoca.
     val screens = rememberBackdropLayer()
@@ -538,8 +532,6 @@ fun CycloApp(viewModel: CycloViewModel) {
                         onSetAdvancedTextures = viewModel::setAdvancedTextures,
                         onClose = { overlayOpen = false },
                         update = updateUi,
-                        betaUpdates = betaUpdates,
-                        onSetBetaUpdates = { CycloUpdates.setBetaEnabled(context, it) },
                         onUpdateOpen = {
                             availableUpdate?.let { update ->
                                 if (!CycloUpdates.openReleasePage(context, update)) viewModel.gitHubOpenFailed()

@@ -18,6 +18,9 @@ import java.time.Instant
  *   número maior. De uma beta instalada: uma beta tem de ter número maior (beta-2.5 → beta-2.6); uma
  *   estável tem de ter o primeiro número (major) igual ou maior (beta-2.5 → release-2.0 e release-3.0,
  *   mas não release-1.1.1).
+ * - **Cyclo 2.2:** a app já não tem o Programa Beta e só mostra a estável ([Candidates.pick] sem as
+ *   betas). A escolha continua a reconhecer as duas (uma beta instalada à mão pelo GitHub continua a
+ *   receber as estáveis, com as regras de baixo).
  * - **Prioridade:** entre as elegíveis, a estável mais recente ganha SEMPRE a qualquer beta, seja
  *   qual for o número; só sem estável elegível é que conta a beta mais recente. Dentro de cada canal
  *   compara-se o número normalmente, sem depender da ordem da lista (salta versões intermédias).
@@ -34,19 +37,12 @@ internal object ReleaseSelection {
         val apkSize: Long,
     )
 
-    /**
-     * Os versionCodes das betas que recebiam sempre os dois canais e apagavam o "Beta updates" ao ler:
-     * beta-2.0 (28), 2.1 (29), 2.2 (31), 2.3 (32) e 2.4 (33). O 30 foi uma build release-1.2 de
-     * testes, nunca publicada.
-     */
-    private val AlwaysBetaCodes = setOf(28, 29, 31, 32, 33)
-
-    /** A abertura anterior foi uma dessas betas: quem vem dela continua a receber as betas. */
-    fun cameFromAlwaysBeta(previousVersionCode: Int?): Boolean = previousVersionCode in AlwaysBetaCodes
-
     /** A melhor estável e a melhor beta elegíveis (cada uma pode faltar). */
     data class Candidates(val stable: AvailableUpdate?, val beta: AvailableUpdate?) {
-        /** A que se mostra: a estável primeiro; a beta só com as atualizações beta ligadas. */
+        /**
+         * A que se mostra: a estável primeiro; a beta só com [betaEnabled]. Desde a Cyclo 2.2 a app
+         * pede sempre sem as betas (o Programa Beta saiu; ver CycloUpdates).
+         */
         fun pick(betaEnabled: Boolean): AvailableUpdate? = stable ?: beta.takeIf { betaEnabled }
     }
 

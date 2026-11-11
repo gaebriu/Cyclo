@@ -172,18 +172,6 @@ class NewestReleaseTest {
         assertEquals(2L, pick(json, "release-1.1", betaEnabled = false)!!.apkSize)
     }
 
-    /** Cyclo 2.0: quem vem das betas 2.x (sempre com as betas) continua com elas ligadas. */
-    @Test
-    fun betaChannelIsKeptWhenComingFromTheTwoPointXBetas() {
-        listOf(28, 29, 31, 32, 33).forEach { assertTrue("code $it", ReleaseSelection.cameFromAlwaysBeta(it)) }
-    }
-
-    /** A release-1.1 (27) guardava a escolha; instalações novas (null) e a 1.2 de testes (30) não ligam. */
-    @Test
-    fun betaChannelStartsOffOtherwise() {
-        listOf(null, 20, 26, 27, 30, 34, 35).forEach { assertFalse("code $it", ReleaseSelection.cameFromAlwaysBeta(it)) }
-    }
-
     /** A partir de uma beta 2.x, a release-2.0 (estável, major 2) é elegível. */
     @Test
     fun betaTwoPointFourGetsReleaseTwoPointZero() {
@@ -193,5 +181,48 @@ class NewestReleaseTest {
         )
         assertEquals("release-2.0", pick(json, "beta-2.4", betaEnabled = false)!!.tag)
         assertEquals("release-2.0", pick(json, "beta-2.4", betaEnabled = true)!!.tag)
+    }
+
+    /** O histórico real até à Cyclo 2.2 (a release-2.0 saiu depois da beta-2.4). */
+    private val twoPointX = arrayOf(
+        *history,
+        release("beta-2.0", day = 10, beta = true),
+        release("beta-2.4", day = 11, beta = true),
+        release("release-2.0", day = 12, beta = false),
+        release("release-2.1", day = 13, beta = false),
+        release("release-2.2", day = 14, beta = false),
+    )
+
+    /**
+     * Cyclo 2.2: a app pede sempre sem as betas ([CycloUpdates] usa pick(betaEnabled = false)). Uma
+     * beta nova publicada depois da 2.2 não aparece; uma estável nova aparece.
+     */
+    @Test
+    fun releaseTwoPointTwoOnlyGetsStables() {
+        val withBeta = list(*twoPointX, release("beta-2.5", day = 15, beta = true))
+        assertNull(pick(withBeta, "release-2.2", betaEnabled = false))
+        // A seleção continua a reconhecer a beta (a lógica dos canais fica): só não se mostra.
+        assertEquals("beta-2.5", ReleaseSelection.select(withBeta, "release-2.2").beta!!.tag)
+        val withStable = list(*twoPointX, release("beta-2.5", day = 15, beta = true), release("release-2.3", day = 16, beta = false))
+        assertEquals("release-2.3", pick(withStable, "release-2.2", betaEnabled = false)!!.tag)
+        assertFalse(pick(withStable, "release-2.2", betaEnabled = false)!!.beta)
+    }
+
+    /** Antes de atualizar (release-2.1, com ou sem as betas), a release-2.2 aparece como estável. */
+    @Test
+    fun releaseTwoPointOneGetsReleaseTwoPointTwo() {
+        val json = list(*twoPointX)
+        assertEquals("release-2.2", pick(json, "release-2.1", betaEnabled = false)!!.tag)
+        assertEquals("release-2.2", pick(json, "release-2.1", betaEnabled = true)!!.tag)
+        assertEquals("release-2.2", pick(json, "beta-2.4", betaEnabled = true)!!.tag)
+    }
+
+    /** Uma beta instalada à mão pelo GitHub (depois da 2.2) só recebe estáveis, e nunca betas. */
+    @Test
+    fun manuallyInstalledBetaOnlyGetsStables() {
+        val json = list(*twoPointX, release("beta-2.5", day = 15, beta = true), release("beta-2.6", day = 16, beta = true))
+        assertNull(pick(json, "beta-2.5", betaEnabled = false))
+        val withStable = list(*twoPointX, release("beta-2.5", day = 15, beta = true), release("release-2.3", day = 16, beta = false))
+        assertEquals("release-2.3", pick(withStable, "beta-2.5", betaEnabled = false)!!.tag)
     }
 }
