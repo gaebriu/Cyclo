@@ -15,4 +15,6 @@
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    android:configure="com.gaebriu.cyclo.widget.WidgetStudioActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

@@ -78,19 +78,23 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * O aspeto do medidor. São o mesmo componente no Figma, mas a Beta 2.2 mudou só o do Feed:
+ * O aspeto do medidor. A bola é a mesma em todos (ball-b, 16 dp desde a beta-3.0).
  * - [Emotion] (emotion-meter, Cyclo-2 40:131): o fundo numa camada a 70 %, com o gradiente a 63 %,
  *   uma sombra interior #FCFCFE a 15 % (0, -4, desfoque 9) e um brilho #FCFCFE a 15 % por cima
  *   (0, -6, desfoque 9, só fora da forma); os pontos a #FCFCFE a 15 % em Luminosity.
- * - [Sleep] (sleep-quality-meter, Componentes 5 2013:81, sem mudanças): gradiente a 39 %, pontos
- *   #A3A2A7 a 15 % em Luminosity.
+ * - [Sleep] (sleep-quality-meter, Componentes 5 2013:81, mudado na beta-3.0): como o [Emotion], mas
+ *   sem a camada a 70 % (o gradiente a 63 %, a sombra interior, o brilho e os pontos #FCFCFE).
+ * - [Accent] (opacity-slider 2055:308 e frosted-glass-slider 2056:57 do Widget Studio): a camada a
+ *   70 %, o gradiente #4A3C99 de 39 % (esquerda) a 100 % (direita), a sombra interior #4A3C99 a 63 %
+ *   (0, -4, desfoque 9), sem brilho; os pontos #FCFCFE a 15 % em Luminosity.
  */
-enum class MeterStyle { Emotion, Sleep }
+enum class MeterStyle { Emotion, Sleep, Accent }
 
 /**
  * O medidor de pontos do Cyclo: o emotion-meter do Feed ("How are you feeling tonight?") e o
  * sleep-quality-meter do action-menu-log-sleep (Componentes 5, 2013:81): o gradiente (violeta, azul,
- * céu, menta), cinco pontos de 9 dp e a bola de 15 dp. O aspeto de cada um vem de [style].
+ * céu, menta), cinco pontos de 9 dp e a bola de 16 dp; e os sliders do Widget Studio ([MeterStyle.Accent],
+ * três pontos). O aspeto de cada um vem de [style].
  *
  * Física (Beta 2.2):
  * - A bola segue o dedo (com resistência para lá das pontas e um encaixe suave nos pontos) e, ao
@@ -389,9 +393,9 @@ private fun MeterTrack(style: MeterStyle, steps: Int, ballInset: Float, luminosi
                 layout(placeable.width - 2 * bleed, placeable.height - 2 * bleed) { placeable.place(-bleed, -bleed) }
             }
             .then(
-                if (style == MeterStyle.Emotion) {
-                    // emotion-meter-background: a opacidade de 70 % do Figma é do nó inteiro
-                    // (o gradiente, as sombras e o brilho juntos).
+                if (style != MeterStyle.Sleep) {
+                    // emotion-meter-background e os sliders do Widget Studio: a opacidade de 70 %
+                    // do Figma é do nó inteiro (o gradiente, as sombras e o brilho juntos).
                     Modifier.graphicsLayer {
                         alpha = EmotionTrackAlpha
                         compositingStrategy = CompositingStrategy.Offscreen
@@ -405,27 +409,34 @@ private fun MeterTrack(style: MeterStyle, steps: Int, ballInset: Float, luminosi
                 val track = Rect(bleed, bleed, size.width - bleed, size.height - bleed)
                 val radius = track.height / 2f
                 val pill = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(track, CornerRadius(radius))) }
-                val gradientAlpha = if (style == MeterStyle.Emotion) EmotionGradientAlpha else SleepGradientAlpha
-                val gradient = Brush.horizontalGradient(
-                    0f to CycloColors.MoodViolet.copy(alpha = gradientAlpha),
-                    0.25f to CycloColors.MoodBlue.copy(alpha = gradientAlpha),
-                    0.75f to CycloColors.MoodSky.copy(alpha = gradientAlpha),
-                    1f to CycloColors.MoodMint.copy(alpha = gradientAlpha),
-                    startX = track.left,
-                    endX = track.right,
-                )
+                val gradient = if (style == MeterStyle.Accent) {
+                    Brush.horizontalGradient(
+                        0f to CycloColors.Accent.copy(alpha = AccentGradientStart),
+                        1f to CycloColors.Accent,
+                        startX = track.left,
+                        endX = track.right,
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        0f to CycloColors.MoodViolet.copy(alpha = MoodGradientAlpha),
+                        0.25f to CycloColors.MoodBlue.copy(alpha = MoodGradientAlpha),
+                        0.75f to CycloColors.MoodSky.copy(alpha = MoodGradientAlpha),
+                        1f to CycloColors.MoodMint.copy(alpha = MoodGradientAlpha),
+                        startX = track.left,
+                        endX = track.right,
+                    )
+                }
                 val glow = CycloColors.TextPrimary.copy(alpha = 0.15f)
+                val shade = if (style == MeterStyle.Accent) CycloColors.Accent.copy(alpha = AccentShadeAlpha) else glow
                 val lifted = Path().apply { addPath(pill, Offset(0f, -6.dp.toPx())) }
                 onDrawBehind {
-                    if (style == MeterStyle.Emotion) {
+                    if (style != MeterStyle.Accent) {
                         // O brilho de cima (0, -6, desfoque 9), só fora da forma ("show behind" desligado).
                         drawBlurredPath(lifted, glow, 9.dp.toPx())
                         drawPath(pill, Color.Black, blendMode = BlendMode.Clear)
                     }
                     drawPath(pill, gradient)
-                    if (style == MeterStyle.Emotion) {
-                        drawInnerShadow(pill, glow, Offset(0f, -4.dp.toPx()), cssBlurPx = 9.dp.toPx())
-                    }
+                    drawInnerShadow(pill, shade, Offset(0f, -4.dp.toPx()), cssBlurPx = 9.dp.toPx())
                 }
             },
     )
@@ -434,7 +445,7 @@ private fun MeterTrack(style: MeterStyle, steps: Int, ballInset: Float, luminosi
         modifier = Modifier
             .fillMaxSize()
             .drawWithCache {
-                val dot = if (style == MeterStyle.Emotion) CycloColors.TextPrimary else CycloColors.TextSecondary
+                val dot = CycloColors.TextPrimary
                 onDrawBehind {
                     val y = size.height / 2f
                     for (i in 0 until steps) {
@@ -464,7 +475,7 @@ private fun ballSprite(density: Density): BallSprite {
         androidx.compose.ui.graphics.Canvas(image),
         androidx.compose.ui.geometry.Size(side.toFloat(), side.toFloat()),
     ) {
-        drawCycloBall(center, scale)
+        drawCycloBall(center, scale, BallDiameterDp)
     }
     return BallSprite(image, scale)
 }
@@ -506,10 +517,16 @@ private const val PendingMeterMs = 2_000L
 /** Margem da camada do fundo para o brilho de cima (6 de deslocamento + o desfoque 9). */
 private val TrackBleed = 24.dp
 
-/** Opacidades do fundo: o emotion-meter (Beta 2.2) e o sleep-quality-meter. */
+/** Opacidades do fundo: a camada a 70 % (emotion-meter e sliders do Widget Studio) e o gradiente a 63 %. */
 private const val EmotionTrackAlpha = 0.7f
-private const val EmotionGradientAlpha = 0.63f
-private const val SleepGradientAlpha = 0.39f
+private const val MoodGradientAlpha = 0.63f
+
+/** Os sliders do Widget Studio: o gradiente #4A3C99 começa a 39 % e a sombra interior é a 63 %. */
+private const val AccentGradientStart = 0.39f
+private const val AccentShadeAlpha = 0.63f
+
+/** A bola (ball-b) dos medidores: 16 dp desde a beta-3.0 (era 15). */
+private const val BallDiameterDp = 16f
 
 /** O esticão máximo da bola a andar (+12 % na largura) e quanto ela achata em proporção (metade). */
 private const val MaxStretch = 0.12f
@@ -527,8 +544,8 @@ private const val TickRearm = 0.3f
 /** Intervalo mínimo entre dois tiques (uma passagem rápida por vários pontos não vira um zumbido). */
 private const val MinTickIntervalMs = 35L
 
-/** A imagem da bola: 15 dp mais os brilhos (6 de deslocamento e o desfoque 9), à maior escala possível. */
-private const val BallSpriteSide = 15f + 2f * (6f + 9f * 1.5f)
+/** A imagem da bola: 16 dp mais os brilhos (6 de deslocamento e o desfoque 9), à maior escala possível. */
+private const val BallSpriteSide = BallDiameterDp + 2f * (6f + 9f * 1.5f)
 private val SpriteScale = CycloMotion.MoodBallHeldScale * (1f + MaxStretch)
 
 /**

@@ -67,6 +67,23 @@
             </intent-filter>
         </receiver>
 
+        <!-- Widget Studio (beta-3.0): abre-se pelas definições de um widget no lançador (android:configure
+             dos dois widgets). Exportada porque é o lançador que a abre. A janela mostra a wallpaper
+             (Theme.Cyclo.Studio); só retrato, como a app. -->
+        <activity
+            android:name=".widget.WidgetStudioActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Cyclo.Studio"
+            android:screenOrientation="portrait"
+            android:resizeableActivity="false"
+            android:configChanges="locale|layoutDirection"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <!-- Routine Widget (o nome da classe fica o de antes: os widgets já postos continuam a funcionar). -->
         <receiver
             android:name=".widget.BedtimeWidgetProvider"

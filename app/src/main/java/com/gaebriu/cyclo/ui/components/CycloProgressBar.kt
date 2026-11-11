@@ -97,11 +97,12 @@ fun CycloProgressBar(
 }
 
 /**
- * Bolinha branca de 15 dp (ball-b): brilhos por cima e por baixo e sombras interiores. Também é a
- * bola do medidor de emoções do Feed.
+ * Bolinha branca (ball-b): brilhos por cima e por baixo e sombras interiores. 15 dp na barra de
+ * progresso; [diameterDp] 16 nos medidores (beta-3.0: emotion-meter, sleep-quality-meter e os
+ * sliders do Widget Studio).
  */
-fun DrawScope.drawCycloBall(center: Offset, scale: Float = 1f) {
-    val radius = 7.5.dp.toPx() * scale
+fun DrawScope.drawCycloBall(center: Offset, scale: Float = 1f, diameterDp: Float = 15f) {
+    val radius = (diameterDp / 2f).dp.toPx() * scale
     if (radius <= 0f) return
 
     // Brilho por cima e por baixo: #FCFCFE a 15 %, deslocado 6, desfoque 9.

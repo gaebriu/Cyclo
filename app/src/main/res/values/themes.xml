@@ -10,4 +10,15 @@
         <item name="android:windowSplashScreenBackground">@color/cyclo_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_empty</item>
     </style>
+
+    <!--
+        Widget Studio (beta-3.0): janela opaca que mostra a wallpaper do utilizador por baixo
+        (windowShowWallpaper; o fundo é transparente e a página pinta #010101 à volta do preview).
+        Sem animação de janela: a página sobe e desce sozinha, como as definições.
+    -->
+    <style name="Theme.Cyclo.Studio" parent="Theme.Cyclo">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

@@ -217,4 +217,18 @@
     <string name="sleep_quality_meh">Mais ou menos</string>
     <string name="sleep_quality_poor">Mal</string>
     <string name="sleep_quality_very_poor">Muito mal</string>
+
+    <!-- Widget Studio (beta-3.0). Traduções aprovadas pelo utilizador. -->
+    <string name="studio_title">Estúdio de widgets</string>
+    <string name="studio_preview">Pré-visualização</string>
+    <string name="studio_preview_description">Pré-visualização do widget</string>
+    <string name="studio_looks">Aspeto</string>
+    <string name="studio_opacity">Opacidade</string>
+    <string name="studio_frosted_glass">Vidro fosco</string>
+    <string name="studio_corner_style">Cantos</string>
+    <string name="studio_corner_subtle">Subtis</string>
+    <string name="studio_corner_smooth">Suaves</string>
+    <string name="studio_restore_defaults">Repor predefinições</string>
+    <string name="studio_percent">%1$d %%</string>
+    <string name="studio_dp">%1$d dp</string>
 </resources>

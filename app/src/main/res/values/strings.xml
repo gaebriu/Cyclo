@@ -228,4 +228,19 @@
     <string name="sleep_quality_meh">Meh</string>
     <string name="sleep_quality_poor">Poor</string>
     <string name="sleep_quality_very_poor">Very poor</string>
+
+    <!-- Widget Studio (beta-3.0, Figma 2054:143 e Componentes 5 2064:278). -->
+    <string name="studio_title">Widget studio</string>
+    <string name="studio_preview">Preview</string>
+    <string name="studio_preview_description">Widget preview</string>
+    <string name="studio_looks">Looks</string>
+    <string name="studio_opacity">Opacity</string>
+    <string name="studio_frosted_glass">Frosted glass</string>
+    <string name="studio_corner_style">Corner style</string>
+    <string name="studio_corner_subtle">Subtle</string>
+    <string name="studio_corner_smooth">Smooth</string>
+    <string name="studio_restore_defaults">Restore defaults</string>
+    <!-- Os valores dos pontos dos sliders (TalkBack): "39%", "24 dp". -->
+    <string name="studio_percent">%1$d%%</string>
+    <string name="studio_dp">%1$d dp</string>
 </resources>

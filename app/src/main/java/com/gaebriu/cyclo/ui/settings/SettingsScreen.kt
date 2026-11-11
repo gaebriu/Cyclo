@@ -563,7 +563,7 @@ internal fun versionLabel(versionName: String): String =
     com.gaebriu.cyclo.update.AppVersion.parse(versionName)?.label() ?: versionName
 
 @Composable
-private fun SectionLabel(text: String, style: TextStyle) {
+internal fun SectionLabel(text: String, style: TextStyle) {
     BasicText(text = text, style = style, modifier = Modifier.semantics { heading() })
     Spacer(Modifier.height(LabelToRow))
 }
@@ -579,14 +579,16 @@ private fun Description(text: String, style: TextStyle, top: Dp = RowToDescripti
  * Uma linha das definições (age, chronotype, time-format...): 345 x 48 dp, raio 15, #101011 em
  * Luminosity. O nome à esquerda; à direita o valor (#A3A2A7) e, nas que abrem um menu, a seta.
  * Sem [onClickAt], não responde ao toque. [onClickAt] recebe onde a linha está (para o menu).
+ * Também é a linha "Corner style" do Widget Studio (beta-3.0), com a seta a [arrowTint].
  */
 @Composable
-private fun SettingsRow(
+internal fun SettingsRow(
     label: String,
     value: String? = null,
     arrow: Boolean = false,
     onClickAt: ((Rect) -> Unit)? = null,
     onClick: (() -> Unit)? = null,
+    arrowTint: Color = CycloColors.TextPrimary,
 ) {
     val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
     val click: (() -> Unit)? = when {
@@ -628,7 +630,7 @@ private fun SettingsRow(
                 }
                 if (arrow) {
                     Spacer(Modifier.width(ValueEndWithArrow - RowInset - 24.dp))
-                    CycloIcon(path = CycloIconPaths.DropDown, size = 24.dp, tint = CycloColors.TextPrimary, luminosity = false)
+                    CycloIcon(path = CycloIconPaths.DropDown, size = 24.dp, tint = arrowTint, luminosity = false)
                 }
             }
         },
@@ -810,9 +812,12 @@ private suspend fun Animatable<Float, AnimationVector1D>.playRejectShake() {
 private const val AgeCheckPath =
     "M9.55 14.6695L17.7708 6.449C18.0366 6.183 18.3499 6.05 18.7108 6.05C19.0718 6.05 19.3852 6.183 19.651 6.449C19.917 6.71483 20.05 7.03 20.05 7.3945C20.05 7.759 19.917 8.07425 19.651 8.34025L10.4902 17.512C10.2242 17.778 9.91083 17.911 9.55 17.911C9.18917 17.911 8.87575 17.778 8.60975 17.512L4.338 13.2402C4.072 12.9742 3.94083 12.659 3.9445 12.2945C3.94817 11.93 4.083 11.6148 4.349 11.349C4.61483 11.083 4.93 10.95 5.2945 10.95C5.659 10.95 5.97425 11.083 6.24025 11.349L9.55 14.6695Z"
 
-/** Botão de largura inteira com o texto ao centro (export-data-b, git...): 345 x 48 dp, raio 15. */
+/**
+ * Botão de largura inteira com o texto ao centro (export-data-b, git..., e o back-to-default-group
+ * do Widget Studio): 345 x 48 dp, raio 15.
+ */
 @Composable
-private fun SettingsButton(text: String, onClick: () -> Unit) {
+internal fun SettingsButton(text: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
