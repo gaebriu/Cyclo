@@ -83,6 +83,76 @@ fun dayLogs(history: List<DailyLog>, current: DailyLog?): Map<LocalDate, DailyLo
     return map
 }
 
+/**
+ * O registo do dia da Cyclo e o histórico, já arrumados para esse dia ([resolveDayLogs]). Quem lê
+ * (Feed, Tracking, motor, widget, lembretes) e quem escreve ([CycloRepository.updateDailyLog]) usa
+ * isto, por isso o que se vê é sempre o registo onde o toque seguinte vai cair.
+ */
+@Immutable
+data class DayLogs(val current: DailyLog, val history: List<DailyLog>)
+
+/** [resolveDayLogs] destes dados para o dia [day] (normalmente o [cycloDay] de agora). */
+fun CycloData.logsFor(day: LocalDate): DayLogs = resolveDayLogs(dailyLog, history, day)
+
+/** O registo da noite de agora (o do [cycloDay] de [now]): o que o Feed mostra e o motor usa. */
+fun CycloData.logNow(now: LocalDateTime, zone: ZoneId = ZoneId.systemDefault()): DailyLog =
+    logsFor(cycloDay(routines, now, zone)).current
+
+/**
+ * Arruma o registo guardado ([stored]) para o dia da Cyclo [day] (beta-3.0, correção da meia-noite):
+ * - Do mesmo dia: fica como está.
+ * - De um dia anterior: passa para o histórico; o de [day] começa do que o histórico já tiver
+ *   desse dia (ou vazio).
+ * - Do dia seguinte: o dia da Cyclo voltou para trás porque as rotinas mudaram (ex.: à 00:30 sem
+ *   nenhuma rotina a acordar hoje o dia já tinha mudado à meia-noite; depois criou-se ou ligou-se
+ *   uma rotina das 06:00 e a noite volta a ser a de ontem). Tudo o que está nesse registo foi
+ *   marcado antes da (nova) hora de acordar, por isso pertence à noite que o Feed mostra: junta-se
+ *   ao registo dessa noite ([mergeNightLogs]). Antes, a escrita continuava no dia seguinte e o
+ *   Feed mostrava a noite vazia até à hora de acordar (os cafés "apareciam" só então).
+ *   Um sono já registado nesse dia fica nesse dia (no histórico), à espera dele.
+ * - Mais à frente do que isso (o relógio andou para trás): fica no histórico, no seu dia.
+ */
+fun resolveDayLogs(stored: DailyLog?, history: List<DailyLog>, day: LocalDate): DayLogs {
+    if (stored != null && stored.date == day && history.none { it.date == day }) return DayLogs(stored, history)
+    val byDate = LinkedHashMap<LocalDate, DailyLog>(history.size + 1)
+    history.forEach { byDate[it.date] = it }
+    val inHistory = byDate.remove(day)
+    val current = when {
+        stored == null -> inHistory ?: DailyLog(day)
+        stored.date == day -> if (stored.sleep == null && inHistory?.sleep != null) stored.copy(sleep = inHistory.sleep) else stored
+        stored.date.isBefore(day) -> {
+            byDate[stored.date] = stored
+            inHistory ?: DailyLog(day)
+        }
+        stored.date == day.plusDays(1) -> {
+            if (stored.sleep != null) byDate[stored.date] = DailyLog(stored.date, sleep = stored.sleep)
+            mergeNightLogs(inHistory ?: DailyLog(day), stored)
+        }
+        else -> {
+            byDate[stored.date] = stored
+            inHistory ?: DailyLog(day)
+        }
+    }
+    return DayLogs(current, byDate.values.sortedBy { it.date })
+}
+
+/**
+ * Junta ao registo de uma noite ([night]) o que foi marcado depois, ainda antes de acordar
+ * ([later]): os cafés somam-se (com as horas), os fatores juntam-se (fica a hora mais recente), o
+ * humor é o mais recente se foi mexido, "aberta" se alguma das duas foi. O sono é o da noite.
+ */
+fun mergeNightLogs(night: DailyLog, later: DailyLog): DailyLog {
+    val caffeine = (night.caffeine + later.caffeine).coerceAtMost(CycloViewModel.MaxCaffeine)
+    return night.copy(
+        caffeine = caffeine,
+        caffeineTimes = (night.caffeineTimes + later.caffeineTimes).sorted().takeLast(caffeine),
+        factors = night.factors + later.factors,
+        factorTimes = night.factorTimes + later.factorTimes,
+        mood = if (later.mood != DailyLog(later.date).mood) later.mood else night.mood,
+        opened = night.opened || later.opened,
+    )
+}
+
 /** Opacidade de um bloco do Restfulness: Really well a 100 %, Very poor a 9 %, os outros pelo meio. */
 fun SleepQuality.blockAlpha(): Float = 1f - ordinal * (1f - MinBlockAlpha) / (SleepQuality.entries.size - 1)
 

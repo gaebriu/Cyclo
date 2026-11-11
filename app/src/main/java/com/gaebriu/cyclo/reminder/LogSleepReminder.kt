@@ -10,6 +10,7 @@ import com.gaebriu.cyclo.MainActivity
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.CycloData
 import com.gaebriu.cyclo.data.Routine
+import com.gaebriu.cyclo.data.logsFor
 import com.gaebriu.cyclo.data.wakeOn
 import java.time.Duration
 import java.time.LocalDate
@@ -181,7 +182,7 @@ object LogSleepReminder {
     }
 
     private fun sleepLogged(data: CycloData, day: LocalDate): Boolean =
-        data.dailyLog?.takeIf { it.date == day }?.sleep != null
+        data.logsFor(day).current.sleep != null
 
     private fun notifiedDay(context: Context): Long = prefs(context).getLong(NotifiedDayKey, Long.MIN_VALUE)
 

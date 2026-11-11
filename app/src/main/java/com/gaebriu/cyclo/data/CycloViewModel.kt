@@ -123,7 +123,7 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetCaffeine() {
-        val log = data.value?.dailyLog?.takeIf { it.date == logDay() }
+        val log = data.value?.logsFor(logDay())?.current
         val before = log?.caffeine ?: 0
         val beforeTimes = log?.caffeineTimes.orEmpty()
         write(
@@ -172,7 +172,7 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         if (!current.onboarded) return
         // O dia da Cyclo de agora já começou sempre (começa à hora de acordar): abrir conta para ele.
         val today = cycloDay(current.routines, java.time.LocalDateTime.now())
-        if (current.dailyLog?.takeIf { it.date == today }?.opened == true) return
+        if (current.logsFor(today).current.opened) return
         write { repository.updateDailyLog(today) { if (it.opened) it else it.copy(opened = true) } }
     }
 
