@@ -105,6 +105,7 @@ import com.gaebriu.cyclo.ui.components.ReorderableColumn
 import com.gaebriu.cyclo.ui.components.CycloMeter
 import com.gaebriu.cyclo.ui.components.MeterStyle
 import com.gaebriu.cyclo.data.bedtimesFor
+import com.gaebriu.cyclo.data.cycloDay
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
 import com.gaebriu.cyclo.ui.components.CycloActionMenu
@@ -200,7 +201,9 @@ fun FeedScreen(
     modifier: Modifier = Modifier,
     isCurrentPage: Boolean = true,
 ) {
-    val today = now.toLocalDate()
+    // O dia da Cyclo (beta-3.0): da meia-noite até à hora de acordar ainda é o dia anterior, por
+    // isso o registo da noite e o wake-time-container só mudam quando passa a hora de acordar.
+    val today = remember(routines, now) { cycloDay(routines, now) }
     val log = dailyLog?.takeIf { it.date == today } ?: DailyLog(today)
     // A mesma escolha do Wake Time Widget (BedtimeEngine.feedWake): a primeira hora de acordar a 24 h.
     val next = remember(routines, now) { BedtimeEngine.feedWake(routines, now) }
@@ -209,9 +212,9 @@ fun FeedScreen(
     // O tempo estimado para adormecer hoje (BedtimeEngine): o das definições mais o que a cafeína,
     // os fatores, as emoções e o cronótipo pedem. As horas para dormir recuam com ele; o sono
     // planeado nunca encolhe.
-    val targetLatency = remember(next, dailyLog, age, chronotype, fallAsleep, now) {
+    val targetLatency = remember(next, dailyLog, age, chronotype, fallAsleep, now, today) {
         next?.let { (_, wake) ->
-            BedtimeEngine.feedLatency(wake, now, age, chronotype, fallAsleep, dailyLog)
+            BedtimeEngine.feedLatency(wake, now, age, chronotype, fallAsleep, dailyLog, today)
         } ?: fallAsleep.planMinutes.toLong()
     }
     // Só muda depois de os toques assentarem (nada de contas nem saltos a cada toque no "+").

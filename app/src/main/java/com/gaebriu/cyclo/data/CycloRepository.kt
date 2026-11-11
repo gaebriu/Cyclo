@@ -233,8 +233,11 @@ class CycloRepository(context: Context) {
     suspend fun updateDailyLog(today: LocalDate, change: (DailyLog) -> DailyLog) {
         store.edit { prefs ->
             val stored = prefs[DailyLogKey]?.let(::parseDailyLog)
-            if (stored != null && stored.date != today) prefs.setHistory(prefs.history() + stored)
-            val current = stored?.takeIf { it.date == today } ?: DailyLog(today)
+            // Nunca volta para trás (beta-3.0): o dia da Cyclo depende das rotinas, e uma rotina nova
+            // a meio da madrugada podia pôr "hoje" antes do registo guardado (e esconder esse dia).
+            val day = if (stored != null && stored.date.isAfter(today)) stored.date else today
+            if (stored != null && stored.date != day) prefs.setHistory(prefs.history() + stored)
+            val current = stored?.takeIf { it.date == day } ?: DailyLog(day)
             prefs[DailyLogKey] = change(current).toJson()
         }
     }

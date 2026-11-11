@@ -25,6 +25,7 @@ import com.gaebriu.cyclo.data.BedtimeEngine
 import com.gaebriu.cyclo.data.CycloData
 import com.gaebriu.cyclo.data.CycloRepository
 import com.gaebriu.cyclo.data.Routine
+import com.gaebriu.cyclo.data.cycloDay
 import com.gaebriu.cyclo.reminder.BedtimeReminder
 import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.routine.RepeatOption
@@ -304,7 +305,7 @@ object BedtimeWidgets {
         val next = BedtimeEngine.feedWake(data.routines, now)
         val wakeText = next?.let { (routine, _) -> LocalTime.of(routine.wakeHour, routine.wakeMinute).format(formatter) }
         val bedtimes = next?.let { (routine, wake) ->
-            BedtimeEngine.feedBedtimes(routine, wake, now, data.age, data.chronotype, data.fallAsleep, data.dailyLog)
+            BedtimeEngine.feedBedtimes(routine, wake, now, data.age, data.chronotype, data.fallAsleep, data.dailyLog, cycloDay(data.routines, now))
         }.orEmpty()
         val times = bedtimes.map { it.time.format(formatter) }
 

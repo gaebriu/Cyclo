@@ -109,8 +109,10 @@ object BedtimeEngine {
      *
      * @param wake a hora a que a rotina acorda.
      * @param now agora (para saber se ainda dá tempo).
-     * @param log o registo do dia; só conta se for de hoje.
+     * @param log o registo do dia; só conta se for o de [logDay].
      * @param zone o fuso das horas registadas (cafés e fatores).
+     * @param logDay o dia da Cyclo de agora ([cycloDay], beta-3.0): da meia-noite até à hora de
+     *        acordar ainda é o dia anterior, por isso o registo dessa noite continua a contar.
      */
     fun plan(
         wake: LocalDateTime,
@@ -120,6 +122,7 @@ object BedtimeEngine {
         fallAsleep: FallAsleepTime,
         log: DailyLog?,
         zone: ZoneId = ZoneId.systemDefault(),
+        logDay: LocalDate = now.toLocalDate(),
     ): BedtimePlan {
         val cycles = targetCycles(age)
         val sleepMinutes = cycles * CycleMinutes
@@ -127,9 +130,10 @@ object BedtimeEngine {
         // A hora estimada de adormecer: a hora de acordar menos o sono planeado. Não se mexe.
         val idealOnset = wake.minusMinutes(sleepMinutes.toLong())
 
-        // O registo é o de hoje e só vale para a noite que vem (não para as noites seguintes).
+        // O registo é o do dia da Cyclo de agora e só vale para a noite que vem (não para as
+        // noites seguintes).
         val today = log?.takeIf {
-            it.date == now.toLocalDate() && Duration.between(now, idealOnset) < Duration.ofHours(20)
+            it.date == logDay && Duration.between(now, idealOnset) < Duration.ofHours(20)
         }
 
         // A latência depende da hora de deitar (a cafeína e o cronótipo pesam mais quanto mais
@@ -321,12 +325,12 @@ object BedtimeEngine {
      * As seis horas para adormecer do wake-time-container (6 a 1 ciclos), com o tempo para
      * adormecer de hoje ([plan]). O Feed e o Wake Time Widget usam ambos isto.
      */
-    fun feedBedtimes(routine: Routine, wake: LocalDateTime, now: LocalDateTime, age: Int?, chronotype: Chronotype, fallAsleep: FallAsleepTime, log: DailyLog?): List<Bedtime> =
-        bedtimesFor(routine.wakeHour, routine.wakeMinute, feedLatency(wake, now, age, chronotype, fallAsleep, log))
+    fun feedBedtimes(routine: Routine, wake: LocalDateTime, now: LocalDateTime, age: Int?, chronotype: Chronotype, fallAsleep: FallAsleepTime, log: DailyLog?, logDay: LocalDate = now.toLocalDate()): List<Bedtime> =
+        bedtimesFor(routine.wakeHour, routine.wakeMinute, feedLatency(wake, now, age, chronotype, fallAsleep, log, logDay))
 
     /** O tempo estimado para adormecer hoje, em minutos (o das definições mais o que o dia pede). */
-    fun feedLatency(wake: LocalDateTime, now: LocalDateTime, age: Int?, chronotype: Chronotype, fallAsleep: FallAsleepTime, log: DailyLog?): Long =
-        plan(wake, now, age, chronotype, fallAsleep, log).fallAsleepMinutes.toLong()
+    fun feedLatency(wake: LocalDateTime, now: LocalDateTime, age: Int?, chronotype: Chronotype, fallAsleep: FallAsleepTime, log: DailyLog?, logDay: LocalDate = now.toLocalDate()): Long =
+        plan(wake, now, age, chronotype, fallAsleep, log, logDay = logDay).fallAsleepMinutes.toLong()
 
     /** As próximas horas de acordar de uma rotina, a partir de [now] (no máximo [count]). */
     fun upcomingWakes(routine: Routine, now: LocalDateTime, count: Int): List<LocalDateTime> {

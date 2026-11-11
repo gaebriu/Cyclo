@@ -73,6 +73,7 @@ import com.gaebriu.cyclo.data.TrackedDay
 import com.gaebriu.cyclo.data.TrackingSection
 import com.gaebriu.cyclo.data.TrackingSummary
 import com.gaebriu.cyclo.data.blockAlpha
+import com.gaebriu.cyclo.data.cycloDay
 import com.gaebriu.cyclo.data.showsSleepPrompt
 import com.gaebriu.cyclo.data.trackingSummary
 import com.gaebriu.cyclo.ui.components.CycloButtonSize
@@ -207,7 +208,8 @@ fun TrackingScreen(
     modifier: Modifier = Modifier,
     isCurrentPage: Boolean = true,
 ) {
-    val today = now.toLocalDate()
+    // O dia da Cyclo (beta-3.0): até à hora de acordar ainda é o dia anterior.
+    val today = remember(routines, now) { cycloDay(routines, now) }
     // Beta 2.4: os hápticos dos gráficos só tocam com a Tracking escolhida (não ao espreitá-la).
     val current by rememberUpdatedState(isCurrentPage)
     val active = { current }

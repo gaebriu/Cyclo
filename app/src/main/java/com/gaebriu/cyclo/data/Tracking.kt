@@ -48,6 +48,16 @@ fun countsAsOpened(routines: List<Routine>, now: LocalDateTime, zone: ZoneId = Z
     !now.isBefore(trackingDayStart(routines, now.toLocalDate(), zone))
 
 /**
+ * O dia da Cyclo a que [now] pertence (beta-3.0): o dia do calendário, mas só a partir do início
+ * dele ([trackingDayStart], a primeira hora de acordar); antes disso (da meia-noite até acordar)
+ * ainda é o dia anterior. É a data do registo do Feed ([DailyLog]): a cafeína, os fatores e as
+ * emoções da noite não voltam a zero à meia-noite, e o wake-time-container (e o Wake Time Widget e o
+ * lembrete) só passa para o dia seguinte quando passa a hora de acordar.
+ */
+fun cycloDay(routines: List<Routine>, now: LocalDateTime, zone: ZoneId = ZoneId.systemDefault()): LocalDate =
+    if (countsAsOpened(routines, now, zone)) now.toLocalDate() else now.toLocalDate().minusDays(1)
+
+/**
  * O prompt do sono (sleep-evaluation-prompt) aparece desde o início do dia (a hora de acordar dessa
  * manhã) até o sono de hoje estar registado; o X esconde-o até a app voltar a abrir ([dismissed]).
  */
@@ -59,9 +69,10 @@ fun showsSleepPrompt(
     zone: ZoneId = ZoneId.systemDefault(),
 ): Boolean {
     if (dismissed) return false
+    // Antes de acordar (da meia-noite à hora de acordar) ainda é o dia anterior: sem prompt.
+    if (!countsAsOpened(routines, now, zone)) return false
     val log = today?.takeIf { it.date == now.toLocalDate() }
-    if (log?.sleep != null) return false
-    return countsAsOpened(routines, now, zone)
+    return log?.sleep == null
 }
 
 /** Os registos de cada dia: o histórico mais o registo atual (o mais recente ganha). */

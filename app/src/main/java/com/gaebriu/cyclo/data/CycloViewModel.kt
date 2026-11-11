@@ -110,7 +110,7 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     fun changeCaffeine(delta: Int) {
         val now = System.currentTimeMillis()
         write {
-            repository.updateDailyLog(LocalDate.now()) {
+            repository.updateDailyLog(logDay()) {
                 val count = (it.caffeine + delta).coerceIn(0, MaxCaffeine)
                 val times = when {
                     count > it.caffeine -> it.caffeineTimes + List(count - it.caffeine) { now }
@@ -123,23 +123,23 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetCaffeine() {
-        val log = data.value?.dailyLog?.takeIf { it.date == LocalDate.now() }
+        val log = data.value?.dailyLog?.takeIf { it.date == logDay() }
         val before = log?.caffeine ?: 0
         val beforeTimes = log?.caffeineTimes.orEmpty()
         write(
             onSuccess = {
                 showMessage(string(R.string.feed_caffeine_reset_done), string(R.string.undo)) {
-                    write { repository.updateDailyLog(LocalDate.now()) { it.copy(caffeine = before, caffeineTimes = beforeTimes) } }
+                    write { repository.updateDailyLog(logDay()) { it.copy(caffeine = before, caffeineTimes = beforeTimes) } }
                 }
             },
-        ) { repository.updateDailyLog(LocalDate.now()) { it.copy(caffeine = 0, caffeineTimes = emptyList()) } }
+        ) { repository.updateDailyLog(logDay()) { it.copy(caffeine = 0, caffeineTimes = emptyList()) } }
     }
 
     /** Marcar um fator guarda também a hora (ver [BedtimeEngine]); desmarcar apaga-a. */
     fun toggleFactor(factor: SleepFactor) {
         val now = System.currentTimeMillis()
         write {
-            repository.updateDailyLog(LocalDate.now()) {
+            repository.updateDailyLog(logDay()) {
                 if (factor in it.factors) {
                     it.copy(factors = it.factors - factor, factorTimes = it.factorTimes - factor)
                 } else {
@@ -150,23 +150,29 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setMood(mood: Float) = write {
-        repository.updateDailyLog(LocalDate.now()) { it.copy(mood = mood.coerceIn(0f, 1f)) }
+        repository.updateDailyLog(logDay()) { it.copy(mood = mood.coerceIn(0f, 1f)) }
     }
+
+    /**
+     * O dia do registo de agora ([cycloDay], beta-3.0): da meia-noite até à hora de acordar ainda é
+     * o dia anterior, por isso o que se marca de madrugada conta para essa noite.
+     */
+    private fun logDay(): LocalDate = cycloDay(data.value?.routines.orEmpty(), java.time.LocalDateTime.now())
 
     // --- Tracking ---------------------------------------------------------------------------
 
     /**
-     * A app está à vista: se já passou a hora de acordar de hoje (ver [countsAsOpened]), o dia fica
-     * marcado como "aberto" (a cafeína e o humor dele contam na Tracking). Só escreve uma vez por dia.
+     * A app está à vista: o dia da Cyclo de agora ([cycloDay], que começa à hora de acordar, ver
+     * [countsAsOpened]) fica marcado como "aberto" (a cafeína e o humor dele contam na Tracking).
+     * Da meia-noite até acordar, conta para o dia anterior. Só escreve uma vez por dia.
      * Chamado pela atividade (ao voltar à frente e a cada minuto à vista), nunca por widgets ou alarmes.
      */
     fun markOpened() {
         val current = data.value ?: return
         if (!current.onboarded) return
-        val now = java.time.LocalDateTime.now()
-        val today = now.toLocalDate()
+        // O dia da Cyclo de agora já começou sempre (começa à hora de acordar): abrir conta para ele.
+        val today = cycloDay(current.routines, java.time.LocalDateTime.now())
         if (current.dailyLog?.takeIf { it.date == today }?.opened == true) return
-        if (!countsAsOpened(current.routines, now)) return
         write { repository.updateDailyLog(today) { if (it.opened) it else it.copy(opened = true) } }
     }
 
@@ -175,7 +181,7 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
      * "How well did you sleep last night?", se ainda estiver à vista, sai (já não faz falta).
      */
     fun logSleep(quality: SleepQuality) = write(onSuccess = { LogSleepReminder.cancelNotification(getApplication()) }) {
-        repository.updateDailyLog(LocalDate.now()) { if (it.sleep != null) it else it.copy(sleep = quality, opened = true) }
+        repository.updateDailyLog(logDay()) { if (it.sleep != null) it else it.copy(sleep = quality, opened = true) }
     }
 
     /**

@@ -49,6 +49,36 @@ class TrackingTest {
     }
 
     @Test
+    fun cycloDayEndsAtTheWakeNotAtMidnight() {
+        val routines = listOf(routine(1, 7, 0, RepeatOption.Everyday))
+        val yesterday = today.minusDays(1)
+        // Da meia-noite até à hora de acordar ainda é o dia anterior.
+        assertEquals(yesterday, cycloDay(routines, yesterday.atTime(23, 30), zone))
+        assertEquals(yesterday, cycloDay(routines, today.atTime(0, 0), zone))
+        assertEquals(yesterday, cycloDay(routines, today.atTime(6, 59), zone))
+        assertEquals(today, cycloDay(routines, today.atTime(7, 0), zone))
+        // Sem rotina nesse dia, muda à meia-noite.
+        assertEquals(today, cycloDay(emptyList(), today.atTime(0, 0), zone))
+    }
+
+    @Test
+    fun feedBedtimesDoNotChangeAtMidnight() {
+        val routine = routine(1, 7, 0, RepeatOption.Everyday)
+        val routines = listOf(routine)
+        val evening = today.atTime(21, 0)
+        // Dois cafés às 20:00 e "Bad": a noite precisa de mais tempo para adormecer.
+        val coffee = today.atTime(20, 0).toInstant(zone).toEpochMilli()
+        val log = DailyLog(today, caffeine = 2, caffeineTimes = listOf(coffee, coffee), mood = 1f, opened = true)
+        val wake = today.plusDays(1).atTime(7, 0)
+        fun latency(now: LocalDateTime) =
+            BedtimeEngine.plan(wake, now, 30, Chronotype.Hummingbird, FallAsleepTime.Fifteen, log, zone, cycloDay(routines, now, zone)).fallAsleepMinutes
+        val before = latency(evening)
+        assertTrue(before > FallAsleepTime.Fifteen.planMinutes)
+        assertEquals(before, latency(today.plusDays(1).atTime(0, 30)))
+        assertEquals(before, latency(today.plusDays(1).atTime(6, 59)))
+    }
+
+    @Test
     fun justOnceRoutineOnlyStartsItsOwnDay() {
         // Criada às 22:00 de sexta: acorda no sábado às 7:00 e mais nenhum dia.
         val anchor = LocalDateTime.of(2026, 11, 6, 22, 0).toInstant(zone).toEpochMilli()
