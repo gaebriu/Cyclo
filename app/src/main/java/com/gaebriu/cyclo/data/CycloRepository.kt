@@ -18,6 +18,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 private val Context.cycloDataStore: DataStore<Preferences> by preferencesDataStore(name = "cyclo")
 
@@ -154,7 +155,7 @@ class CycloRepository(context: Context) {
     suspend fun restore(contents: BackupContents) {
         store.edit { prefs ->
             prefs[OnboardedKey] = true
-            prefs.setRoutines(contents.routines)
+            prefs.setRoutinesOnly(contents.routines)
             val log = contents.dailyLog
             if (log != null) prefs[DailyLogKey] = log.toJson() else prefs.remove(DailyLogKey)
             contents.age?.let { prefs[AgeKey] = it }
@@ -279,7 +280,21 @@ private fun parseHistory(json: String): List<DailyLog> = runCatching {
 private fun parseTrackingOrder(text: String): List<TrackingSection> =
     normalizeTrackingOrder(text.split(',').mapNotNull { name -> TrackingSection.entries.firstOrNull { it.name == name.trim() } })
 
+/**
+ * Guarda as rotinas. Na mesma escrita (beta-3.0 refeita), se as rotinas novas puserem o dia da Cyclo
+ * antes do registo guardado (ex.: rotina criada ou ligada depois da meia-noite para essa manhã), o
+ * registo junta-se já à noite certa ([healAheadLog]); senão, sem mais nenhuma escrita até acordar, o
+ * que se marcou de madrugada passava para o dia novo. A reposição de uma cópia não usa isto.
+ */
 private fun MutablePreferences.setRoutines(routines: List<Routine>) {
+    setRoutinesOnly(routines)
+    healAheadLog(this[DailyLogKey]?.let(::parseDailyLog), history(), cycloDay(routines, LocalDateTime.now()))?.let { logs ->
+        setHistory(logs.history)
+        this[DailyLogKey] = logs.current.toJson()
+    }
+}
+
+private fun MutablePreferences.setRoutinesOnly(routines: List<Routine>) {
     this[RoutinesKey] = routinesToJson(routines).toString()
 }
 

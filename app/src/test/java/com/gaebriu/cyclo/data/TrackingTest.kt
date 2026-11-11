@@ -284,6 +284,28 @@ class TrackingTest {
     }
 
     @Test
+    fun theMergeIsSavedWithTheRoutineEvenWithoutAnotherTap() {
+        // Rotina ligada à 00:30 e mais nenhum toque até acordar: a fusão tem de ficar guardada com a
+        // própria escrita das rotinas (healAheadLog), senão às 06:00 o café passava para o dia novo.
+        val evening = today.atTime(21, 0)
+        val night = today.plusDays(1).atTime(0, 30)
+        val store = Store(
+            stored = DailyLog(today.plusDays(1), caffeine = 1, caffeineTimes = listOf(millis(night)), opened = true),
+            history = listOf(DailyLog(today, caffeine = 2, caffeineTimes = listOf(millis(evening), millis(evening)), opened = true)),
+        )
+        val routines = listOf(routine(1, 6, 0, RepeatOption.Everyday))
+        val healed = healAheadLog(store.stored, store.history, cycloDay(routines, night, zone))!!
+        store.stored = healed.current
+        store.history = healed.history
+        val wake = cycloDay(routines, today.plusDays(1).atTime(6, 1), zone)
+        assertEquals(0, store.shown(wake).caffeine)
+        store.write(wake) { it.copy(opened = true) }
+        assertEquals(3, store.history.single { it.date == today }.caffeine)
+        // Sem nada à frente, não mexe.
+        assertNull(healAheadLog(DailyLog(today), emptyList(), today))
+    }
+
+    @Test
     fun aSleepAlreadyLoggedStaysOnItsDay() {
         val store = Store(stored = DailyLog(today.plusDays(1), sleep = SleepQuality.Well, opened = true), history = listOf(DailyLog(today, caffeine = 2)))
         val shown = store.shown(today)
