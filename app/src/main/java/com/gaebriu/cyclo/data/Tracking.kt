@@ -137,6 +137,14 @@ fun resolveDayLogs(stored: DailyLog?, history: List<DailyLog>, day: LocalDate): 
 }
 
 /**
+ * O arrumo a guardar já quando o registo guardado ficou à FRENTE do dia da Cyclo [day] (as rotinas
+ * mudaram depois da meia-noite); null quando não é preciso. Chamado em cada escrita das rotinas, para
+ * a fusão ficar guardada mesmo que não se toque em mais nada antes de acordar.
+ */
+fun healAheadLog(stored: DailyLog?, history: List<DailyLog>, day: LocalDate): DayLogs? =
+    if (stored != null && stored.date.isAfter(day)) resolveDayLogs(stored, history, day) else null
+
+/**
  * Junta ao registo de uma noite ([night]) o que foi marcado depois, ainda antes de acordar
  * ([later]): os cafés somam-se (com as horas), os fatores juntam-se (fica a hora mais recente), o
  * humor é o mais recente se foi mexido, "aberta" se alguma das duas foi. O sono é o da noite.

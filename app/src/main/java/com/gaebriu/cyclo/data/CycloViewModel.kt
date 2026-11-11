@@ -172,7 +172,9 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         if (!current.onboarded) return
         // O dia da Cyclo de agora já começou sempre (começa à hora de acordar): abrir conta para ele.
         val today = cycloDay(current.routines, java.time.LocalDateTime.now())
-        if (current.logsFor(today).current.opened) return
+        // Só não escreve se o registo GUARDADO já for o de hoje e estiver aberto: um registo noutro
+        // dia (ex.: à frente, depois de as rotinas mudarem) passa pelo updateDailyLog, que o arruma e guarda.
+        if (current.dailyLog?.let { it.date == today && it.opened } == true) return
         write { repository.updateDailyLog(today) { if (it.opened) it else it.copy(opened = true) } }
     }
 
