@@ -14,14 +14,6 @@ class CycloApplication : Application() {
         CycloSync.start(this)
         // O grão dos brilhos (Noise do Figma) calcula-se já, em segundo plano, para o primeiro ecrã.
         com.gaebriu.cyclo.ui.effects.FigmaNoise.prewarm(resources.displayMetrics.density)
-        // beta-3.0: o vidro dos widgets usa as cores da wallpaper; quando ela muda (com a app viva),
-        // os widgets voltam a ser desenhados. Sem a app viva, apanham as cores novas no desenho seguinte.
-        runCatching {
-            android.app.WallpaperManager.getInstance(this).addOnColorsChangedListener(
-                { _, which -> if (which and android.app.WallpaperManager.FLAG_SYSTEM != 0) CycloSync.refresh(this) },
-                android.os.Handler(android.os.Looper.getMainLooper()),
-            )
-        }
     }
 
     /**

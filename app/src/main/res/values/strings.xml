@@ -38,9 +38,15 @@
     <string name="feed_caffeine_title">How much caffeine have you had today?</string>
     <string name="feed_caffeine_less">Remove one</string>
     <string name="feed_caffeine_more">Add one</string>
-    <string name="feed_caffeine_more_actions">Caffeine actions</string>
-    <string name="feed_caffeine_reset">Reset</string>
-    <string name="feed_caffeine_reset_done">Caffeine reset</string>
+    <!-- water-meter-group (Cyclo-2 2066:148, beta-3.0). -->
+    <string name="feed_water_title">How much water have you had today?</string>
+    <string name="feed_water_less">Remove 250 mL</string>
+    <string name="feed_water_more">Add 250 mL</string>
+    <string name="feed_water_amount">%1$d mL</string>
+    <string name="feed_water_unit">mL</string>
+    <!-- TalkBack: "1500 mL, Good" e, acima do adequado, "3000 mL, Okay, more than you need". -->
+    <string name="feed_water_state">%1$s, %2$s</string>
+    <string name="feed_water_state_above">%1$s, %2$s, more than you need</string>
     <string name="feed_sleep_title">Anything today that might affect your sleep?</string>
     <string name="feed_factor_exercise">Intense exercise</string>
     <string name="feed_factor_meal">Heavy late meal</string>
@@ -106,7 +112,9 @@
     <string name="language_english">English</string>
     <string name="language_portuguese">Portuguese</string>
     <!-- performance-group (Settings, 256:114). O texto de ajuda é o do Figma, sem ponto final. -->
-    <string name="settings_performance">Performance</string>
+    <string name="settings_interface">Interface</string>
+    <string name="settings_unified_view">Unified view</string>
+    <string name="settings_unified_view_description">Bring your daily tracking and feed together in one seamless view</string>
     <string name="settings_advanced_textures">Advanced textures</string>
     <string name="settings_advanced_textures_description">Enjoy richer visual effects with advanced textures. Turn it off for a faster experience</string>
     <string name="settings_data">Data</string>
@@ -209,6 +217,7 @@
     <string name="tracking_restfulness">Restfulness</string>
     <string name="tracking_caffeine">Caffeine intake</string>
     <string name="tracking_mood">Mood</string>
+    <string name="tracking_water">Water intake</string>
     <string name="tracking_week_chart">Last 7 days</string>
     <string name="tracking_month_chart">This month</string>
     <!-- TalkBack: a média do mês (average-mood) -->
@@ -229,18 +238,4 @@
     <string name="sleep_quality_poor">Poor</string>
     <string name="sleep_quality_very_poor">Very poor</string>
 
-    <!-- Widget Studio (beta-3.0, Figma 2054:143 e Componentes 5 2064:278). -->
-    <string name="studio_title">Widget studio</string>
-    <string name="studio_preview">Preview</string>
-    <string name="studio_preview_description">Widget preview</string>
-    <string name="studio_looks">Looks</string>
-    <string name="studio_opacity">Opacity</string>
-    <string name="studio_frosted_glass">Frosted glass</string>
-    <string name="studio_corner_style">Corner style</string>
-    <string name="studio_corner_subtle">Subtle</string>
-    <string name="studio_corner_smooth">Smooth</string>
-    <string name="studio_restore_defaults">Restore defaults</string>
-    <!-- Os valores dos pontos dos sliders (TalkBack): "39%", "24 dp". -->
-    <string name="studio_percent">%1$d%%</string>
-    <string name="studio_dp">%1$d dp</string>
 </resources>

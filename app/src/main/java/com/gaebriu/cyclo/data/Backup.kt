@@ -42,6 +42,10 @@ import java.time.format.DateTimeParseException
  * "dailyLog"), "settings.trackingOrder" e, em cada registo, "opened" e "sleep" (o nome de um
  * [SleepQuality] ou null). As cópias da versão 1 continuam válidas: sem "history", o histórico atual
  * fica como está; registos sem "opened" contam como abertos (ver [DailyLog.opened]).
+ *
+ * beta-3.0: cada registo traz "water" (mL, 0 a [Hydration.MaxMl]) e as ordens podem trazer "Water".
+ * É opcional (sem ele, 0), por isso a versão do formato não mudou: as versões anteriores ignoram-no
+ * e as cópias delas continuam válidas. "Unified view" é uma preferência do aparelho: fica de fora.
  */
 const val BackupFormatVersion = 2
 private const val FormatName = "cyclo-backup"
@@ -218,6 +222,8 @@ private fun parseBackupDailyLog(o: JSONObject): DailyLog? {
     val caffeine = o.optInt("caffeine", 0)
     val mood = o.optDouble("mood", 0.5)
     if (caffeine !in 0..CycloViewModel.MaxCaffeine || mood.isNaN() || mood !in 0.0..1.0) return null
+    // A água (beta-3.0, opcional): fora do intervalo é um valor impossível e recusa a cópia.
+    if (o.has("water") && o.optInt("water", -1) !in 0..Hydration.MaxMl) return null
     val factors = o.optJSONArray("factors")
     val factorSet = buildSet {
         if (factors != null) for (i in 0 until factors.length()) enumOrNull<SleepFactor>(factors.optString(i))?.let(::add)
@@ -231,8 +237,15 @@ private fun parseBackupDailyLog(o: JSONObject): DailyLog? {
         factorTimes = parseFactorTimes(o, factorSet),
         opened = o.optBoolean("opened", true),
         sleep = parseSleepQuality(o),
+        water = parseWater(o),
     )
 }
+
+/**
+ * A água do dia em mL (beta-3.0, opcional: registos e cópias antigas não a têm, contam 0), dentro de
+ * 0 a [Hydration.MaxMl].
+ */
+internal fun parseWater(o: JSONObject): Int = o.optInt("water", 0).coerceIn(0, Hydration.MaxMl)
 
 /** O sono registado (opcional); um nome que esta versão não conhece fica por registar. */
 internal fun parseSleepQuality(o: JSONObject): SleepQuality? =
@@ -267,6 +280,7 @@ internal fun dailyLogToJson(log: DailyLog): JSONObject = JSONObject()
     .put("factorTimes", JSONObject().apply { log.factorTimes.forEach { (f, t) -> put(f.name, t) } })
     .put("opened", log.opened)
     .put("sleep", log.sleep?.name ?: JSONObject.NULL)
+    .put("water", log.water)
 
 /**
  * As horas dos cafés (opcionais: registos antigos não as têm). Só as positivas, por ordem, e no

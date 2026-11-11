@@ -72,8 +72,8 @@ fun UpdateGroup(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            // A sombra dos cartões (0, 4, desfoque 39, preto a 24 %; Cyclo-2 55:203, beta-3.0).
             .cycloCard(
-                shadowColor = null,
                 underFill = {
                     // fx blur type 01: 315 x 33 a 15 dp da esquerda, no topo, muito desfocado.
                     val haze = Path().apply {

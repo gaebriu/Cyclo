@@ -320,7 +320,7 @@ fun CycloApp(viewModel: CycloViewModel) {
             onAddWidget = { routine -> pinWidget(routine.id) },
             onAddWakeWidget = { pinWakeWidget() },
             onCaffeineChange = viewModel::changeCaffeine,
-            onCaffeineReset = viewModel::resetCaffeine,
+            onWaterChange = viewModel::changeWater,
             onToggleFactor = viewModel::toggleFactor,
             onMoodChange = viewModel::setMood,
             onOpenSettings = {
@@ -531,6 +531,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                         },
                         onSetLanguage = ::changeLanguage,
                         onSetAdvancedTextures = viewModel::setAdvancedTextures,
+                        onSetUnifiedView = viewModel::setUnifiedView,
                         onClose = { overlayOpen = false },
                         update = updateUi,
                         onUpdateOpen = {

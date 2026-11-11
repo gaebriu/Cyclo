@@ -146,7 +146,7 @@ fun healAheadLog(stored: DailyLog?, history: List<DailyLog>, day: LocalDate): Da
 
 /**
  * Junta ao registo de uma noite ([night]) o que foi marcado depois, ainda antes de acordar
- * ([later]): os cafés somam-se (com as horas), os fatores juntam-se (fica a hora mais recente), o
+ * ([later]): os cafés e a água somam-se (os cafés com as horas), os fatores juntam-se (fica a hora mais recente), o
  * humor é o mais recente se foi mexido, "aberta" se alguma das duas foi. O sono é o da noite.
  */
 fun mergeNightLogs(night: DailyLog, later: DailyLog): DailyLog {
@@ -158,6 +158,7 @@ fun mergeNightLogs(night: DailyLog, later: DailyLog): DailyLog {
         factorTimes = night.factorTimes + later.factorTimes,
         mood = if (later.mood != DailyLog(later.date).mood) later.mood else night.mood,
         opened = night.opened || later.opened,
+        water = (night.water + later.water).coerceAtMost(Hydration.MaxMl),
     )
 }
 
@@ -206,14 +207,32 @@ data class TrackingSummary(
      * sem dias abertos.
      */
     val moodMonthAverage: Int?,
+
+    /**
+     * Os últimos 7 dias: o nível da água de cada um ([Hydration.level], 0 o melhor ... 4 o pior;
+     * null = a app não foi aberta nesse dia, ou não se registou água nenhuma).
+     */
+    val waterWeek: List<TrackedDay<Int>> = emptyList(),
+    /** Os dias do mês atual, com o nível da água (null = por registar ou ainda por vir). */
+    val waterMonth: List<TrackedDay<Int>> = emptyList(),
+    /**
+     * A média dos níveis da água do mês, arredondada (como a do Restfulness): dias de pouco e dias de
+     * demasiado não se anulam num "adequado". null sem dados.
+     */
+    val waterMonthAverage: Int? = null,
+    /** Os mL de cada um dos últimos 7 dias (para o TalkBack); null como em [waterWeek]. */
+    val waterWeekMl: List<Int?> = emptyList(),
 ) {
     /** Opacidade de um bloco da cafeína no mês: 0 cafés a 9 %, o máximo do mês a 100 %. */
     fun caffeineBlockAlpha(count: Int): Float =
         if (caffeineMonthMax <= 0) MinBlockAlpha else MinBlockAlpha + (1f - MinBlockAlpha) * (count.toFloat() / caffeineMonthMax).coerceIn(0f, 1f)
 }
 
-/** Monta o [TrackingSummary] para o dia [today]. */
-fun trackingSummary(history: List<DailyLog>, current: DailyLog?, today: LocalDate): TrackingSummary {
+/**
+ * Monta o [TrackingSummary] para o dia [today]. A água avalia-se com a idade de agora ([age]): mudar
+ * a idade reavalia também os dias que já passaram (a quantidade adequada é a da idade atual).
+ */
+fun trackingSummary(history: List<DailyLog>, current: DailyLog?, today: LocalDate, age: Int? = null): TrackingSummary {
     val logs = dayLogs(history, current)
     val week = (6 downTo 0).map { today.minusDays(it.toLong()) }
     val month = YearMonth.from(today)
@@ -222,6 +241,9 @@ fun trackingSummary(history: List<DailyLog>, current: DailyLog?, today: LocalDat
     fun sleepOf(date: LocalDate) = logs[date]?.sleep
     fun caffeineOf(date: LocalDate) = logs[date]?.takeIf { it.opened && !date.isAfter(today) }?.caffeine
     fun moodOf(date: LocalDate) = logs[date]?.takeIf { it.opened && !date.isAfter(today) }?.moodLevel
+    // Um dia aberto sem água registada fica "por registar" (cinzento), como um dia sem a app: quem
+    // não usa o contador não vê a semana toda no pior nível.
+    fun waterOf(date: LocalDate) = logs[date]?.takeIf { it.opened && it.water > 0 && !date.isAfter(today) }?.water
 
     val sleepMonth = monthDays.map { TrackedDay(it, sleepOf(it)) }
     val caffeineWeek = week.map { TrackedDay(it, caffeineOf(it)) }
@@ -229,6 +251,8 @@ fun trackingSummary(history: List<DailyLog>, current: DailyLog?, today: LocalDat
     val weekCounts = caffeineWeek.mapNotNull { it.value }
     val monthCounts = caffeineMonth.mapNotNull { it.value }
     val moodMonth = monthDays.map { TrackedDay(it, moodOf(it)) }
+    val waterWeekMl = week.map(::waterOf)
+    val waterMonth = monthDays.map { date -> TrackedDay(date, waterOf(date)?.let { Hydration.level(it, age) }) }
     return TrackingSummary(
         sleepWeek = week.map { TrackedDay(it, sleepOf(it)) },
         sleepMonth = sleepMonth,
@@ -241,6 +265,10 @@ fun trackingSummary(history: List<DailyLog>, current: DailyLog?, today: LocalDat
         caffeineMonthAverage = monthCounts.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
         moodMonth = moodMonth,
         moodMonthAverage = moodMonth.mapNotNull { it.value }.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
+        waterWeek = week.mapIndexed { i, date -> TrackedDay(date, waterWeekMl[i]?.let { Hydration.level(it, age) }) },
+        waterMonth = waterMonth,
+        waterMonthAverage = waterMonth.mapNotNull { it.value }.takeIf { it.isNotEmpty() }?.average()?.roundToInt(),
+        waterWeekMl = waterWeekMl,
     )
 }
 

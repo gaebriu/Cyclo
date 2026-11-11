@@ -122,17 +122,14 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun resetCaffeine() {
-        val log = data.value?.logsFor(logDay())?.current
-        val before = log?.caffeine ?: 0
-        val beforeTimes = log?.caffeineTimes.orEmpty()
-        write(
-            onSuccess = {
-                showMessage(string(R.string.feed_caffeine_reset_done), string(R.string.undo)) {
-                    write { repository.updateDailyLog(logDay()) { it.copy(caffeine = before, caffeineTimes = beforeTimes) } }
-                }
-            },
-        ) { repository.updateDailyLog(logDay()) { it.copy(caffeine = 0, caffeineTimes = emptyList()) } }
+    /**
+     * O "+" e o "−" da água (water-meter-group, beta-3.0): [steps] passos de [Hydration.StepMl], entre
+     * 0 e [Hydration.MaxMl]. Sem botão de repor (como a cafeína, desde a beta-3.0): o "−" volta atrás.
+     */
+    fun changeWater(steps: Int) = write {
+        repository.updateDailyLog(logDay()) {
+            it.copy(water = (it.water + steps * Hydration.StepMl).coerceIn(0, Hydration.MaxMl))
+        }
     }
 
     /** Marcar um fator guarda também a hora (ver [BedtimeEngine]); desmarcar apaga-a. */
@@ -220,6 +217,9 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     /** "Advanced textures" (definições, Performance). */
     fun setAdvancedTextures(on: Boolean) = write { repository.setAdvancedTextures(on) }
+
+    /** "Unified view" (definições, Interface, beta-3.0). */
+    fun setUnifiedView(on: Boolean) = write { repository.setUnifiedView(on) }
 
     /** Nova ordem das rotinas (arrastar nas rotinas guardadas). */
     fun reorderRoutines(ids: List<Long>) = write { repository.reorderRoutines(ids) }

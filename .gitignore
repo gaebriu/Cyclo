@@ -32,3 +32,6 @@ signing.properties
 
 # Token pessoal do Figma (nunca no repositório)
 figma-token.txt
+
+# Exportações locais do Figma (.fig, SVG)
+figma-export/

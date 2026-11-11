@@ -112,6 +112,8 @@ enum class SleepFactor { IntenseExercise, HeavyLateMeal, LongLateNap }
  *                  Registos antigos (antes da Beta 2.0) não têm este campo e contam como abertos:
  *                  só existiam porque o utilizador mexeu na app nesse dia.
  * @property sleep como dormiu na noite que acabou na manhã deste dia ("Log sleep"); null = por registar.
+ * @property water a água bebida neste dia, em mL (water-meter-group, beta-3.0; passos de
+ *                 [Hydration.StepMl], no máximo [Hydration.MaxMl]). Registos antigos não têm o campo: 0.
  */
 @Immutable
 data class DailyLog(
@@ -123,6 +125,7 @@ data class DailyLog(
     val factorTimes: Map<SleepFactor, Long> = emptyMap(),
     val opened: Boolean = false,
     val sleep: SleepQuality? = null,
+    val water: Int = 0,
 )
 
 /**
@@ -142,16 +145,32 @@ enum class SleepQuality { ReallyWell, Well, Meh, Poor, VeryPoor }
 
 /**
  * Os cartões da Tracking que se podem reordenar (long press e arrastar). O sleep-evaluation-prompt
- * não está aqui: quando aparece, fica sempre no topo.
+ * não está aqui: quando aparece, fica sempre no topo. Water (beta-3.0) vem por baixo da cafeína.
  */
-enum class TrackingSection { Restfulness, Caffeine, Mood }
+enum class TrackingSection { Restfulness, Caffeine, Water, Mood }
 
-/** A ordem do Figma (Tracking, 2001:115). */
+/** A ordem do Figma (Tracking, 2001:115), com a água por baixo da cafeína. */
 val DefaultTrackingOrder: List<TrackingSection> = TrackingSection.entries
 
 /** Como [normalizeFeedOrder], para os cartões da Tracking. */
 fun normalizeTrackingOrder(order: List<TrackingSection>): List<TrackingSection> =
-    (order + DefaultTrackingOrder).distinct()
+    completeOrder(order, DefaultTrackingOrder)
+
+/**
+ * Uma ordem guardada, completa: as repetidas contam uma vez, e cada uma que falta (uma secção nova
+ * de uma versão mais recente, ex.: a água na beta-3.0) entra logo a seguir à que a precede na ordem
+ * de omissão, onde quer que o utilizador a tenha posto (sem nenhuma antes, vai para o início). Assim
+ * a água aparece por baixo da cafeína também em quem já tinha mudado a ordem.
+ */
+internal fun <T> completeOrder(order: List<T>, default: List<T>): List<T> {
+    val result = order.distinct().filter { it in default }.toMutableList()
+    default.forEachIndexed { i, section ->
+        if (section in result) return@forEachIndexed
+        val before = default.subList(0, i).lastOrNull { it in result }
+        result.add(if (before == null) 0 else result.indexOf(before) + 1, section)
+    }
+    return result
+}
 
 /**
  * Cronótipo escolhido nas definições (action-menu-chronotype, Componentes 3), pela ordem do menu.
@@ -176,17 +195,17 @@ enum class FallAsleepTime(val planMinutes: Int) {
  * Os blocos do Feed que se podem reordenar (long press e arrastar). O wake-time-recommendation-group
  * ("To rise refreshed tomorrow") não está aqui: fica sempre no seu lugar, no topo.
  */
-enum class FeedSection { Caffeine, SleepFactors, Feeling }
+enum class FeedSection { Caffeine, Water, SleepFactors, Feeling }
 
-/** A ordem do Figma: cafeína, o que pode afetar o sono, como se sente. */
+/** A ordem do Figma (Feed 24:10): cafeína, água, o que pode afetar o sono, como se sente. */
 val DefaultFeedOrder: List<FeedSection> = FeedSection.entries
 
 /**
- * Uma ordem guardada, completa: as secções que esta versão não conhece saem, as que faltam vão
- * para o fim (pela ordem de omissão) e as repetidas contam uma vez.
+ * Uma ordem guardada, completa: as secções que esta versão não conhece saem, as repetidas contam uma
+ * vez e as que faltam entram a seguir à que as precede na ordem de omissão ([completeOrder]).
  */
 fun normalizeFeedOrder(order: List<FeedSection>): List<FeedSection> =
-    (order + DefaultFeedOrder).distinct()
+    completeOrder(order, DefaultFeedOrder)
 
 /** Tudo o que a app guarda. */
 @Immutable
@@ -236,6 +255,12 @@ data class CycloData(
      * para o Feed (sem o tutorial). Fica no aparelho: não vai nas cópias.
      */
     val lastRunVersion: Int? = null,
+    /**
+     * "Unified view" (definições, Interface, beta-3.0): a Tracking junta-se ao Feed (cada gráfico no
+     * cartão do Feed que lhe corresponde) e a barra de navegação fica só com o Feed e as rotinas
+     * guardadas. Desligado de omissão. Preferência do aparelho: não vai nas cópias.
+     */
+    val unifiedView: Boolean = false,
 )
 
 /** Idades aceites na caixa da idade. */

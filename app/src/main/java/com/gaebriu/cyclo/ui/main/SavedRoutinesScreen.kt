@@ -479,7 +479,9 @@ private fun RoutineCard(
             .fillMaxWidth()
             // Com letra grande, o cartão cresce em vez de cortar o texto.
             .heightIn(min = CardHeight)
-            .cycloCard(shadowColor = null),
+            // A sombra dos cartões (0, 4, desfoque 39, preto a 24 %; Cyclo-2 73:420, beta-3.0) só nas
+            // rotinas ligadas (a desligada, 78:558, não tem): apaga-se e volta com o interruptor.
+            .cycloCard(shadowColor = if (active > 0f) androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.24f * active) else null),
     ) {
         Column(
             modifier = Modifier

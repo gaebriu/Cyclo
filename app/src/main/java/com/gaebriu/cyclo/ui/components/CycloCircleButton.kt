@@ -32,9 +32,6 @@ import com.gaebriu.cyclo.ui.theme.CycloMotion
  * @param iconPath vetor do ícone numa grelha de 39 x 39 (ver [com.gaebriu.cyclo.ui.icons.CycloIconPaths]).
  * @param secondaryIconPath segundo ícone, que substitui o primeiro por fade cruzado;
  *                          [secondaryIconAmount] vai de 0 (só o primeiro) a 1 (só o segundo).
- * @param iconOffset deslocação do ícone (unidades do Figma) quando o vetor vem numa grelha mais
- *                   pequena: 12 para um ícone de 15 x 15 centrado (o visto do close-and-save-b do
- *                   Widget Studio, beta-3.0).
  */
 @Composable
 fun CycloCircleButton(
@@ -45,7 +42,6 @@ fun CycloCircleButton(
     secondaryIconPath: String? = null,
     secondaryIconAmount: () -> Float = { 0f },
     enabled: Boolean = true,
-    iconOffset: Float = 0f,
 ) {
     val effects = LocalVisualEffects.current
     val icon = remember(iconPath) { PathParser().parsePathString(iconPath).toPath() }
@@ -83,10 +79,7 @@ fun CycloCircleButton(
 
             // O vetor vem em unidades do Figma (1 unidade = 1 dp).
             val pxPerDp = density
-            withTransform({
-                scale(pxPerDp, pxPerDp, Offset.Zero)
-                translate(iconOffset, iconOffset)
-            }) {
+            withTransform({ scale(pxPerDp, pxPerDp, Offset.Zero) }) {
                 // O ícone muda no sítio, o círculo fica sempre parado. Beta 2.2: o que sai apaga-se
                 // na primeira parte e encolhe até [IconSwapScale]; o que entra cresce de lá e acende
                 // na segunda (antes cruzavam-se do mesmo tamanho, os dois a meio, sobrepostos).

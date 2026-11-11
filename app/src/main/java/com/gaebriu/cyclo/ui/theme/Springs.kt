@@ -201,26 +201,6 @@ object CycloSprings {
 
     /** O sleep-evaluation-prompt a sair (registado ou fechado): encolhe sem ressalto, mais rápido do que entra. */
     val CardCollapse = CycloSpring(response = 0.38f, dampingFraction = 1f)
-
-    /*
-     * Widget Studio (beta-3.0): o mockup do widget é um objeto físico pequeno, que reage ao dedo.
-     */
-
-    /**
-     * A inclinação do mockup (até 6°) a seguir o dedo: rápida, sem ressalto, só alisa os eventos do
-     * toque (como a luz, [LightFollow], mas com um pouco mais de peso, por ser o objeto a mexer-se).
-     */
-    val Tilt = CycloSpring(response = 0.2f, dampingFraction = 1f)
-
-    /** O mockup a voltar a ficar direito quando o dedo sai: suave e sem ressalto, mais lento do que segue. */
-    val TiltRelease = CycloSpring(response = 0.45f, dampingFraction = 1f)
-
-    /**
-     * O mockup a dar uma volta inteira (360° no eixo Y) ao repor as predefinições: arranca com peso,
-     * acelera, e trava a chegar ao fim, a passar só uns 4° antes de assentar (amortecimento 0,82):
-     * um objeto com massa a rodar, não uma rotação linear.
-     */
-    val Spin = CycloSpring(response = 1.1f, dampingFraction = 0.82f)
 }
 
 /**

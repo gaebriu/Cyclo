@@ -183,12 +183,10 @@ object BedtimeWidgets {
     /** Redesenha os dois widgets com [data] (as horas novas do Wake Time rolam se [animate]). */
     fun updateAll(context: Context, data: CycloData, animate: Boolean) {
         val manager = AppWidgetManager.getInstance(context)
-        // O aspeto do Widget Studio (global) e as cores da wallpaper de agora (beta-3.0).
-        val look = WidgetLook.current(context)
         manager.getAppWidgetIds(ComponentName(context, BedtimeWidgetProvider::class.java))
-            .forEach { runCatching { updateRoutine(context, manager, it, data, look) } }
+            .forEach { runCatching { updateRoutine(context, manager, it, data) } }
         manager.getAppWidgetIds(ComponentName(context, WakeTimeWidgetProvider::class.java))
-            .forEach { runCatching { updateWakeTime(context, manager, it, data, animate, look) } }
+            .forEach { runCatching { updateWakeTime(context, manager, it, data, animate) } }
     }
 
     // --- Routine Widget ---------------------------------------------------------------------
@@ -212,7 +210,7 @@ object BedtimeWidgets {
         )
     }
 
-    private fun updateRoutine(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData, look: WidgetLook) {
+    private fun updateRoutine(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData) {
         val content = routineContent(context, appWidgetId, data)
         val routine = content.routine
         val name = content.name
@@ -232,7 +230,7 @@ object BedtimeWidgets {
 
         fun build(size: SizeF): RemoteViews {
             val scale = fit(size, RoutineHeight)
-            val canvas = WidgetCanvas(context, scale * context.resources.displayMetrics.density, look)
+            val canvas = WidgetCanvas(context, scale * context.resources.displayMetrics.density)
             val image = canvas.bitmap(Width, RoutineHeight) { routineCard(context, canvas, name, wake, repeat, active) }
             val views = RemoteViews(context.packageName, R.layout.widget_routine)
             sizeCard(views, scale, RoutineHeight)
@@ -290,7 +288,7 @@ object BedtimeWidgets {
         with(canvas) {
             card(Width, RoutineHeight)
             // Desligada: o conteúdo escurece como com o véu de 63 % do cartão (#101011 a 63 % por cima
-            // dele), mas o vidro fica como está (beta-3.0, decisão do utilizador).
+            // dele), mas o fundo e os botões ficam como estão (beta-3.0, decisão do utilizador).
             val dim = if (!active && wake != null) saveLayerAlpha(0f, 0f, Width, RoutineHeight, OffContentAlpha) else -1
             // routine-name (SemiBold 15), a hora (sol) e a repetição (calendário), Medium 15.
             text(name, Inset, 15f, paint(semiBold = true), Width - Inset * 2)
@@ -303,14 +301,14 @@ object BedtimeWidgets {
             icon(CycloAppIconPaths.CalendarToday, Inset, 78f, WidgetCanvas.White)
             text(repeat, Inset + IconToText, 77f, paint(semiBold = false), Width - Inset * 2 - IconToText)
             if (dim >= 0) restoreToCount(dim)
-            // edit-routine-b: #A3A2A7 a 15 % e a borda #313233 a 24 %, em Luminosity sobre o vidro.
-            circleButton(EditX, ButtonsY, fill = 0x26A3A2A7, border = 0x3D313233, luminosity = true)
+            // edit-routine-b: #A3A2A7 a 15 % e a borda #313233 a 24 %, já misturados sobre o #101011.
+            circleButton(EditX, ButtonsY, fill = 0xFF262628.toInt(), border = 0x3D313233)
             icon(CycloAppIconPaths.RoutineEdit, EditX, ButtonsY, WidgetCanvas.White)
             // activate/deactivate-routine-b: ligado #4A3C99; desligado #A3A2A7 a 24 % e o visto a 24 %.
             if (active) {
-                circleButton(ToggleX, ButtonsY, fill = 0xFF4A3C99.toInt(), border = 0x3D4A3C99, luminosity = false)
+                circleButton(ToggleX, ButtonsY, fill = 0xFF4A3C99.toInt(), border = 0x3D4A3C99)
             } else {
-                circleButton(ToggleX, ButtonsY, fill = 0x3DA3A2A7, border = 0x3DA3A2A7, luminosity = true)
+                circleButton(ToggleX, ButtonsY, fill = 0xFF333335.toInt(), border = 0x3DA3A2A7)
             }
             icon(CycloAppIconPaths.RoutineActive, ToggleX, ButtonsY, WidgetCanvas.White, alpha = if (active) 1f else 0.24f)
         }
@@ -336,7 +334,7 @@ object BedtimeWidgets {
         return WakeContent(wakeText, bedtimes, bedtimes.map { it.time.format(formatter) })
     }
 
-    private fun updateWakeTime(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData, animate: Boolean, look: WidgetLook) {
+    private fun updateWakeTime(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData, animate: Boolean) {
         val formatter = BedtimeReminder.timeFormatter(context, data.use24Hour)
         val content = wakeContent(context, data)
         val wakeText = content.wakeText
@@ -360,7 +358,7 @@ object BedtimeWidgets {
 
         fun build(size: SizeF): RemoteViews {
             val scale = fit(size, WakeHeight)
-            val canvas = WidgetCanvas(context, scale * context.resources.displayMetrics.density, look)
+            val canvas = WidgetCanvas(context, scale * context.resources.displayMetrics.density)
             val timePaint = canvas.paint(semiBold = true, size = timeSize(canvas, times), shadow = true)
             val slots = layoutSlots(canvas, bedtimes.map { CycloAppIconPaths.bedtime(it.cycles) }, flips.map { it.texts.values.toList() }, timePaint)
             val image = canvas.bitmap(Width, WakeHeight) { wakeCard(context, canvas, wakeText, slots) }
@@ -415,7 +413,7 @@ object BedtimeWidgets {
                 Width - Inset * 2 - IconToText,
             )
             if (wakeText == null) return
-            // separator: 0,5, #A3A2A7 a 15 %.
+            // separator (244:148): 2, pontas redondas, #A3A2A7 a 15 % (sobre o #101011 sólido).
             drawLine(
                 Inset,
                 48f,
@@ -423,7 +421,7 @@ object BedtimeWidgets {
                 48f,
                 Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = 0x26A3A2A7
-                    strokeWidth = 0.5f
+                    strokeWidth = 2f
                     strokeCap = Paint.Cap.ROUND
                 },
             )
@@ -442,7 +440,7 @@ object BedtimeWidgets {
      * a pré-visualização sem correr código da app.
      */
     internal fun previewBitmaps(context: Context, pxPerUnit: Float): Pair<Bitmap, Bitmap> {
-        val canvas = WidgetCanvas(context, pxPerUnit, PreviewLook)
+        val canvas = WidgetCanvas(context, pxPerUnit)
         val routine = canvas.bitmap(Width, RoutineHeight) {
             routineCard(
                 context,
@@ -533,52 +531,8 @@ object BedtimeWidgets {
         return FlipState(texts, child)
     }
 
-    // --- Widget Studio (beta-3.0) -----------------------------------------------------------
-
-    /** Que widget é o [appWidgetId] (o Widget Studio mostra esse). Sem saber, o Routine Widget. */
-    fun kindOf(context: Context, appWidgetId: Int): WidgetKind {
-        val provider = runCatching { AppWidgetManager.getInstance(context).getAppWidgetInfo(appWidgetId)?.provider?.className }.getOrNull()
-        return if (provider == WakeTimeWidgetProvider::class.java.name) WidgetKind.WakeTime else WidgetKind.Routine
-    }
-
-    /** O tamanho do cartão de cada widget, em unidades do Figma (Componentes 4). */
-    fun cardHeight(kind: WidgetKind): Float = if (kind == WidgetKind.WakeTime) WakeHeight else RoutineHeight
-    const val CardWidth = Width
-
-    /**
-     * O cartão do widget [appWidgetId] tal como está no ecrã principal, com o aspeto [look], a
-     * [pxPerUnit] píxeis por unidade do Figma: o mesmo desenho e as mesmas contas dos widgets reais
-     * (o preview do Widget Studio). Com as horas do Wake Time no sítio delas (no ecrã principal são
-     * ViewFlippers por cima do cartão).
-     */
-    fun studioBitmap(context: Context, appWidgetId: Int, kind: WidgetKind, data: CycloData, look: WidgetLook, pxPerUnit: Float): Bitmap {
-        val canvas = WidgetCanvas(context, pxPerUnit, look)
-        return if (kind == WidgetKind.Routine) {
-            val content = routineContent(context, appWidgetId, data)
-            canvas.bitmap(Width, RoutineHeight) {
-                routineCard(context, canvas, content.name, content.wake, content.repeat, content.active)
-            }
-        } else {
-            val content = wakeContent(context, data)
-            val timePaint = canvas.paint(semiBold = true, size = timeSize(canvas, content.times), shadow = true)
-            val slots = layoutSlots(canvas, content.bedtimes.map { CycloAppIconPaths.bedtime(it.cycles) }, content.times.map { listOf(it) }, timePaint)
-            canvas.bitmap(Width, WakeHeight) {
-                wakeCard(context, canvas, content.wakeText, slots)
-                slots.forEach { slot ->
-                    with(canvas) { text(slot.text, slot.left + slot.width / 2f, RowTextTop[slot.row], timePaint, slot.width + SlotPad, centerX = true) }
-                }
-            }
-        }
-    }
-
     /** Desligada, o conteúdo da rotina fica a 37 % (o véu #101011 a 63 % das rotinas guardadas). */
     private const val OffContentAlpha = 94
-
-    /**
-     * O aspeto das pré-visualizações do lançador (imagens fixas, sem wallpaper): as predefinições e,
-     * como cores de exemplo, as do céu da noite do Cyclo (20:30–23:30: #160F3E, #4A3C99).
-     */
-    private val PreviewLook = WidgetLook(WidgetStyle.Default, WallpaperPalette(0xFF160F3E.toInt(), 0xFF4A3C99.toInt(), 0xFF1D1A4F.toInt()))
 
     // --- Comum ------------------------------------------------------------------------------
 
@@ -641,9 +595,6 @@ object BedtimeWidgets {
         }
     }
 }
-
-/** Os dois widgets da Cyclo (Componentes 4). */
-enum class WidgetKind { Routine, WakeTime }
 
 /**
  * O Routine Widget no lançador (APPWIDGET_UPDATE e companhia): desenha-se com os dados atuais

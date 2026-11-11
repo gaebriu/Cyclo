@@ -17,7 +17,9 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
+import com.gaebriu.cyclo.ui.effects.ShadowCache
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSampler
 import com.gaebriu.cyclo.ui.effects.cycloLightSheen
@@ -55,6 +57,9 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
+    // As duas sombras desfocam-se uma vez por tamanho (ver ShadowCache), não a cada fotograma.
+    val dropShadow = remember { ShadowCache() }
+    val innerShadow = remember { ShadowCache() }
     return backdropSampler(sampler, backdrop).drawWithCache {
         // A forma e a borda só se refazem quando o tamanho muda (antes, a cada desenho).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
@@ -63,14 +68,10 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
             val blend = effects.luminosity
 
             // Sombra exterior, só fora da forma.
-            clipPath(shape, clipOp = ClipOp.Difference) {
-                translate(top = 4.dp.toPx()) {
-                    drawBlurredPath(shape, Color.Black.copy(alpha = 0.24f), 39.dp.toPx())
-                }
-            }
+            dropShadow.drawDropShadow(this, shape, 39.dp.toPx(), Color.Black.copy(alpha = 0.24f), Offset(0f, 4.dp.toPx()))
             if (effects.textures) drawBackdrop(sampler, backdrop, shape, figmaBlur)
             drawPath(shape, CycloColors.GlassFill, blendMode = blend)
-            drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx()), 15.dp.toPx())
+            innerShadow.drawInnerShadow(this, shape, 15.dp.toPx(), Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx()))
             drawInsideBorder(cornerRadius.toPx(), border, blend)
         }
     }.cycloLightSheen(cornerRadius, strength = 0.8f)
@@ -93,17 +94,16 @@ fun Modifier.cycloCard(
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
+    // A sombra desfoca-se uma vez por tamanho (ver ShadowCache): o cartão redesenha-se a cada
+    // fotograma do scroll, e antes cada desenho desfocava a forma no CPU.
+    val shadow = remember { ShadowCache() }
     return backdropSampler(sampler, backdrop).drawWithCache {
         // A forma só se refaz quando o tamanho muda (antes, a cada desenho: no scroll, a cada frame).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
         onDrawBehind {
             val blend = effects.luminosity
             if (shadowColor != null) {
-                clipPath(shape, clipOp = ClipOp.Difference) {
-                    translate(top = 4.dp.toPx()) {
-                        drawBlurredPath(shape, shadowColor, shadowBlur.toPx())
-                    }
-                }
+                shadow.drawDropShadow(this, shape, shadowBlur.toPx(), shadowColor, Offset(0f, 4.dp.toPx()))
             }
             if (effects.textures) drawBackdrop(sampler, backdrop, shape)
             // O que fica entre o fundo e o vidro (ex.: o brilho roxo do new-update-group).

@@ -84,7 +84,8 @@ class MainActions(
     /** "Add as a widget" do menu do Wake Time do Feed: fixa o Wake Time Widget. */
     val onAddWakeWidget: () -> Unit,
     val onCaffeineChange: (Int) -> Unit,
-    val onCaffeineReset: () -> Unit,
+    /** O "+" e o "−" da água (passos de 250 mL). */
+    val onWaterChange: (Int) -> Unit,
     val onToggleFactor: (SleepFactor) -> Unit,
     val onMoodChange: (Float) -> Unit,
     val onOpenSettings: () -> Unit,
@@ -103,7 +104,6 @@ class MainActions(
 private const val FeedPage = 0
 private const val SavedPage = 1
 private const val TrackingPage = 2
-private const val LastPage = TrackingPage
 
 /**
  * O Feed, as rotinas guardadas e a Tracking, lado a lado (por esta ordem). Só o conteúdo muda entre
@@ -129,6 +129,9 @@ private const val LastPage = TrackingPage
  * - A pesquisa: vazia, fecha quando se acaba de escrever (Enter, teclado fechado ou fim do ditado);
  *   com texto, fica aberta com os resultados até se mudar de página ou tocar outra vez na lupa.
  * - Sem animações no sistema, as páginas trocam com um fade (sem deslizar).
+ * - Unified view (beta-3.0, [CycloData.unifiedView]): a Tracking junta-se ao Feed e deixa de ser
+ *   uma página; ficam o Feed e as rotinas guardadas, e a barra de navegação encolhe para os dois
+ *   botões (2066:395, 177 dp). Ligar com a Tracking escolhida leva as páginas para o Feed.
  *
  * Camadas de fundo (ver effects/Backdrop.kt): o fundo com o brilho fica por baixo de tudo; o
  * conteúdo das páginas fica por baixo das faixas, do mini-menu e da barra de navegação.
@@ -161,7 +164,12 @@ fun MainScreen(
     // A página escolhida (guardada ao rodar o ecrã) e a posição contínua das duas.
     // Aberta pela notificação do "Log sleep" (Beta 2.3, [trackingRequest] > 0 ao nascer): começa já
     // na Tracking, sem passar pelo Feed.
-    var selected by rememberSaveable { mutableIntStateOf(if (trackingRequest > 0) TrackingPage else FeedPage) }
+    val unified = data.unifiedView
+    // A última página: a Tracking, ou as rotinas guardadas com o Unified view (a Tracking está no Feed).
+    val lastPage = if (unified) SavedPage else TrackingPage
+    // O separador onde vive o registo do sono: a Tracking, ou o Feed com o Unified view.
+    val sleepPage = if (unified) FeedPage else TrackingPage
+    var selected by rememberSaveable { mutableIntStateOf(if (trackingRequest > 0) sleepPage else FeedPage) }
     // Limiar fino (Beta 2.2): com o de omissão (0,01 de página) a mola parava ~10 px antes e saltava.
     val page = remember { Animatable(selected.toFloat(), visibilityThreshold = 0.0005f) }
     // Enquanto o dedo arrasta, a posição está aqui (sem corrotinas a cada movimento).
@@ -169,8 +177,8 @@ fun MainScreen(
     var dragPosition by remember { mutableFloatStateOf(0f) }
     val position: () -> Float = { if (dragging) dragPosition else page.value }
     // Beta 2.4: o mini-menu, a barra e o brilho num salto por cima de uma página (ver PageChrome).
-    val chrome = remember { PageChrome(lastPage = LastPage, searchPage = SavedPage, trackingPage = TrackingPage) }
-    val tab =MainTab.entries[selected.coerceIn(FeedPage, LastPage)]
+    val chrome = remember(lastPage) { PageChrome(lastPage = lastPage, searchPage = SavedPage, trackingPage = TrackingPage) }
+    val tab = MainTab.entries[selected.coerceIn(FeedPage, lastPage)]
 
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -259,7 +267,17 @@ fun MainScreen(
     LaunchedEffect(trackingRequest) {
         if (trackingRequest == handledTrackingRequest) return@LaunchedEffect
         handledTrackingRequest = trackingRequest
-        if (selected != TrackingPage) settleTo(TrackingPage)
+        if (selected != sleepPage) settleTo(sleepPage)
+    }
+
+    // Unified view ligado com a Tracking escolhida (as definições estão por cima): as páginas passam
+    // logo para o Feed, onde a Tracking agora está. Sem animação: não se vê.
+    LaunchedEffect(lastPage) {
+        if (selected > lastPage) {
+            selected = FeedPage
+            chrome.onSettled()
+            page.snapTo(FeedPage.toFloat())
+        }
     }
 
     // Voltar: a página anterior entra a seguir ao gesto e, ao largar, a mola acaba (Beta 2.2: com a
@@ -279,6 +297,7 @@ fun MainScreen(
     }
 
     val latestSearchOpen by rememberUpdatedState(searchOpen)
+    val latestLastPage by rememberUpdatedState(lastPage)
     val swipeExclusions = remember { PageSwipeExclusions() }
     val swipeCoordinates = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     // O gesto vê os eventos antes dos filhos (passagem Initial), mas só os reclama se ninguém os
@@ -330,7 +349,7 @@ fun MainScreen(
                 // Para lá das pontas, resistência do iOS.
                 dragPosition = when {
                     raw < 0f -> -rubberBand(-raw * width, width) / width
-                    raw > LastPage -> LastPage + rubberBand((raw - LastPage) * width, width) / width
+                    raw > latestLastPage -> latestLastPage + rubberBand((raw - latestLastPage) * width, width) / width
                     else -> raw
                 }
                 val past = abs(dragPosition - fromPage) > CycloMotion.PageSwipeThreshold
@@ -360,7 +379,7 @@ fun MainScreen(
                 !completed -> fromPage
                 abs(velocity) > CycloMotion.PageFlingVelocity -> fromPage + if (velocity > 0f) 1 else -1
                 else -> dragPosition.roundToInt()
-            }.coerceIn((fromPage - 1).coerceAtLeast(FeedPage), (fromPage + 1).coerceAtMost(LastPage))
+            }.coerceIn((fromPage - 1).coerceAtLeast(FeedPage), (fromPage + 1).coerceAtMost(latestLastPage))
             val release = dragPosition
             scope.launch {
                 page.snapTo(release)
@@ -376,7 +395,13 @@ fun MainScreen(
     // Uma página só existe enquanto se vê (ou é a escolhida); o estado dela (scroll) guarda-se.
     val showFeed by remember { derivedStateOf { selected == FeedPage || position() < 0.999f } }
     val showSaved by remember { derivedStateOf { selected == SavedPage || abs(position() - SavedPage) < 0.999f } }
-    val showTracking by remember { derivedStateOf { selected == TrackingPage || position() > SavedPage + 0.001f } }
+    val showTracking by remember(unified) { derivedStateOf { !unified && (selected == TrackingPage || position() > SavedPage + 0.001f) } }
+    // A barra de navegação com (1) ou sem (0) o botão da Tracking, a mudar com uma mola.
+    val trackingTab = animateFloatAsState(
+        targetValue = if (unified) 0f else 1f,
+        animationSpec = motionSpec(effects.animationsEnabled, CycloSprings.Reflow.float),
+        label = "trackingTab",
+    )
 
     Box(modifier = modifier.fillMaxSize()) {
         // Fundo e brilho: o que está por baixo de tudo.
@@ -422,11 +447,16 @@ fun MainScreen(
                                 onRemoveRoutine = actions.onDeleteRoutine,
                                 onAddWakeWidget = actions.onAddWakeWidget,
                                 onCaffeineChange = actions.onCaffeineChange,
-                                onCaffeineReset = actions.onCaffeineReset,
+                                onWaterChange = actions.onWaterChange,
                                 onToggleFactor = actions.onToggleFactor,
                                 onMoodChange = actions.onMoodChange,
                                 onReorder = actions.onReorderFeed,
                                 isCurrentPage = selected == FeedPage,
+                                unified = unified,
+                                promptDismissed = sleepPromptDismissed,
+                                promptGlow = { skyBase },
+                                onLogSleep = actions.onLogSleep,
+                                onDismissPrompt = actions.onDismissSleepPrompt,
                             )
                         }
                     }
@@ -468,6 +498,7 @@ fun MainScreen(
                                 routines = data.routines,
                                 dailyLog = data.dailyLog,
                                 history = data.history,
+                                age = data.age,
                                 order = data.trackingOrder,
                                 promptDismissed = sleepPromptDismissed,
                                 promptGlow = { skyBase },
@@ -522,6 +553,7 @@ fun MainScreen(
                 stretch = { chrome.value(position(), PageChrome.Stretch) },
                 iconAmount = { index -> chrome.value(position(), PageChrome.Icon0 + index) },
                 onSelect = ::selectTab,
+                trackingTab = { trackingTab.value },
                 descriptions = listOf(
                     stringResource(R.string.main_tab_feed),
                     stringResource(R.string.main_tab_saved),

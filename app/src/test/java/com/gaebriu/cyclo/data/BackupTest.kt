@@ -29,7 +29,7 @@ class BackupTest {
         fallAsleep = FallAsleepTime.ThirtyOrMore,
         bedtimeReminder = false,
         logSleepReminder = true,
-        feedOrder = listOf(FeedSection.Feeling, FeedSection.Caffeine, FeedSection.SleepFactors),
+        feedOrder = listOf(FeedSection.Feeling, FeedSection.Caffeine, FeedSection.Water, FeedSection.SleepFactors),
     )
     private val exportedAt = Instant.parse("2026-11-02T21:00:00Z")
 
@@ -55,9 +55,10 @@ class BackupTest {
         // Sem ordem (cópias antigas): fica a atual.
         val old = buildBackupJson(data, exportedAt, "x").replace(Regex(""",\s*"feedOrder": \[[^\]]*\]"""), "")
         assertNull(valid(old).feedOrder)
-        // Nomes desconhecidos saem; os que faltam vão para o fim; repetidos contam uma vez.
+        // Nomes desconhecidos saem; os que faltam entram a seguir à que os precede; repetidos contam uma vez.
         assertEquals(
-            listOf(FeedSection.Feeling, FeedSection.Caffeine, FeedSection.SleepFactors),
+            // beta-3.0: cada uma que falta entra a seguir à que a precede na ordem de omissão.
+            listOf(FeedSection.Caffeine, FeedSection.Water, FeedSection.SleepFactors, FeedSection.Feeling),
             normalizeFeedOrder(listOf(FeedSection.Feeling, FeedSection.Feeling)),
         )
     }
@@ -153,7 +154,7 @@ class BackupTest {
     }
 
     private val withHistory = data.copy(
-        trackingOrder = listOf(TrackingSection.Mood, TrackingSection.Restfulness, TrackingSection.Caffeine),
+        trackingOrder = listOf(TrackingSection.Mood, TrackingSection.Restfulness, TrackingSection.Caffeine, TrackingSection.Water),
         history = listOf(
             DailyLog(LocalDate.of(2026, 10, 28), caffeine = 2, opened = true, sleep = SleepQuality.Meh),
             DailyLog(LocalDate.of(2026, 10, 29), mood = 1f, opened = false, sleep = null),

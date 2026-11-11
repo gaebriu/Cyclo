@@ -27,7 +27,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -51,7 +54,10 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlin.math.sqrt
 
 // Medidas do Figma (frame de 393 x 852).
-/** Altura da barra de navegação (navigation-bar, Cyclo-2 2001:124: 264 x 72 dp, raio 39). */
+/**
+ * Altura da barra de navegação (navigation-bar, Cyclo-2 2001:124: 264 x 72 dp, raio 39; com o
+ * Unified view, 2066:395, 177 dp e só dois botões).
+ */
 val NavigationBarHeight = 72.dp
 private val NavigationBarWidth = 264.dp
 private val NavigationBarRadius = 39.dp
@@ -276,6 +282,8 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot:
  *
  * @param pagePosition de 0 (Feed) a 2 (Tracking), a posição contínua das páginas.
  * @param descriptions o nome de cada separador (TalkBack), pela ordem de [MainTab].
+ * @param trackingTab de 0 a 1: quanto existe do botão da Tracking (0 com o Unified view, beta-3.0:
+ *        a barra fica com 177 dp, 2066:395). A barra encolhe e o botão apaga-se com uma mola.
  */
 @Composable
 fun MainNavigationBar(
@@ -291,11 +299,19 @@ fun MainNavigationBar(
         kotlin.math.sin((p - kotlin.math.floor(p)) * kotlin.math.PI.toFloat())
     },
     iconAmount: (Int) -> Float = { index -> (1f - kotlin.math.abs(pagePosition() - index)).coerceIn(0f, 1f) },
+    trackingTab: () -> Float = { 1f },
 ) {
     val effects = LocalVisualEffects.current
     Box(
         modifier = modifier
-            .size(NavigationBarWidth, NavigationBarHeight)
+            // A largura lê-se na medida (a mola não recompõe a barra): 264 dp, ou 177 sem a Tracking.
+            .layout { measurable, _ ->
+                val shown = trackingTab().coerceIn(0f, 1f)
+                val width = (NavigationBarWidth - IndicatorPitch * (1f - shown)).roundToPx()
+                val height = NavigationBarHeight.roundToPx()
+                val placeable = measurable.measure(Constraints.fixed(width, height))
+                layout(width, height) { placeable.place(0, 0) }
+            }
             .cycloGlassPill(NavigationBarRadius)
             .drawBehind {
                 // feed-icon-background: #313233 a 39 % em Luminosity.
@@ -323,7 +339,10 @@ fun MainNavigationBar(
         Row(modifier = Modifier.padding(start = IndicatorInset, top = IndicatorInset)) {
             MainTab.entries.forEach { tab ->
                 if (tab.ordinal > 0) Spacer(Modifier.width(IndicatorPitch - IndicatorWidth))
+                val isTracking = tab == MainTab.Tracking
                 NavigationItem(
+                    // A Tracking apaga-se com a barra a encolher (e não responde quando não existe).
+                    shown = if (isTracking) trackingTab else { { 1f } },
                     iconPath = when (tab) {
                         MainTab.Feed -> CycloAppIconPaths.Home
                         MainTab.Saved -> CycloAppIconPaths.Bookmark
@@ -342,20 +361,30 @@ fun MainNavigationBar(
 
 @Composable
 private fun NavigationItem(
+    shown: () -> Float,
     iconPath: String,
     description: String,
     amount: () -> Float,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val present = shown() > 0.5f
     Box(
         modifier = Modifier
             .size(IndicatorWidth, IndicatorHeight)
-            .cycloPressable(onClick = onClick, pressedScale = CycloMotion.IconButtonPressScale, role = Role.Tab)
-            .semantics {
-                contentDescription = description
-                selected = isSelected
-            },
+            .graphicsLayer { alpha = shown().coerceIn(0f, 1f) }
+            .then(
+                if (present) {
+                    Modifier
+                        .cycloPressable(onClick = onClick, pressedScale = CycloMotion.IconButtonPressScale, role = Role.Tab)
+                        .semantics {
+                            contentDescription = description
+                            selected = isSelected
+                        }
+                } else {
+                    Modifier.clearAndSetSemantics { }
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         // Cinzento por baixo e branco por cima, com a opacidade a seguir a pílula.

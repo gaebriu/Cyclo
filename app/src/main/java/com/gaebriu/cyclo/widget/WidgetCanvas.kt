@@ -1,10 +1,7 @@
 ﻿package com.gaebriu.cyclo.widget
 
-import androidx.compose.ui.graphics.asAndroidPath
-import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BlendMode
 import android.graphics.BlurMaskFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
@@ -35,7 +32,7 @@ import kotlin.math.roundToInt
  * Os textos não seguem o tamanho de letra do sistema (exceção à regra da app): escalam com o
  * widget, para caberem sempre no desenho do Figma.
  */
-internal class WidgetCanvas(context: Context, val pxPerUnit: Float, val look: WidgetLook) {
+internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
     private val medium: Typeface = context.resources.getFont(R.font.inter_medium)
     private val semiBold: Typeface = context.resources.getFont(R.font.inter_semibold)
 
@@ -99,20 +96,17 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float, val look: Wi
         restore()
     }
 
-    /**
-     * O fundo do cartão (background dos dois widgets, Componentes 4): o vidro do Widget Studio
-     * ([WidgetGlass], com o [look] de agora), com os cantos escolhidos e o corner smoothing do Figma.
-     */
+    /** O fundo do cartão (background dos dois widgets, Componentes 4): [WidgetBackground]. */
     fun Canvas.card(width: Float, height: Float) {
-        WidgetGlass.draw(this, width, height, look, pxPerUnit)
+        WidgetBackground.draw(this, width, height, pxPerUnit)
     }
 
     /**
-     * Um círculo de 39 com a borda de 1 (os botões das rotinas). [fill] e [border] em Luminosity
-     * quando [luminosity] (como no Figma: o vidro de baixo dá-lhes o tom); a sombra do grupo
+     * Um círculo de 39 com a borda de 1 (os botões das rotinas). Sem Luminosity (beta-3.0, fundo
+     * sólido): [fill] e [border] já são as cores que o Figma dá sobre o #101011. A sombra do grupo
      * (0, 0, 15, preto a 24 %) fica só por fora, como no Figma (não se vê através do botão).
      */
-    fun Canvas.circleButton(x: Float, y: Float, fill: Int, border: Int, luminosity: Boolean) {
+    fun Canvas.circleButton(x: Float, y: Float, fill: Int, border: Int) {
         val r = ButtonSize / 2f
         val cx = x + r
         val cy = y + r
@@ -124,10 +118,7 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float, val look: Wi
         })
         drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) })
         restore()
-        drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = fill
-            if (luminosity) blendMode = BlendMode.LUMINOSITY
-        })
+        drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
         drawCircle(
             cx,
             cy,
@@ -136,7 +127,6 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float, val look: Wi
                 color = border
                 style = Paint.Style.STROKE
                 strokeWidth = 1f
-                blendMode = BlendMode.LUMINOSITY
             },
         )
     }
