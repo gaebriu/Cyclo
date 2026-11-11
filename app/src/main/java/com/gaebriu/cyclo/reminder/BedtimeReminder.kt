@@ -20,6 +20,7 @@ import com.gaebriu.cyclo.data.CycloData
 import com.gaebriu.cyclo.data.Routine
 import com.gaebriu.cyclo.data.WindDownReason
 import com.gaebriu.cyclo.data.cycloDay
+import com.gaebriu.cyclo.data.logNow
 import com.gaebriu.cyclo.ui.i18n.appLocale
 import com.gaebriu.cyclo.ui.time.cycloTimeFormatter
 import java.time.LocalDateTime
@@ -139,7 +140,7 @@ object BedtimeReminder {
         val candidates = mutableListOf(now.toLocalDate().plusDays(1).atStartOfDay().plusMinutes(1))
         BedtimeEngine.nextWake(data.routines, now)?.let { (_, wake) ->
             candidates += wake.plusMinutes(1)
-            val plan = BedtimeEngine.plan(wake, now, data.age, data.chronotype, data.fallAsleep, data.dailyLog, logDay = cycloDay(data.routines, now))
+            val plan = BedtimeEngine.plan(wake, now, data.age, data.chronotype, data.fallAsleep, data.logNow(now), logDay = cycloDay(data.routines, now))
             candidates += plan.windDownStart
             // A hora ideal (não a arredondada a "agora" de quando já não dá tempo): passa a "Time for bed".
             candidates += plan.idealBedtime
@@ -160,7 +161,7 @@ object BedtimeReminder {
             .flatMap { routine -> BedtimeEngine.upcomingWakes(routine, now, 3).map { routine to it } }
             .filter { (_, wake) -> wake.atZone(zone).toInstant().toEpochMilli() > notifiedWakeMillis + SameNightMillis }
             .map { (routine, wake) ->
-                routine to BedtimeEngine.plan(wake, now, data.age, data.chronotype, data.fallAsleep, data.dailyLog, logDay = cycloDay(data.routines, now))
+                routine to BedtimeEngine.plan(wake, now, data.age, data.chronotype, data.fallAsleep, data.logNow(now), logDay = cycloDay(data.routines, now))
             }
             .filter { (_, plan) -> !plan.shortfall && plan.windDownStart.isAfter(now) }
             .minByOrNull { (_, plan) -> plan.windDownStart }
@@ -176,7 +177,7 @@ object BedtimeReminder {
         val wake = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(wakeMillis), zone)
         // A rotina mudou entretanto (desligada, outra hora, outros dias): não avisa desta noite.
         if (BedtimeEngine.upcomingWakes(routine, now, 3).none { it == wake }) return
-        val plan = BedtimeEngine.plan(wake, now, data.age, data.chronotype, data.fallAsleep, data.dailyLog, logDay = cycloDay(data.routines, now))
+        val plan = BedtimeEngine.plan(wake, now, data.age, data.chronotype, data.fallAsleep, data.logNow(now), logDay = cycloDay(data.routines, now))
         val formatter = timeFormatter(context, data.use24Hour)
         val bed = plan.bedtime.format(formatter)
         val wakeText = plan.wake.format(formatter)

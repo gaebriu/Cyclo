@@ -225,4 +225,20 @@ class NewestReleaseTest {
         val withStable = list(*twoPointX, release("beta-2.5", day = 15, beta = true), release("release-2.3", day = 16, beta = false))
         assertEquals("release-2.3", pick(withStable, "beta-2.5", betaEnabled = false)!!.tag)
     }
+
+    @Test
+    fun betaAppAndStableAppOnlySeeTheirOwnChannel() {
+        // beta-3.0 refeita: a Cyclo Beta (outra app) nunca anuncia uma estável, e a estável nunca uma beta.
+        val json = list(
+            *twoPointX,
+            release("release-2.3", day = 16, beta = false),
+            release("beta-3.0", day = 17, beta = true),
+            release("release-2.4", day = 18, beta = false),
+            release("beta-3.1", day = 19, beta = true),
+        )
+        assertEquals("beta-3.1", ReleaseSelection.select(json, "beta-3.0").forChannel(betaApp = true)!!.tag)
+        assertNull(ReleaseSelection.select(json, "beta-3.1").forChannel(betaApp = true))
+        assertEquals("release-2.4", ReleaseSelection.select(json, "release-2.3").forChannel(betaApp = false)!!.tag)
+        assertNull(ReleaseSelection.select(json, "release-2.4").forChannel(betaApp = false))
+    }
 }

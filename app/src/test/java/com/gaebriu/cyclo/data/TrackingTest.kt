@@ -208,4 +208,100 @@ class TrackingTest {
         assertEquals(3, DailyLog(today, mood = 0.75f).moodLevel)
         assertEquals(4, DailyLog(today, mood = 1f).moodLevel)
     }
+
+    // --- Correção da meia-noite (beta-3.0 refeita / release-2.4) --------------------------------
+
+    /** O que o repositório guarda (registo atual + histórico), escrito como o updateDailyLog. */
+    private class Store(var stored: DailyLog? = null, var history: List<DailyLog> = emptyList()) {
+        fun write(day: LocalDate, change: (DailyLog) -> DailyLog) {
+            val logs = resolveDayLogs(stored, history, day)
+            history = logs.history
+            stored = change(logs.current)
+        }
+
+        /** O que o Feed mostra para o dia [day]. */
+        fun shown(day: LocalDate): DailyLog = resolveDayLogs(stored, history, day).current
+    }
+
+    private fun millis(at: LocalDateTime) = at.toInstant(zone).toEpochMilli()
+    private fun addCoffee(at: LocalDateTime): (DailyLog) -> DailyLog =
+        { it.copy(caffeine = it.caffeine + 1, caffeineTimes = it.caffeineTimes + millis(at)) }
+
+    @Test
+    fun coffeesAfterMidnightShowAtOnceAndStayWithTheNight() {
+        // O caso do utilizador: acorda às 08:00, à 00:30 junta três cafés.
+        val routines = listOf(routine(1, 8, 0, RepeatOption.Everyday))
+        val store = Store()
+        val evening = today.atTime(22, 0)
+        store.write(cycloDay(routines, evening, zone), addCoffee(evening))
+        val night = today.plusDays(1).atTime(0, 30)
+        val day = cycloDay(routines, night, zone)
+        assertEquals(today, day)
+        repeat(3) { store.write(day, addCoffee(night)) }
+        assertEquals(4, store.shown(day).caffeine)
+        // Tirar um: desce logo.
+        store.write(day) { it.copy(caffeine = it.caffeine - 1, caffeineTimes = it.caffeineTimes.dropLast(1)) }
+        assertEquals(3, store.shown(day).caffeine)
+        // À hora de acordar começa um dia novo, vazio; a noite fica inteira no histórico, uma vez.
+        val wake = today.plusDays(1).atTime(8, 0)
+        val next = cycloDay(routines, wake, zone)
+        assertEquals(0, store.shown(next).caffeine)
+        store.write(next) { it.copy(opened = true) }
+        assertEquals(listOf(today), store.history.map { it.date })
+        assertEquals(3, store.history.single().caffeine)
+    }
+
+    @Test
+    fun aRoutineAddedAfterMidnightBringsTheLogsBackToTheNight() {
+        // O que se reproduziu no emulador: à 00:30 sem nenhuma rotina a acordar no dia 8, o dia já
+        // tinha mudado à meia-noite (registo do dia 8 com um café). Cria-se uma rotina das 06:00:
+        // a noite volta a ser a do dia 7, e o Feed (e o toque seguinte) têm de ver o mesmo registo.
+        val evening = today.atTime(21, 0)
+        val store = Store(stored = DailyLog(today, caffeine = 1, caffeineTimes = listOf(millis(evening)), factors = setOf(SleepFactor.entries.first()), opened = true))
+        val night = today.plusDays(1).atTime(0, 30)
+        store.write(cycloDay(emptyList(), night, zone)) { addCoffee(night)(it).copy(opened = true, mood = 0.75f) }
+        assertEquals(today.plusDays(1), store.stored!!.date)
+
+        val routines = listOf(routine(1, 6, 0, RepeatOption.Everyday))
+        val day = cycloDay(routines, night.plusMinutes(1), zone)
+        assertEquals(today, day)
+        // O Feed mostra já a noite toda (o café da tarde + o da madrugada), antes de qualquer escrita.
+        val shown = store.shown(day)
+        assertEquals(2, shown.caffeine)
+        assertEquals(setOf(SleepFactor.entries.first()), shown.factors)
+        assertEquals(0.75f, shown.mood)
+        // E o toque seguinte cai nesse mesmo registo.
+        store.write(day, addCoffee(night))
+        assertEquals(3, store.shown(day).caffeine)
+        assertEquals(today, store.stored!!.date)
+        assertTrue(store.history.none { it.date == today.plusDays(1) })
+        // Às 06:00 o dia 8 começa vazio; a noite fica no histórico uma única vez.
+        val next = cycloDay(routines, today.plusDays(1).atTime(6, 0), zone)
+        assertEquals(0, store.shown(next).caffeine)
+        store.write(next) { it.copy(opened = true) }
+        assertEquals(1, store.history.count { it.date == today })
+        assertEquals(3, store.history.single { it.date == today }.caffeine)
+    }
+
+    @Test
+    fun aSleepAlreadyLoggedStaysOnItsDay() {
+        val store = Store(stored = DailyLog(today.plusDays(1), sleep = SleepQuality.Well, opened = true), history = listOf(DailyLog(today, caffeine = 2)))
+        val shown = store.shown(today)
+        assertEquals(2, shown.caffeine)
+        assertNull(shown.sleep)
+        store.write(today) { it.copy(opened = true) }
+        // Quando o dia 8 chega, o sono registado está lá.
+        assertEquals(SleepQuality.Well, store.shown(today.plusDays(1)).sleep)
+    }
+
+    @Test
+    fun aLogFarAheadIsNotMergedIntoToday() {
+        // O relógio andou dias para trás: esse registo fica no seu dia, não se junta a hoje.
+        val far = DailyLog(today.plusDays(5), caffeine = 4)
+        val store = Store(stored = far)
+        assertEquals(0, store.shown(today).caffeine)
+        store.write(today, addCoffee(today.atTime(10, 0)))
+        assertEquals(1, store.shown(today).caffeine)
+        assertEquals(listOf(far), store.history)
+    }
 }

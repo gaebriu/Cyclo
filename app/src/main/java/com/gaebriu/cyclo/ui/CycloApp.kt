@@ -17,6 +17,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.gaebriu.cyclo.data.logsFor
 import com.gaebriu.cyclo.data.sleepMeterStart
 import com.gaebriu.cyclo.ui.main.SleepLogSheet
 import com.gaebriu.cyclo.R
@@ -257,7 +258,7 @@ fun CycloApp(viewModel: CycloViewModel) {
             trackingRequest += 1
             // A folha sobe com o ecrã de cima já a meio da descida (não por cima dele).
             snapshotFlow { cover.value }.first { it <= CoverDownForSheet }
-            if (latestData.dailyLog?.takeIf { it.date == java.time.LocalDate.now() }?.sleep == null) sleepSheetOpen = true
+            if (latestData.logsFor(java.time.LocalDate.now()).current.sleep == null) sleepSheetOpen = true
         }
     }
 
@@ -611,7 +612,8 @@ fun CycloApp(viewModel: CycloViewModel) {
             SleepLogSheet(
                 visible = sleepSheetOpen,
                 start = remember(sleepSheetOpen) {
-                    sleepMeterStart(data.history, data.dailyLog, java.time.LocalDate.now())
+                    val today = java.time.LocalDate.now()
+                    data.logsFor(today).let { sleepMeterStart(it.history, it.current, today) }
                 },
                 bottomMargin = bottomInset,
                 onDismiss = { sleepSheetOpen = false },

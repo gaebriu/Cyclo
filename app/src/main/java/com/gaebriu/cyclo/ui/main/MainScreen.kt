@@ -410,6 +410,7 @@ fun MainScreen(
                                 now = now,
                                 routines = data.routines,
                                 dailyLog = data.dailyLog,
+                                history = data.history,
                                 age = data.age,
                                 chronotype = data.chronotype,
                                 fallAsleep = data.fallAsleep,

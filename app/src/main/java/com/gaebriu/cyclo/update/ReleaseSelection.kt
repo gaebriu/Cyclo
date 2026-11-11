@@ -44,6 +44,13 @@ internal object ReleaseSelection {
          * pede sempre sem as betas (o Programa Beta saiu; ver CycloUpdates).
          */
         fun pick(betaEnabled: Boolean): AvailableUpdate? = stable ?: beta.takeIf { betaEnabled }
+
+        /**
+         * A do canal desta app (beta-3.0 refeita): a Cyclo Beta (com.gaebriu.cyclo.beta) é outra app
+         * no Android, por isso só anuncia betas; a Cyclo estável (com.gaebriu.cyclo) só estáveis.
+         * Nenhuma aponta para a release da outra (instalá-la não atualizava esta, juntava outra app).
+         */
+        fun forChannel(betaApp: Boolean): AvailableUpdate? = if (betaApp) beta else stable
     }
 
     fun parse(json: String): List<Release> {

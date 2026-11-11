@@ -3,6 +3,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// A versão (= a tag do GitHub) decide a app: "beta-…" é a Cyclo Beta, outra app no Android
+// (com.gaebriu.cyclo.beta: dados, preferências, widgets, notificações e atualizações à parte, instala-se
+// ao lado da estável); "release-…" é a Cyclo estável (com.gaebriu.cyclo, nunca muda). O namespace
+// (classes, R) é o mesmo nas duas.
+val cycloVersionName = "beta-3.0"
+val cycloBeta = cycloVersionName.startsWith("beta-")
+
 android {
     namespace = "com.gaebriu.cyclo"
     compileSdk {
@@ -10,13 +17,17 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.gaebriu.cyclo"
+        applicationId = if (cycloBeta) "com.gaebriu.cyclo.beta" else "com.gaebriu.cyclo"
         minSdk = 33
         targetSdk = 37
         // versionName = a tag do GitHub ("beta-3.0", prerelease; as estáveis são "release-x.x"). Mostra-se "Cyclo Beta 3.0".
-        // versionCode 38 (a release-2.3 foi o 37, a release-2.2 o 36, a release-2.1 o 35, a release-2.0 o 34, a beta-2.4 o 33; a beta-2.2 o 31, saltando o 30 de uma build release-1.2 de testes).
-        versionCode = 38
-        versionName = "beta-3.0"
+        // versionCode 40 (beta-3.0 refeita como app à parte; a release-2.4 é o 39 e a beta-3.0 antiga, em com.gaebriu.cyclo, foi o 38; a release-2.3 foi o 37, a release-2.2 o 36, a release-2.1 o 35, a release-2.0 o 34, a beta-2.4 o 33; a beta-2.2 o 31, saltando o 30 de uma build release-1.2 de testes).
+        versionCode = 40
+        versionName = cycloVersionName
+        // O nome no launcher (e nos widgets e nas definições do Android): "Cyclo Beta" na beta.
+        manifestPlaceholders["appLabel"] = if (cycloBeta) "Cyclo Beta" else "Cyclo"
+        // O canal do atualizador (CycloUpdates): a beta só anuncia betas, a estável só estáveis.
+        buildConfigField("boolean", "BETA_APP", cycloBeta.toString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -52,6 +63,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

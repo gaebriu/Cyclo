@@ -74,6 +74,7 @@ import com.gaebriu.cyclo.data.TrackingSection
 import com.gaebriu.cyclo.data.TrackingSummary
 import com.gaebriu.cyclo.data.blockAlpha
 import com.gaebriu.cyclo.data.cycloDay
+import com.gaebriu.cyclo.data.resolveDayLogs
 import com.gaebriu.cyclo.data.showsSleepPrompt
 import com.gaebriu.cyclo.data.trackingSummary
 import com.gaebriu.cyclo.ui.components.CycloButtonSize
@@ -213,8 +214,10 @@ fun TrackingScreen(
     // Beta 2.4: os hápticos dos gráficos só tocam com a Tracking escolhida (não ao espreitá-la).
     val current by rememberUpdatedState(isCurrentPage)
     val active = { current }
-    val summary = remember(history, dailyLog, today) { trackingSummary(history, dailyLog, today) }
-    val showPrompt = showsSleepPrompt(routines, dailyLog, now, promptDismissed)
+    // O registo da noite de agora já arrumado (resolveDayLogs), como o Feed.
+    val logs = remember(dailyLog, history, today) { resolveDayLogs(dailyLog, history, today) }
+    val summary = remember(logs, today) { trackingSummary(logs.history, logs.current, today) }
+    val showPrompt = showsSleepPrompt(routines, logs.current, now, promptDismissed)
     val latestOnShown by rememberUpdatedState(onShown)
     LaunchedEffect(Unit) {
         if (!TrackingSession.revealed) {
