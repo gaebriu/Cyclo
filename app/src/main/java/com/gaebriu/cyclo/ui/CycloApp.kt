@@ -60,6 +60,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.FrameRateCategory
+import androidx.compose.ui.preferredFrameRate
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.gaebriu.cyclo.data.CycloViewModel
 import com.gaebriu.cyclo.data.RoutineDraft
@@ -165,6 +167,14 @@ fun CycloApp(viewModel: CycloViewModel) {
     val cover = remember { Animatable(if (overlayOpen) 1f else 0f, visibilityThreshold = 0.0005f) }
     // A velocidade com que o gesto de voltar largou o ecrã de cima (Beta 2.2): a mola continua dela.
     val coverRelease = remember { floatArrayOf(0f) }
+    // Beta 3.1: o gesto de voltar a mover o ecrã de cima (o sistema fica com os toques, por isso a
+    // app não recebe o "touch boost" do Android).
+    var coverDragging by remember { mutableStateOf(false) }
+    // Em ecrãs de taxa adaptável (Android 15+), uma vista do tamanho do ecrã que só muda propriedades
+    // de camadas (a translação do ecrã de cima) vota a categoria NORMAL, 60 Hz: o Compose só pede
+    // HIGH quando uma camada muda de sítio ou de tamanho na disposição. Com as texturas desligadas o
+    // deslize ficava a 60 Hz. Enquanto se move, pede-se HIGH; parado, nada (o ecrã pode descer).
+    val coverMoving by remember { derivedStateOf { cover.isRunning || coverDragging } }
     LaunchedEffect(overlayOpen) {
         val v = coverRelease[0]
         coverRelease[0] = 0f
@@ -458,6 +468,7 @@ fun CycloApp(viewModel: CycloViewModel) {
         PredictiveBackHandler(enabled = (overlay == OverlayEditor || overlay == OverlaySettings) && overlayOpen) { progress ->
             // Beta 2.2: o mesmo alcance das páginas e, ao largar, a velocidade do dedo.
             val gesture = BackGestureVelocity()
+            coverDragging = true
             try {
                 progress.collect { event ->
                     gesture.add(event.progress)
@@ -469,6 +480,8 @@ fun CycloApp(viewModel: CycloViewModel) {
                 scope.launch {
                     cover.animateTo(1f, CycloMotion.ScreenRiseSpring, initialVelocity = -gesture.progressPerSecond * CycloMotion.PageBackReach)
                 }
+            } finally {
+                coverDragging = false
             }
         }
 
@@ -476,6 +489,8 @@ fun CycloApp(viewModel: CycloViewModel) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    // Taxa alta só enquanto se move (passa para as camadas lá dentro); Default = sem voto.
+                    .preferredFrameRate(if (coverMoving) FrameRateCategory.High else FrameRateCategory.Default)
                     .graphicsLayer {
                         val c = cover.value
                         if (effects.animationsEnabled) {

@@ -27,6 +27,9 @@ import com.gaebriu.cyclo.ui.icons.HeaderIcon
 import com.gaebriu.cyclo.ui.effects.drawFigmaNoise
 import com.gaebriu.cyclo.ui.effects.rememberFigmaNoise
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.util.lerp
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -40,6 +43,12 @@ private val SpotlightHeight = 235.dp
 
 /** Centro da caixa de 63 x 63 do ícone, nas unidades do SVG (o sol fica centrado aqui). */
 private const val IconCenter = 31.5f
+
+/** A ponta por onde a etiqueta fica pendurada (perto da borda esquerda da caixa de 63). */
+private const val LeftPivotX = 8f
+
+/** O holofote entra a abrir daqui (Beta 3.1, igual em todas as páginas). */
+private const val SpotlightFromScale = 0.9f
 
 /** Este ponto rodado [degrees] graus (sentido horário no ecrã) à volta de [pivot]. */
 private fun Offset.rotateAround(pivot: Offset, degrees: Float): Offset {
@@ -64,6 +73,8 @@ private fun Offset.rotateAround(pivot: Offset, degrees: Float): Offset {
  * @param rotation rotação do ícone em graus (sentido horário), à volta do centro da caixa de 63 dp.
  *        É lida só ao desenhar, por isso animá-la não recompõe nada. O holofote não roda.
  * @param scale escala do ícone à volta do mesmo centro (lida só ao desenhar; o holofote fica).
+ * @param motion Beta 3.1: a entrada e as reações do ícone e do holofote ([IconMotion]), somadas a
+ *        [rotation] e [scale]. O holofote abre de 90 % à volta do círculo e acende com a luz.
  */
 @Composable
 fun IntroIconHeader(
@@ -71,6 +82,7 @@ fun IntroIconHeader(
     modifier: Modifier = Modifier,
     rotation: () -> Float = { 0f },
     scale: () -> Float = { 1f },
+    motion: IconMotion? = null,
 ) {
     val effects = LocalVisualEffects.current
     val shape = remember(icon) { PathParser().parsePathString(icon.path).toPath() }
@@ -81,6 +93,21 @@ fun IntroIconHeader(
         Spacer(
             modifier = Modifier
                 .size(63.dp)
+                .then(
+                    if (motion == null) {
+                        Modifier
+                    } else {
+                        // ModulateAlpha: sem camada fora do ecrã, que cortaria o holofote nos 63 dp.
+                        Modifier.graphicsLayer {
+                            val l = motion.light.value.coerceIn(0f, 1f)
+                            alpha = l
+                            val s = lerp(SpotlightFromScale, 1f, l)
+                            scaleX = s
+                            scaleY = s
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
+                        }
+                    },
+                )
                 .drawBehind {
                     val offset = IntOffset(SpotlightLeft.toPx().roundToInt(), SpotlightTop.toPx().roundToInt())
                     val dstSize = IntSize(SpotlightWidth.toPx().roundToInt(), SpotlightHeight.toPx().roundToInt())
@@ -105,18 +132,25 @@ fun IntroIconHeader(
                     val blend = effects.luminosity
                     val pxPerDp = density
                     val degrees = rotation()
-                    val iconScale = scale()
+                    val iconScale = scale() * (motion?.scale?.value ?: 1f)
+                    val swing = motion?.rotation?.value ?: 0f
                     val pivot = Offset(IconCenter, IconCenter) +
                         Offset(CycloIconPaths.BedOriginX, CycloIconPaths.BedOriginY)
+                    val swingPivot = when (motion?.style?.pivot) {
+                        IconPivot.Top -> Offset(pivot.x, icon.gradientTop)
+                        IconPivot.Left -> Offset(CycloIconPaths.BedOriginX + LeftPivotX, pivot.y)
+                        else -> pivot
+                    }
                     withTransform({
                         scale(pxPerDp, pxPerDp, Offset.Zero)
                         translate(-CycloIconPaths.BedOriginX, -CycloIconPaths.BedOriginY)
                         if (iconScale != 1f) scale(iconScale, iconScale, pivot)
                         if (degrees != 0f) rotate(degrees, pivot)
+                        if (swing != 0f) rotate(swing, swingPivot)
                     }) {
                         // O gradiente roda ao contrário, para a luz continuar a vir de cima.
-                        val start = Offset(pivot.x, icon.gradientTop).rotateAround(pivot, -degrees)
-                        val end = Offset(pivot.x, icon.gradientBottom).rotateAround(pivot, -degrees)
+                        val start = Offset(pivot.x, icon.gradientTop).rotateAround(pivot, -degrees).rotateAround(swingPivot, -swing)
+                        val end = Offset(pivot.x, icon.gradientBottom).rotateAround(pivot, -degrees).rotateAround(swingPivot, -swing)
                         drawPath(
                             path = shape,
                             brush = Brush.linearGradient(

@@ -95,6 +95,12 @@ object CycloHaptics {
         view.performHapticFeedback(constant)
     }
 
+    /**
+     * Beta 3.1: o ícone de uma Introduction chega ao seu lugar na entrada (uma vez). É o mesmo háptico
+     * de um valor do gráfico a chegar ([cascade] com 0,8): decorativo, muito leve, só com primitivas.
+     */
+    fun iconSettle(view: View) = cascade(view, listOf(0), listOf(0.8f))
+
     /** O elemento arrastado trocou de lugar com um vizinho: um tique de segmento, leve. */
     fun reorderStep(view: View) = pickerTick(view, manyChoices = false)
 

@@ -175,6 +175,15 @@ object CycloMotion {
     const val CounterRollDistance = 0.7f
 
     /**
+     * Beta 3.1: nos contadores, cada algarismo rola sozinho, da direita para a esquerda; este é o
+     * atraso entre um algarismo que muda e o seguinte à esquerda.
+     */
+    const val CounterDigitStaggerMs = 40L
+
+    /** A largura de cada algarismo a abrir ou fechar espaço (o "−" vai atrás): como os vizinhos no reordenar. */
+    val CounterWidthSpring = CycloSprings.Reflow.float
+
+    /**
      * Bola do medidor de emoções a assentar num ponto depois de a largar: parte com a velocidade do
      * dedo e assenta com um ressalto curto. PROPOSTA.
      */

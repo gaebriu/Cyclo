@@ -193,6 +193,18 @@ object CycloSprings {
      */
     val Toggle = CycloSpring(response = 0.28f, dampingFraction = 0.78f)
 
+    /**
+     * Beta 3.1, ícones das Introduction: um objeto pendurado a baloiçar (o sino, a etiqueta). Cada
+     * oscilação fica com ~1/3 da anterior: duas ou três visíveis e assenta.
+     */
+    val IconSwing = CycloSpring(response = 0.62f, dampingFraction = 0.32f)
+
+    /** O sol a "dar corda": um quarto de volta pesado a abrandar, com um nadinha de ressalto (o antigo Spin). */
+    val IconWindUp = CycloSpring(response = 1.1f, dampingFraction = 0.82f)
+
+    /** O calendário pendurado num prego: uma oscilação curta, mais amortecida do que [IconSwing]. */
+    val IconWobble = CycloSpring(response = 0.5f, dampingFraction = 0.45f)
+
     /** O sol a crescer um pouco com a velocidade a que roda, e a voltar quando abranda. */
     val SunSwell = CycloSpring(response = 0.32f, dampingFraction = 1f)
 

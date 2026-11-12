@@ -41,6 +41,7 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 fun Introduction1Page(
     enter: () -> Float,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     val effects = LocalVisualEffects.current
 
@@ -50,7 +51,7 @@ fun Introduction1Page(
             .padding(horizontal = CycloDimens.ScreenMargin),
     ) {
         Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Bed, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Bed, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         // 7 dp de espaço + 8 dp de folga dentro da área com scroll = 15 dp até ao título.
         // A folga deixa o desfoque do título sair do texto sem ser cortado.

@@ -52,6 +52,7 @@ fun Introduction4Page(
     onNameChange: (String) -> Unit,
     repeat: RepeatSelection,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val nameInput = rememberRoutineNameInput(onNameChange)
@@ -66,7 +67,7 @@ fun Introduction4Page(
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
         Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Calendar, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Calendar, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
         Column(

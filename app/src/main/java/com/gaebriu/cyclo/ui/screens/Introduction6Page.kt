@@ -47,10 +47,11 @@ fun Introduction6Page(
     onToggleLogSleep: () -> Unit,
     asks: Boolean,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Notifications, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Notifications, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
         Column(

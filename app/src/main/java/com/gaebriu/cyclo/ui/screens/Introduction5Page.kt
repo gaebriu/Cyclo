@@ -84,6 +84,7 @@ fun Introduction5Page(
     onNameChange: (String) -> Unit,
     repeat: RepeatSelection,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
     onAddWidget: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
@@ -106,7 +107,7 @@ fun Introduction5Page(
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
         Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Widgets, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Widgets, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
         // O padding horizontal vai por dentro, para a área com scroll ocupar o ecrã todo

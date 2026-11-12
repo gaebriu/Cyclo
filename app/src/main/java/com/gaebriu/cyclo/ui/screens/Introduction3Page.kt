@@ -45,6 +45,7 @@ fun Introduction3Page(
     name: String,
     onNameChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val nameInput = rememberRoutineNameInput(onNameChange)
@@ -57,7 +58,7 @@ fun Introduction3Page(
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
         Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Label, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Label, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
         // O padding horizontal vai por dentro, para a área com scroll ocupar o ecrã todo

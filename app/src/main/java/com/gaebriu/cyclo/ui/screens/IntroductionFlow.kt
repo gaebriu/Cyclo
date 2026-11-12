@@ -45,6 +45,9 @@ import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.notifications.NotificationAccess
 import androidx.compose.ui.platform.LocalView
 import com.gaebriu.cyclo.ui.components.CycloGlassButton
+import com.gaebriu.cyclo.ui.components.IconMotion
+import com.gaebriu.cyclo.ui.components.IconMotionStyle
+import androidx.compose.runtime.snapshotFlow
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
 import com.gaebriu.cyclo.ui.components.MaxRoutineNameLength
 import com.gaebriu.cyclo.ui.effects.Backdrop
@@ -150,6 +153,32 @@ fun IntroductionFlow(
     val lastStep = if (isEditor) LastRoutineStep else TutorialStepCount
     var step by rememberSaveable { mutableIntStateOf(if (isEditor) EditorFirstStep else 0) }
 
+    // Beta 3.1: os ícones com holofote entram só ao AVANÇAR (pela direção do passo, não por a página
+    // aparecer): voltar atrás, o gesto de voltar e recriar a atividade não repetem nada. No editor,
+    // abrir conta como avançar para o primeiro passo (o sol entra com o editor a subir).
+    var previousStep by rememberSaveable { mutableIntStateOf(if (isEditor) EditorFirstStep - 1 else step) }
+    val iconMotions = remember {
+        mapOf(
+            1 to IconMotionStyle.SpotlightOnly,
+            2 to IconMotionStyle.WindUp,
+            3 to IconMotionStyle.Swing,
+            4 to IconMotionStyle.Wobble,
+            5 to IconMotionStyle.Snap,
+            6 to IconMotionStyle.Ring,
+        ).mapValues { (_, style) -> IconMotion(style, scope, view) }
+    }
+    LaunchedEffect(step) {
+        val from = previousStep
+        previousStep = step
+        if (from == step) return@LaunchedEffect
+        // A página que fica para trás acaba depressa o que ainda estiver a fazer, sem cortes.
+        iconMotions[from]?.settle()
+        if (step > from && effects.animationsEnabled) iconMotions[step]?.enter()
+    }
+    fun nudgeIcon(page: Int) {
+        if (effects.animationsEnabled && step == page) iconMotions[page]?.nudge()
+    }
+
     // Hora de acordar escolhida no Introduction 2 (06:00 é o que está no design).
     var wakeHour by rememberSaveable { mutableIntStateOf(initial?.wakeHour ?: 6) }
     var wakeMinute by rememberSaveable { mutableIntStateOf(initial?.wakeMinute ?: 0) }
@@ -168,6 +197,11 @@ fun IntroductionFlow(
         option = initial?.repeat ?: RepeatOption.JustOnce,
         daysMask = initial?.daysMask ?: 0,
     )
+
+    // O calendário (Introduction 4) mexe-se ao abrir o "When to show" ou a escolha dos dias.
+    LaunchedEffect(repeat) {
+        snapshotFlow { repeat.isMenuOpen || repeat.isSheetOpen }.collect { open -> if (open) nudgeIcon(4) }
+    }
 
     // Enquanto a rotina está a ser guardada, o botão não volta a guardar.
     var saving by remember { mutableStateOf(false) }
@@ -194,6 +228,7 @@ fun IntroductionFlow(
         access.request(channelId) { allowed ->
             if (!allowed) return@request
             setWanted(true)
+            nudgeIcon(NotificationsStep)
             if (askedSystem) CycloHaptics.toggle(view, true)
         }
     }
@@ -412,13 +447,14 @@ fun IntroductionFlow(
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         if (!isEditor) {
                             IntroPage(1, { position.value }, effects.animationsEnabled, active = step == 1) {
-                                Introduction1Page(enter = { enter.value })
+                                Introduction1Page(enter = { enter.value }, iconMotion = iconMotions[1])
                             }
                         }
 
                         if (showIntroduction2) {
                             IntroPage(2, { position.value }, effects.animationsEnabled, active = step == 2) {
                                 Introduction2Page(
+                                    iconMotion = iconMotions[2],
                                     wakeHour = wakeHour,
                                     wakeMinute = wakeMinute,
                                     hintVisible = !timeChanged,
@@ -441,8 +477,13 @@ fun IntroductionFlow(
                         if (showIntroduction3) {
                             IntroPage(3, { position.value }, effects.animationsEnabled, active = step == 3) {
                                 Introduction3Page(
+                                    iconMotion = iconMotions[3],
                                     name = routineName,
-                                    onNameChange = { routineName = it },
+                                    onNameChange = {
+                                        // A primeira letra escrita dá um toque à etiqueta.
+                                        if (routineName.isEmpty() && it.isNotEmpty()) nudgeIcon(3)
+                                        routineName = it
+                                    },
                                 )
                             }
                         }
@@ -450,6 +491,7 @@ fun IntroductionFlow(
                         if (showIntroduction4) {
                             IntroPage(4, { position.value }, effects.animationsEnabled, active = step == 4) {
                                 Introduction4Page(
+                                    iconMotion = iconMotions[4],
                                     name = savedRoutineName,
                                     // O que se muda aqui passa também para a caixa do Introduction 3.
                                     onNameChange = {
@@ -464,6 +506,7 @@ fun IntroductionFlow(
                         if (showIntroduction5) {
                             IntroPage(5, { position.value }, effects.animationsEnabled, active = step == 5) {
                                 Introduction5Page(
+                                    iconMotion = iconMotions[5],
                                     name = savedRoutineName,
                                     // Como no Introduction 4: o que se muda aqui passa também para a
                                     // caixa do Introduction 3 (e para a do 4).
@@ -480,6 +523,7 @@ fun IntroductionFlow(
                         if (showIntroduction6) {
                             IntroPage(6, { position.value }, effects.animationsEnabled, active = step == 6) {
                                 Introduction6Page(
+                                    iconMotion = iconMotions[6],
                                     bedtimeOn = bedtimeShown,
                                     onToggleBedtime = {
                                         toggleReminder(BedtimeReminder.ChannelId, bedtimeShown) { bedtimeWanted = it }
