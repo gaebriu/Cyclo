@@ -27,7 +27,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
@@ -47,7 +46,6 @@ import com.gaebriu.cyclo.ui.components.cycloPressable
 import com.gaebriu.cyclo.ui.components.RoutineNameInput
 import com.gaebriu.cyclo.ui.components.rememberRoutineNameInput
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
-import com.gaebriu.cyclo.ui.effects.drawInnerShadow
 import com.gaebriu.cyclo.ui.icons.CycloHeaderIcons
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.keyboard.rememberFadeWithKeyboard
@@ -67,7 +65,7 @@ private val WidgetLabelWidth = 94.dp
 
 /**
  * Introduction 5: "Want to add it as a widget to your home screen?" (só o conteúdo; o botão de
- * cima, a barra de progresso e o Next são fixos, e os menus da repetição vivem em [RepeatOverlays]).
+ * cima, o anel de progresso e o indicador (ou o "Done") são fixos, e os menus da repetição vivem em [RepeatOverlays]).
  *
  * - A caixa do nome (tap-to-write-b) e o campo da repetição (when-to-show-b) são os mesmos do
  *   Introduction 4 e funcionam da mesma forma: o nome edita-se a escrever ou a ditar, e o campo
@@ -106,7 +104,6 @@ fun Introduction5Page(
             // Tocar fora da caixa fecha o teclado.
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
-        Spacer(Modifier.height(46.dp))
         IntroIconHeader(icon = CycloHeaderIcons.Widgets, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
@@ -189,8 +186,8 @@ fun Introduction5Page(
 }
 
 /**
- * Botão "Add as a widget" (add-routine-widget-b): 115 x 115 dp, raio 24, #101011 sem mistura,
- * sombra interior 0, -6, desfoque 15 (preto a 15 %) e sem borda. Ícone de 24 dp a 23 dp do topo
+ * Botão "Add as a widget" (add-routine-widget-b): 115 x 115 dp, raio 24, #101011 sem mistura e
+ * sem borda (Cyclo 3, beta-3.2: sem a sombra interior de antes). Ícone de 24 dp a 23 dp do topo
  * e texto a 56 dp do topo, ambos ao centro.
  */
 @Composable
@@ -206,12 +203,6 @@ private fun AddWidgetButton(onClick: () -> Unit, enabled: Boolean, modifier: Mod
                 val radius = CycloDimens.CornerRadius.toPx()
                 val shape = smoothRoundRectPath(size.width, size.height, radius)
                 drawPath(shape, color = CycloColors.GlassFill)
-                drawInnerShadow(
-                    shape = shape,
-                    color = Color.Black.copy(alpha = 0.15f),
-                    offset = Offset(0f, (-6).dp.toPx()),
-                    cssBlurPx = 15.dp.toPx(),
-                )
             },
     ) {
         // Ícone #A3A2A7 em mistura Luminosity (normal sem efeitos), como no design.

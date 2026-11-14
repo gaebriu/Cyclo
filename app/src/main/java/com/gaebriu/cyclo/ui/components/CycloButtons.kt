@@ -62,38 +62,6 @@ fun CycloPrimaryButton(
     CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier, textAlpha = textAlpha)
 }
 
-/**
- * Botão de vidro (next-b): fundo #101011 em mistura Luminosity, borda em gradiente
- * e sombra interior.
- */
-@Composable
-fun CycloGlassButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    textAlpha: () -> Float = { 1f },
-) {
-    val style = ButtonStyle(
-        height = CycloDimens.ButtonHeight,
-        cornerRadius = CycloDimens.CornerRadius,
-        fill = CycloColors.GlassFill,
-        luminosity = true,
-        border = { size ->
-            val edge = CycloColors.GlassBorder
-            Brush.verticalGradient(
-                0f to edge.copy(alpha = 0.39f),
-                0.495f to edge.copy(alpha = 0.24f),
-                1f to edge.copy(alpha = 0.39f),
-                startY = 0f,
-                endY = size.height,
-            )
-        },
-        innerShadowOffsetY = (-6).dp,
-    )
-    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier, textAlpha = textAlpha)
-}
-
 /** Tudo o que muda de um botão para outro. */
 private class ButtonStyle(
     val height: Dp,

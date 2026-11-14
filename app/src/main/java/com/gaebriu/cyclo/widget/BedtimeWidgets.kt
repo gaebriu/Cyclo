@@ -45,7 +45,7 @@ import kotlin.math.min
 /**
  * Os dois widgets do ecrã principal (Figma, Componentes 4):
  *
- * - **Routine Widget** (244:48, 345 x 164): uma rotina, como o cartão das rotinas guardadas, com o
+ * - **Routine Widget** (244:48, 345 x 171, beta-3.2: a mesma altura do Wake Time): uma rotina, como o cartão das rotinas guardadas, com o
  *   nome, o sol e a hora de acordar, o calendário e a repetição, o edit-routine-b (abre o editor
  *   dela na app) e o activate/deactivate-routine-b (liga e desliga). Sem o delete. Desligada, leva
  *   o véu de 63 % do cartão. Fixa-se pelo "Add as a widget" das rotinas guardadas e do Introduction 5
@@ -75,13 +75,13 @@ object BedtimeWidgets {
 
     // Medidas do Figma (Componentes 4), em unidades do Figma, a partir do canto do cartão.
     private const val Width = 345f
-    private const val RoutineHeight = 164f
+    private const val RoutineHeight = 171f
     private const val WakeHeight = 171f
     private const val Inset = 15f
     private const val IconToText = 21f
     private const val EditX = 237f
     private const val ToggleX = 291f
-    private const val ButtonsY = 110f
+    private const val ButtonsY = 117f
 
     /** Zona de toque à volta de cada botão de 39 (48 dp com o widget ao tamanho do Figma). */
     private const val TouchOutset = 4.5f

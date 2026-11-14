@@ -5,7 +5,6 @@ import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -33,7 +32,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
-import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
 import com.gaebriu.cyclo.ui.components.LetterRevealState
 import com.gaebriu.cyclo.ui.components.LetterRevealText
 import com.gaebriu.cyclo.ui.components.rememberLetterReveal
@@ -91,10 +89,10 @@ private typealias Progress = Animatable<Float, AnimationVector1D>
 /**
  * Introduction 0.
  *
- * @param onGetStarted ação do botão Get started (a navegação liga-se por fora).
- * O botão "What's new?" é só visual, por decisão tua, e não tem ação.
+ * @param onGetStarted tocar no "swipe up to get started" (Cyclo 3, beta-3.2: era o botão Get
+ *        started; deslizar liga-se por fora, em [IntroductionFlow]).
  * @param showButtons false na abertura depois de uma atualização: só o "Hello!" e o brilho, sem o
- *                    "Get started" (a app passa sozinha para o Feed).
+ *                    indicador (a app passa sozinha para o Feed).
  * @param recede de 0 a 1: quanto este ecrã já recuou por baixo do Introduction 1. O brilho roxo
  *               desaparece com um fade de cima para baixo (e reaparece de baixo para cima ao
  *               voltar), para não ficar cortado no topo quando o ecrã encolhe.
@@ -105,6 +103,7 @@ fun Introduction0Screen(
     modifier: Modifier = Modifier,
     recede: () -> Float = { 0f },
     showButtons: Boolean = true,
+    hintIdle: () -> Boolean = { true },
 ) {
     val effects = LocalVisualEffects.current
     val greeting = stringResource(R.string.introduction_0_greeting)
@@ -137,6 +136,21 @@ fun Introduction0Screen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CycloColors.Background)) {
+        // Cyclo 3 (1:2): por cima do #010101, um gradiente vertical #101011 → #4A3C99 a 9 %. Respira
+        // com a luz do topo (o mesmo relógio da cena): ±1,5 pontos, muito devagar, nunca parado.
+        Spacer(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = if (effects.animationsEnabled) {
+                        glowFillAlpha(sceneClock.floatValue)
+                    } else {
+                        BackdropTintAlpha * glow.value
+                    }
+                }
+                .background(BackdropTint),
+        )
+
         TopGlow(glow = glow, clock = sceneClock, recede = recede, effects = effects)
 
         // "fx top dark gradient": preto a 15 % em cima, transparente em baixo.
@@ -158,9 +172,11 @@ fun Introduction0Screen(
         )
 
         if (showButtons) {
-            IntroButtons(
+            IntroHint(
                 buttons = buttons,
                 effects = effects,
+                recede = recede,
+                idle = hintIdle,
                 onGetStarted = onGetStarted,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -378,32 +394,57 @@ private fun AnimatedGreeting(
     LetterRevealText(state = reveal, style = style, modifier = modifier)
 }
 
+/**
+ * O "swipe up to get started" (Cyclo 3, 2:9): entra ao fim do "Hello!" (aos [CycloMotion.ButtonsDelayMs],
+ * com fade e uma subida curta) e apaga-se quando o ecrã recua por baixo do Introduction 1.
+ */
 @Composable
-private fun IntroButtons(
+private fun IntroHint(
     buttons: Progress,
     effects: VisualEffects,
+    recede: () -> Float,
+    idle: () -> Boolean,
     onGetStarted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // O frame do Figma tem 48 dp de barra de navegação; reservamos pelo menos isso.
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottom = maxOf(CycloDimens.MinBottomInset, navigationInset)
+    val shown = { buttons.value * (1f - recede()).coerceIn(0f, 1f) }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = CycloDimens.ScreenMargin)
-            .padding(bottom = bottom)
+            // 24 dp do texto (18 dp) à barra, num alvo de toque de 48 dp centrado nele.
+            .padding(bottom = bottom + CycloDimens.ScreenMargin - (CycloDimens.TouchTarget - 18.dp) / 2)
             .graphicsLayer {
-                val p = buttons.value
-                alpha = p
                 // Sem animações: só fade, sem subir.
-                translationY = if (effects.animationsEnabled) (1f - p) * CycloMotion.ButtonsRise.toPx() else 0f
+                translationY = if (effects.animationsEnabled) (1f - buttons.value) * HintRise.toPx() else 0f
             },
+        contentAlignment = Alignment.Center,
     ) {
-        CycloPrimaryButton(
-            text = stringResource(R.string.introduction_0_get_started),
+        SwipeHint(
+            text = stringResource(R.string.introduction_swipe_get_started),
             onClick = onGetStarted,
+            alpha = shown,
+            idle = idle,
         )
     }
+}
+
+/** De onde o indicador sobe ao entrar (mais curto do que os botões de antes: é só texto). */
+private val HintRise = 24.dp
+
+/** O gradiente do fundo (Cyclo 3, 1:2): #101011 em cima, #4A3C99 em baixo, a 9 %. */
+private val BackdropTint = Brush.verticalGradient(listOf(CycloColors.GlassFill, CycloColors.Accent))
+private const val BackdropTintAlpha = 0.09f
+
+/**
+ * A opacidade do gradiente do fundo no instante [t] (s): nasce com a luz ([LightRise]) e, quando a
+ * cena respira, varia ±1,5 pontos num ciclo lento (13 s), desfasado da luz e da sombra.
+ */
+private fun glowFillAlpha(t: Float): Float {
+    val rise = springProgress(t, LightRise).coerceIn(0f, 1f)
+    val breath = smoothStep(t, BreathFromS, BreathFullS)
+    return BackdropTintAlpha * rise + 0.015f * breath * sin(2f * PI.toFloat() * t / 13f + 0.4f)
 }

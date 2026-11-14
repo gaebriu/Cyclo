@@ -590,8 +590,8 @@ fun CycloApp(viewModel: CycloViewModel) {
         // baixo, das folhas e do loading-data, que continuam vivos).
         ScreenCrossfadeOverlay(crossfade)
 
-        // Barra de baixo (undo-action): por cima da barra de navegação, ou do Next/Done quando o
-        // tutorial ou o editor estão por cima. Desfoca o que está por trás.
+        // Barra de baixo (undo-action): por cima da barra de navegação (ou do indicador / "Done"
+        // quando o tutorial ou o editor estão por cima). Desfoca o que está por trás.
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(screens)) {
             // "Restore my data": a cópia é válida; só se repõe depois de confirmar (action-menu-big).
             // Fechar a folha (arrastar, tocar fora, voltar) desiste sem mudar nada.

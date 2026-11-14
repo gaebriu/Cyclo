@@ -443,6 +443,7 @@ fun MainScreen(
                                 reveal = reveal,
                                 bottomReserve = bottomReserve,
                                 wakeShadow = skyBase,
+                                wakeRim = skyTop,
                                 onEditRoutine = actions.onEditRoutine,
                                 onRemoveRoutine = actions.onDeleteRoutine,
                                 onAddWakeWidget = actions.onAddWakeWidget,

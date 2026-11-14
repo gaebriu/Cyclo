@@ -49,8 +49,8 @@ object CycloMotion {
     val ScreenRiseSpring = CycloSprings.Sheet.float
 
     /**
-     * Páginas lado a lado (Feed / rotinas guardadas / Tracking e, desde a Beta 2.2, as do
-     * Introduction 1 a 6): quanto andam com o gesto de voltar completo (o resto faz a mola ao largar).
+     * Páginas (Feed / rotinas guardadas / Tracking, lado a lado; as Introduction e o editor,
+     * empilhadas): quanto andam com o gesto de voltar completo (o resto faz a mola ao largar).
      */
     const val PageBackReach = 0.35f
 

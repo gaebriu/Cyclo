@@ -10,7 +10,9 @@
 
     <!-- Introduction 0 -->
     <string name="introduction_0_greeting">Hello!</string>
-    <string name="introduction_0_get_started">Get started</string>
+    <!-- Cyclo 3 (beta-3.2): os indicadores do gesto (swipe-to-get-started / swipe-to-continue). -->
+    <string name="introduction_swipe_get_started">swipe up to get started</string>
+    <string name="introduction_swipe_continue">swipe up to continue</string>
 
     <!-- Introduction 1 -->
     <string name="introduction_1_title">Sleep cycles, what are they?</string>

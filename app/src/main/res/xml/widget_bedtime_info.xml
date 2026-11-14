@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Routine Widget (Figma 244:48, 345 x 164; ver widget/BedtimeWidgets.kt). O nome do ficheiro e do
+<!-- Routine Widget (Figma 244:48, 345 x 171; ver widget/BedtimeWidgets.kt). O nome do ficheiro e do
      provider ficam os de antes, para os widgets já postos no ecrã principal continuarem a funcionar.
      Abre a 4 x 2; ao redimensionar, o cartão escala com a proporção do Figma (nunca se deforma) e
      fica centrado no espaço. Abaixo de ~250 x 110 dp o texto ficaria pequeno de mais. -->

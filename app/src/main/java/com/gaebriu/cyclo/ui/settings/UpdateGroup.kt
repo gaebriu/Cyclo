@@ -108,6 +108,7 @@ fun UpdateGroup(
             iconPath = CycloIconPaths.Close,
             contentDescription = stringResource(R.string.update_dismiss),
             onClick = onDismiss,
+            inCard = true,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = GroupPadding, end = GroupPadding)

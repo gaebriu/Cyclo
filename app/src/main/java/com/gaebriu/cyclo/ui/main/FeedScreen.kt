@@ -8,6 +8,8 @@ import kotlinx.coroutines.Job
 import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -75,7 +77,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
-import com.gaebriu.cyclo.ui.i18n.rememberAppLocale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
@@ -137,7 +138,6 @@ import com.gaebriu.cyclo.ui.theme.CycloType
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.TextStyle as DateTextStyle
 import kotlin.math.roundToInt
 
 // Medidas do Figma (Feed, frame de 393 x 852).
@@ -152,6 +152,9 @@ private val StarYellow = Color(0xFFFFC93C)
 
 /** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, a cor da base do brilho ([skyColorsAt]; #5FA2DB no Figma) a 24 %. */
 private const val WakeCardShadowAlpha = 0.24f
+
+/** As sombras interiores do mesmo cartão (beta-3.2): as duas cores do céu a 15 %. */
+private const val WakeCardRimAlpha = 0.15f
 
 /** Quanto as horas para dormir esperam, depois do último toque na cafeína, fatores ou emoções. */
 private const val BedtimeSettleMs = 1200L
@@ -206,6 +209,7 @@ fun FeedScreen(
     reveal: StaggeredReveal,
     bottomReserve: Dp,
     wakeShadow: Color,
+    wakeRim: Color,
     onEditRoutine: (Routine) -> Unit,
     onRemoveRoutine: (Routine) -> Unit,
     onAddWakeWidget: () -> Unit,
@@ -327,6 +331,7 @@ fun FeedScreen(
                         routine = nextRoutine,
                         fallAsleepMinutes = latency,
                         shadow = wakeShadow,
+                        rim = wakeRim,
                         onMoreClick = { wakeMenuOpen = true },
                         onMoreBounds = { wakeMenuAnchor = it },
                         chart = summary?.let { sum ->
@@ -482,17 +487,8 @@ private fun Greeting(now: LocalDateTime, reveal: StaggeredReveal) {
             else -> R.string.feed_greeting_evening
         },
     )
-    // header-greetings: o dia da semana e o mês na língua da app (não na do sistema), na ordem
-    // dessa língua ("Monday, November 2" / "Segunda-feira, 2 de novembro").
-    val locale = rememberAppLocale()
-    val timeFormatter = LocalTimeFormat.current.formatter
-    val date = stringResource(
-        R.string.feed_date,
-        now.dayOfWeek.getDisplayName(DateTextStyle.FULL, locale).replaceFirstChar { it.titlecase(locale) },
-        now.month.getDisplayName(DateTextStyle.FULL, locale),
-        now.dayOfMonth,
-        now.format(timeFormatter),
-    )
+    // header-small (Cyclo 3, beta-3.2): só a hora, no formato escolhido (antes "Friday, October 31 - 12:08").
+    val date = now.format(LocalTimeFormat.current.formatter)
     BasicText(
         text = greeting,
         style = CycloType.Greeting.withFeedShadow(),
@@ -546,12 +542,15 @@ private fun MoreButton(description: String, onClick: () -> Unit, onBounds: (Rect
  * adormecer em duas filas (as duas melhores com estrela, as outras com a cara do medidor).
  *
  * @param shadow a cor da base do brilho do topo (muda com a hora); a sombra usa-a a 24 %.
+ * @param rim a cor de cima do brilho. Beta-3.2 (Cyclo 3, 26:125): sombras interiores a 15 %, esta
+ *        de cima (0, 2) e a da base de baixo (0, -2), desfoque 2 (#2A3290 e #5FA2DB no Figma, 11:30–15:30).
  */
 @Composable
 private fun WakeTimeCard(
     routine: Routine,
     fallAsleepMinutes: Long,
     shadow: Color,
+    rim: Color,
     onMoreClick: () -> Unit,
     onMoreBounds: (Rect) -> Unit,
     chart: (@Composable () -> Unit)? = null,
@@ -565,7 +564,12 @@ private fun WakeTimeCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .cycloCard(shadowColor = shadow.copy(alpha = WakeCardShadowAlpha), shadowBlur = 24.dp)
+            .cycloCard(
+                shadowColor = shadow.copy(alpha = WakeCardShadowAlpha),
+                shadowBlur = 24.dp,
+                rimTop = rim.copy(alpha = WakeCardRimAlpha),
+                rimBottom = shadow.copy(alpha = WakeCardRimAlpha),
+            )
             .padding(CardPadding),
     ) {
         Row(modifier = Modifier.fillMaxWidth().heightIn(min = 18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -597,6 +601,9 @@ private fun WakeTimeCard(
         if (chart != null) ChartBelow(chart)
     }
 }
+
+/** O visto de uma opção do might-affect-sleep-group entra a crescer daqui. */
+private const val CheckFromScale = 0.6f
 
 /** Do conteúdo de um cartão a um separador (2 dp, centrado 15 dp abaixo do conteúdo; Figma 31:19). */
 private val SeparatorGap = 14.dp
@@ -707,6 +714,7 @@ private fun CaffeineCard(
         icon = CycloAppIconPaths.LocalCafe,
         face = face,
         faceTint = faceTint,
+        faceLevel = caffeineLevel(count),
         lessDescription = stringResource(R.string.feed_caffeine_less),
         moreDescription = stringResource(R.string.feed_caffeine_more),
         canLess = count > 0,
@@ -744,6 +752,7 @@ private fun WaterCard(
         icon = CycloAppIconPaths.HumidityHigh,
         face = face,
         faceTint = faceTint,
+        faceLevel = level,
         lessDescription = stringResource(R.string.feed_water_less),
         moreDescription = stringResource(R.string.feed_water_more),
         canLess = ml > 0,
@@ -773,6 +782,7 @@ private fun MeterCard(
     icon: String,
     face: String,
     faceTint: Color,
+    faceLevel: Int,
     lessDescription: String,
     moreDescription: String,
     canLess: Boolean,
@@ -789,7 +799,8 @@ private fun MeterCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CycloIcon(path = icon, size = 15.dp, tint = CycloColors.TextPrimary)
                     Spacer(Modifier.width(9.dp))
-                    CycloIcon(path = face, size = 15.dp, tint = faceTint, luminosity = false)
+                    // Beta-3.2: a cara muda com um movimento (ergue-se a melhorar, descai a piorar).
+                    AnimatedFace(path = face, tint = faceTint, level = faceLevel)
                 }
             },
             controls = {
@@ -859,6 +870,12 @@ private fun MeterRow(modifier: Modifier, lead: @Composable () -> Unit, controls:
 private fun SquareButton(iconPath: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     val effects = LocalVisualEffects.current
     val outset = (CycloDimens.TouchTarget - 33.dp) / 2
+    // Beta-3.2: o "−" acende e apaga com a mesma mola da cara (o cartão reage todo ao mesmo tempo).
+    val iconAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.39f,
+        animationSpec = if (effects.animationsEnabled) CycloSprings.FaceChange.float else snap(),
+        label = "squareButtonAlpha",
+    )
     Box(modifier = Modifier.size(33.dp)) {
         Box(
             modifier = Modifier
@@ -876,7 +893,7 @@ private fun SquareButton(iconPath: String, description: String, enabled: Boolean
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                CycloIcon(path = iconPath, size = 15.dp, tint = CycloColors.TextPrimary, alpha = { if (enabled) 1f else 0.39f })
+                CycloIcon(path = iconPath, size = 15.dp, tint = CycloColors.TextPrimary, alpha = { iconAlpha })
             }
         }
     }
@@ -922,6 +939,17 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
         animationSpec = CycloMotion.CardSpring,
         label = "sleepFactor",
     )
+    // Beta-3.2: o visto entra a crescer (Enter, um ressalto mínimo) ao mesmo tempo que a borda e a
+    // sombra acendem; ao sair encolhe sem ressalto.
+    val checkScale by animateFloatAsState(
+        targetValue = if (isSelected) 1f else CheckFromScale,
+        animationSpec = when {
+            !effects.animationsEnabled -> snap()
+            isSelected -> CycloSprings.Enter.float
+            else -> CycloSprings.Exit.float
+        },
+        label = "sleepFactorCheck",
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -962,7 +990,12 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
             size = 15.dp,
             tint = CycloColors.TextPrimary,
             alpha = { on },
-            modifier = Modifier.align(Alignment.CenterEnd),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .graphicsLayer {
+                    scaleX = checkScale
+                    scaleY = checkScale
+                },
         )
     }
 }

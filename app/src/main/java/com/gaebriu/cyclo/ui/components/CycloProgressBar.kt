@@ -1,100 +1,94 @@
 ﻿package com.gaebriu.cyclo.ui.components
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.ShadowCache
 import com.gaebriu.cyclo.ui.effects.drawBlurredCircle
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 
 /**
- * Barra de progresso dos ecrãs de introdução: uma pílula preenchida (gradiente roxo, com uma
- * bolinha na ponta) e, à direita, a pílula vazia, separadas por 6 dp. Sem contorno, como no Figma.
+ * O anel de progresso das Introduction e do editor (progress-bar, Cyclo 3, beta-3.2; antes uma barra
+ * horizontal): um círculo de 39 dp #101011 com a sombra 0, 4, desfoque 39 (preto a 24 %), o arco
+ * #4A3C99 de 4 dp por dentro da borda e, por cima, o fio de luz (sombras interiores #FCFCFE a 15 %,
+ * 0,1 e 0,-1, desfoque 2).
+ *
+ * O arco começa às 12 horas e enche no sentido dos ponteiros (o Figma desenha o círculo inteiro e
+ * não diz onde começa). As duas pontas são SEMPRE redondas, também quase a 100 %, quando a ponta
+ * da frente encosta à de trás; a 100 % é um círculo fechado. Muito perto de 0 o arco não aparece
+ * de repente como um ponto: acende nos primeiros graus.
  *
  * @param progress de 0 a 1. É lido só ao desenhar, por isso animar o valor não recompõe nada.
  */
 @Composable
-fun CycloProgressBar(
+fun CycloProgressRing(
     progress: () -> Float,
     description: String,
     modifier: Modifier = Modifier,
 ) {
-    val effects = LocalVisualEffects.current
-
-    Canvas(
+    val dropShadow = remember { ShadowCache() }
+    val rimTop = remember { ShadowCache() }
+    val rimBottom = remember { ShadowCache() }
+    Spacer(
         modifier = modifier
-            .fillMaxWidth()
-            .height(CycloDimens.ProgressBarHeight)
-            .semantics { contentDescription = description },
-    ) {
-        val blend = effects.luminosity
-        val p = progress().coerceIn(0f, 1f)
-        val width = size.width
-        val height = size.height
-        val fillWidth = width * p
-        val corner = CornerRadius(height / 2f)
-
-        // Parte vazia, à direita da preenchida, separada por 6 dp.
-        // Perto dos 100 %, quando já não cabe uma pílula inteira (6 dp + a altura da barra), a parte
-        // vazia passa a um círculo que encolhe e desvanece, e o espaço de 6 dp fecha na mesma
-        // proporção: tudo chega a zero ao mesmo tempo que a barra enche, sem cortes nem saltos.
-        val gap = 6.dp.toPx()
-        val remaining = width - fillWidth
-        if (remaining > 0f) {
-            val shrink = (remaining / (gap + height)).coerceIn(0f, 1f)
-            val trackLeft = fillWidth + gap * shrink
-            val trackWidth = width - trackLeft
-            val trackHeight = height * shrink
-            if (trackWidth > 0f && trackHeight > 0f) {
-                drawRoundRect(
-                    color = CycloColors.GlassFill,
-                    topLeft = Offset(trackLeft, (height - trackHeight) / 2f),
-                    size = Size(trackWidth, trackHeight),
-                    cornerRadius = CornerRadius(trackHeight / 2f),
-                    alpha = shrink,
-                    blendMode = blend,
-                )
+            .size(CycloDimens.CircleButtonSize)
+            .semantics {
+                contentDescription = description
+                progressBarRangeInfo = ProgressBarRangeInfo(progress().coerceIn(0f, 1f), 0f..1f)
             }
-        }
-
-        if (fillWidth <= 0f) return@Canvas
-
-        // Parte preenchida: #4A3C99 a 100 % até #4A3C99 a 63 %, da esquerda para a direita.
-        drawRoundRect(
-            brush = Brush.horizontalGradient(
-                colors = listOf(CycloColors.Accent, CycloColors.Accent.copy(alpha = 0.63f)),
-                startX = 0f,
-                endX = fillWidth,
-            ),
-            size = Size(fillWidth, height),
-            cornerRadius = corner,
-        )
-
-        // Bolinha: 15 dp, a 5 dp da ponta. Nasce pequena enquanto a barra ainda é curta.
-        val ballScale = (fillWidth / 25.dp.toPx()).coerceAtMost(1f)
-        drawCycloBall(
-            center = Offset(fillWidth - 12.5.dp.toPx(), height / 2f),
-            scale = ballScale,
-        )
-    }
+            .drawWithCache {
+                val circle = Path().apply { addOval(Rect(Offset.Zero, size)) }
+                val stroke = RingStroke.toPx()
+                val arcTopLeft = Offset(stroke / 2f, stroke / 2f)
+                val arcSize = Size(size.width - stroke, size.height - stroke)
+                val arcStyle = Stroke(width = stroke, cap = StrokeCap.Round)
+                val rim = CycloColors.TextPrimary.copy(alpha = 0.15f)
+                onDrawBehind {
+                    dropShadow.drawDropShadow(this, circle, 39.dp.toPx(), Color.Black.copy(alpha = 0.24f), Offset(0f, 4.dp.toPx()))
+                    drawPath(circle, CycloColors.GlassFill)
+                    val sweep = 360f * progress().coerceIn(0f, 1f)
+                    if (sweep > 0f) {
+                        drawArc(
+                            color = CycloColors.Accent,
+                            startAngle = -90f,
+                            sweepAngle = sweep,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            alpha = (sweep / RingFadeInDegrees).coerceIn(0f, 1f),
+                            style = arcStyle,
+                        )
+                    }
+                    rimTop.drawInnerShadow(this, circle, 2.dp.toPx(), rim, Offset(0f, 1.dp.toPx()))
+                    rimBottom.drawInnerShadow(this, circle, 2.dp.toPx(), rim, Offset(0f, -1.dp.toPx()))
+                }
+            },
+    )
 }
+
+/** A espessura do arco (stroke de 4, INSIDE no Figma). */
+private val RingStroke = 4.dp
+
+/** Nos primeiros graus o arco acende em vez de aparecer como um ponto. */
+private const val RingFadeInDegrees = 10f
 
 /**
  * Bolinha branca (ball-b): brilhos por cima e por baixo e sombras interiores. 15 dp na barra de

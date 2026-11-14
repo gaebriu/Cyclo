@@ -58,15 +58,23 @@ class ShadowCache {
 
     /**
      * A sombra interior de [shape]: o que fica fora da forma, deslocado [offset] e desfocado, visto
-     * por dentro (como [drawInnerShadow]).
+     * por dentro (como [drawInnerShadow]). [blendMode]: beta-3.2, as sombras interiores em
+     * Luminosity do vidro (navigation-bar, mini-menu).
      */
-    fun drawInnerShadow(scope: DrawScope, shape: Path, cssBlurPx: Float, color: Color, offset: Offset) = with(scope) {
+    fun drawInnerShadow(
+        scope: DrawScope,
+        shape: Path,
+        cssBlurPx: Float,
+        color: Color,
+        offset: Offset,
+        blendMode: BlendMode = BlendMode.SrcOver,
+    ) = with(scope) {
         if (color.alpha <= 0f) return
         prepare(this, shape, cssBlurPx, inner = true, offset = offset)
-        clipPath(shape) { drawMask(this, color, Offset.Zero) }
+        clipPath(shape) { drawMask(this, color, Offset.Zero, blendMode) }
     }
 
-    private fun drawMask(scope: DrawScope, color: Color, shift: Offset) = with(scope) {
+    private fun drawMask(scope: DrawScope, color: Color, shift: Offset, blendMode: BlendMode = BlendMode.SrcOver) = with(scope) {
         val mask = image ?: return
         if (tint == null || color != tintColor) {
             tintColor = color
@@ -79,6 +87,7 @@ class ShadowCache {
             dstOffset = IntOffset((area.left + shift.x).toInt(), (area.top + shift.y).toInt()),
             dstSize = IntSize(area.width.toInt(), area.height.toInt()),
             colorFilter = tint,
+            blendMode = blendMode,
         )
     }
 

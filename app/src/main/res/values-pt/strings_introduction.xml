@@ -12,7 +12,9 @@
 
     <!-- Introduction 0 -->
     <string name="introduction_0_greeting">Olá!</string>
-    <string name="introduction_0_get_started">Começar</string>
+    <!-- Cyclo 3 (beta-3.2): os indicadores do gesto (swipe-to-get-started / swipe-to-continue). -->
+    <string name="introduction_swipe_get_started">desliza para cima para começar</string>
+    <string name="introduction_swipe_continue">desliza para cima para continuar</string>
 
     <!-- Introduction 1 -->
     <string name="introduction_1_title">Ciclos de sono, o que são?</string>

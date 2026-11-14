@@ -54,7 +54,7 @@ private val TextVerticalMargin = 15.dp
  *
  * Tem de estar num sítio que ocupe o ecrã todo.
  *
- * @param bottomMargin distância ao fundo do ecrã (fica por cima da barra de navegação ou do Next).
+ * @param bottomMargin distância ao fundo do ecrã (fica por cima da barra de navegação ou do "Done" do editor).
  */
 @Composable
 fun CycloMessageBar(

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Pré-visualização na lista de widgets do lançador (Figma 244:48, 345 x 164, valores de exemplo do
+    Pré-visualização na lista de widgets do lançador (Figma 244:48, 345 x 171, valores de exemplo do
     Figma). É uma imagem desenhada pelo MESMO código do widget real (BedtimeWidgets.previewBitmaps,
     gerada pelo teste instrumentado WidgetPreviewGenerator): o lançador não corre código da app, e
     um layout com TextViews saía com a fonte do sistema e ícones diferentes. Só a pré-visualização

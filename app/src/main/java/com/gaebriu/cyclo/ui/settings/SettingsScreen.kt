@@ -146,6 +146,9 @@ private val RowToDescription = 15.dp
 private val DescriptionToSection = 15.dp
 private val RowInset = 15.dp
 
+/** A faixa de baixo das definições (fx progressive-blur-bottom 2039:123, Cyclo 3). */
+private val SettingsBottomFade = 48.dp
+
 /** Scroll em que a faixa de baixo some, ao chegar ao fim da página. */
 private val BottomFadeRamp = 48.dp
 
@@ -443,7 +446,8 @@ fun SettingsScreen(
         }
 
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(content)) {
-            MainEdgeFades(topExtra = topExtra, bottomAmount = { bottomAmount })
+            // Cyclo 3 (beta-3.2): em cima até #010101 a 100 % (87 dp), em baixo 48 dp.
+            MainEdgeFades(topExtra = topExtra, bottomAmount = { bottomAmount }, topAlpha = 1f, bottomHeight = SettingsBottomFade)
 
             // close-b (Cyclo-2 2055:257, Cyclo 2.2: o X no lugar da seta): fixo, a 48 dp do topo e
             // 24 dp da esquerda (a zona de toque sai 4,5 dp). Fecha as definições, como antes.

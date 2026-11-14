@@ -28,7 +28,6 @@
     <string name="feed_greeting_afternoon">Good afternoon</string>
     <string name="feed_greeting_evening">Good evening</string>
     <!-- Ex.: "Friday, October 31 - 12:08" (dia da semana, mês, dia, hora) -->
-    <string name="feed_date">%1$s, %2$s %3$d - %4$s</string>
     <string name="feed_wake_title">To rise refreshed tomorrow:</string>
     <string name="feed_wake_more">Wake time actions</string>
     <plurals name="feed_bedtime_description">

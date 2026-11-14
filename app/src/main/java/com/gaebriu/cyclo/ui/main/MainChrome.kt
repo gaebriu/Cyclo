@@ -77,9 +77,14 @@ private val MiniMenuRadius = 24.dp
 private val MiniMenuSlot = 39.dp
 private val MiniMenuEdge = 3.dp
 
-/** Faixas escuras do topo (130 dp, preto a 15 %) e do fundo (120 dp, até preto). */
-private val TopFadeHeight = 130.dp
+/**
+ * Faixas escuras do topo e do fundo (Cyclo 3, beta-3.2): no Feed, nas rotinas guardadas e na
+ * Tracking, 87 dp até #010101 a 39 % em cima e 120 dp até #010101 em baixo (antes 130 dp, preto a
+ * 15 %, e preto). As definições têm as suas ([MainEdgeFades] com outros valores).
+ */
+private val TopFadeHeight = 87.dp
 private val BottomFadeHeight = 120.dp
+private const val TopFadeAlpha = 0.39f
 
 // Brilho do topo ("fx background blur"): elipse de 432 x 267 dp com o topo no topo do ecrã e
 // 63 % de grupo. O gradiente vertical vai da cor de cima (até meio da elipse) à da base.
@@ -176,31 +181,35 @@ fun FeedTopGlow(
 
 /**
  * "fx progressive-blur-top" e "fx progressive-blur-bottom": o conteúdo desfoca-se (15 na borda do
- * ecrã até 0) e escurece ao passar por baixo do topo (preto a 15 %) e do fundo (até preto).
+ * ecrã até 0) e escurece ao passar por baixo do topo (até #010101 a [topAlpha]) e do fundo (até #010101).
  * Usa o que está por baixo ([com.gaebriu.cyclo.ui.effects.LocalBackdrop]).
  *
  * @param topExtra quanto a barra de estado do aparelho é mais alta do que os 24 dp do Figma: a
  *                 faixa de cima cresce o mesmo, para acabar no mesmo sítio em relação ao conteúdo.
  * @param bottomAmount de 0 a 1: quanto se vê da faixa de baixo (ex.: some no fim do scroll).
+ * @param topAlpha a opacidade do #010101 na borda de cima (as definições: 100 %).
+ * @param bottomHeight a altura da faixa de baixo (as definições: 48 dp).
  */
 @Composable
 fun MainEdgeFades(
     modifier: Modifier = Modifier,
     topExtra: Dp = 0.dp,
     bottomAmount: () -> Float = { 1f },
+    topAlpha: Float = TopFadeAlpha,
+    bottomHeight: Dp = BottomFadeHeight,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         ProgressiveBlurEdge(
             top = true,
             height = TopFadeHeight + topExtra,
             figmaBlur = FigmaBlur.EdgeProgressive,
-            shade = Color.Black.copy(alpha = 0.15f),
+            shade = CycloColors.Background.copy(alpha = topAlpha),
         )
         ProgressiveBlurEdge(
             top = false,
-            height = BottomFadeHeight,
+            height = bottomHeight,
             figmaBlur = FigmaBlur.EdgeProgressive,
-            shade = Color.Black,
+            shade = CycloColors.Background,
             modifier = Modifier.align(Alignment.BottomCenter),
             amount = bottomAmount,
         )

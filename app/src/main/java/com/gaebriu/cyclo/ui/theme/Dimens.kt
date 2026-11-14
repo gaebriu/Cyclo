@@ -15,8 +15,6 @@ object CycloDimens {
     val CircleButtonSize = 39.dp
     val TouchTarget = 48.dp
 
-    val ProgressBarHeight = 24.dp
-
     /** Caixas de texto (tap-to-write-box). */
     val InputHeight = 48.dp
     val InputRadius = 15.dp

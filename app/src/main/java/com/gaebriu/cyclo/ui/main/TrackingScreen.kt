@@ -338,6 +338,7 @@ internal fun SleepPrompt(
                     iconPath = CycloIconPaths.Close,
                     contentDescription = stringResource(R.string.sleep_prompt_close),
                     onClick = onDismiss,
+                    inCard = true,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .offset(x = 4.5.dp, y = (-4.5).dp),

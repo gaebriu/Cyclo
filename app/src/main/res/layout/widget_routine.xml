@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Routine Widget (Figma 244:48, 345 x 164). O cartão é desenhado num bitmap à escala que cabe no
+    Routine Widget (Figma 244:48, 345 x 171). O cartão é desenhado num bitmap à escala que cabe no
     espaço do lançador, sempre com a proporção do Figma (ver widget/BedtimeWidgets.kt): o código
     dá o tamanho a widget_card e põe os botões (zonas de toque transparentes) nos sítios do Figma.
     RemoteViews só infla classes @RemoteView: sem Space nem View simples.
@@ -21,7 +21,7 @@
     <FrameLayout
         android:id="@+id/widget_card"
         android:layout_width="345dp"
-        android:layout_height="164dp"
+        android:layout_height="171dp"
         android:layout_gravity="center">
 
         <ImageView
