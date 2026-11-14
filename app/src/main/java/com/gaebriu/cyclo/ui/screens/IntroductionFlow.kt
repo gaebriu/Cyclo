@@ -727,158 +727,161 @@ fun IntroductionFlow(
                     },
             ) {
                 // O que fica por baixo dos menus da repetição (action-menu-when-to-show e
-                // action-menu-big-choose-days), que o desfocam como os menus das definições. É a
-                // Box das páginas e não esta: os menus estão nesta e não podem usar uma camada que
-                // os contenha. Tutorial e editor são este mesmo código: o desfoque é igual.
+                // action-menu-big-choose-days), que o desfocam: as páginas, o X com o anel roxo, o
+                // indicador e o "Done" roxo (a cor deles passa desfocada, como no Figma). Os menus
+                // ficam fora desta Box: não podem usar uma camada que os contenha. Tutorial e editor
+                // são este mesmo código: o desfoque é igual.
                 val pagesBackdrop = rememberBackdropLayer()
                 Box(modifier = Modifier.fillMaxSize().backdropSource(pagesBackdrop)) {
-                    val page: @Composable (Int, @Composable () -> Unit) -> Unit = { index, content ->
-                        if (index in shownPages) {
-                            IntroPage(
-                                index = index,
-                                position = shownPosition,
-                                lift = { if (step == index) peek.value else 0f },
-                                hasNext = index < lastStep,
-                                effects = effects,
-                                active = step == index,
-                                top = contentTop,
-                                bottom = contentBottom,
-                                content = content,
-                            )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        val page: @Composable (Int, @Composable () -> Unit) -> Unit = { index, content ->
+                            if (index in shownPages) {
+                                IntroPage(
+                                    index = index,
+                                    position = shownPosition,
+                                    lift = { if (step == index) peek.value else 0f },
+                                    hasNext = index < lastStep,
+                                    effects = effects,
+                                    active = step == index,
+                                    top = contentTop,
+                                    bottom = contentBottom,
+                                    content = content,
+                                )
+                            }
                         }
-                    }
-                    if (!isEditor) {
-                        page(1) { Introduction1Page(enter = { shownEnter() }, iconMotion = iconMotions[1]) }
-                    }
-                    page(2) {
-                        Introduction2Page(
-                            iconMotion = iconMotions[2],
-                            wakeHour = wakeHour,
-                            wakeMinute = wakeMinute,
-                            hintVisible = !timeChanged,
-                            onHourChange = {
-                                if (it != wakeHour) {
-                                    wakeHour = it
-                                    timeChanged = true
-                                }
-                            },
-                            onMinuteChange = {
-                                if (it != wakeMinute) {
-                                    wakeMinute = it
-                                    timeChanged = true
-                                }
-                            },
-                        )
-                    }
-                    page(3) {
-                        Introduction3Page(
-                            iconMotion = iconMotions[3],
-                            name = routineName,
-                            onNameChange = {
-                                // A primeira letra escrita dá um toque à etiqueta.
-                                if (routineName.isEmpty() && it.isNotEmpty()) nudgeIcon(3)
-                                interacted()
-                                routineName = it
-                            },
-                        )
-                    }
-                    page(4) {
-                        Introduction4Page(
-                            iconMotion = iconMotions[4],
-                            name = savedRoutineName,
-                            // O que se muda aqui passa também para a caixa do Introduction 3.
-                            onNameChange = {
-                                savedRoutineName = it
-                                routineName = it
-                            },
-                            repeat = repeat,
-                        )
-                    }
-                    page(5) {
-                        Introduction5Page(
-                            iconMotion = iconMotions[5],
-                            name = savedRoutineName,
-                            // Como no Introduction 4: o que se muda aqui passa também para a
-                            // caixa do Introduction 3 (e para a do 4).
-                            onNameChange = {
-                                savedRoutineName = it
-                                routineName = it
-                            },
-                            repeat = repeat,
-                            onAddWidget = onAddWidget,
-                        )
-                    }
-                    if (!isEditor) {
-                        page(6) {
-                            Introduction6Page(
-                                iconMotion = iconMotions[6],
-                                bedtimeOn = bedtimeShown,
-                                onToggleBedtime = {
-                                    toggleReminder(BedtimeReminder.ChannelId, bedtimeShown) { bedtimeWanted = it }
+                        if (!isEditor) {
+                            page(1) { Introduction1Page(enter = { shownEnter() }, iconMotion = iconMotions[1]) }
+                        }
+                        page(2) {
+                            Introduction2Page(
+                                iconMotion = iconMotions[2],
+                                wakeHour = wakeHour,
+                                wakeMinute = wakeMinute,
+                                hintVisible = !timeChanged,
+                                onHourChange = {
+                                    if (it != wakeHour) {
+                                        wakeHour = it
+                                        timeChanged = true
+                                    }
                                 },
-                                logSleepOn = logSleepShown,
-                                onToggleLogSleep = {
-                                    toggleReminder(LogSleepReminder.ChannelId, logSleepShown) { logSleepWanted = it }
+                                onMinuteChange = {
+                                    if (it != wakeMinute) {
+                                        wakeMinute = it
+                                        timeChanged = true
+                                    }
                                 },
-                                asks = notifications?.isPermissionGranted() != true,
                             )
                         }
-                        page(7) {
-                            Introduction7Page(
-                                active = introduction7Settled,
-                                onFinished = onFinished,
+                        page(3) {
+                            Introduction3Page(
+                                iconMotion = iconMotions[3],
+                                name = routineName,
+                                onNameChange = {
+                                    // A primeira letra escrita dá um toque à etiqueta.
+                                    if (routineName.isEmpty() && it.isNotEmpty()) nudgeIcon(3)
+                                    interacted()
+                                    routineName = it
+                                },
                             )
+                        }
+                        page(4) {
+                            Introduction4Page(
+                                iconMotion = iconMotions[4],
+                                name = savedRoutineName,
+                                // O que se muda aqui passa também para a caixa do Introduction 3.
+                                onNameChange = {
+                                    savedRoutineName = it
+                                    routineName = it
+                                },
+                                repeat = repeat,
+                            )
+                        }
+                        page(5) {
+                            Introduction5Page(
+                                iconMotion = iconMotions[5],
+                                name = savedRoutineName,
+                                // Como no Introduction 4: o que se muda aqui passa também para a
+                                // caixa do Introduction 3 (e para a do 4).
+                                onNameChange = {
+                                    savedRoutineName = it
+                                    routineName = it
+                                },
+                                repeat = repeat,
+                                onAddWidget = onAddWidget,
+                            )
+                        }
+                        if (!isEditor) {
+                            page(6) {
+                                Introduction6Page(
+                                    iconMotion = iconMotions[6],
+                                    bedtimeOn = bedtimeShown,
+                                    onToggleBedtime = {
+                                        toggleReminder(BedtimeReminder.ChannelId, bedtimeShown) { bedtimeWanted = it }
+                                    },
+                                    logSleepOn = logSleepShown,
+                                    onToggleLogSleep = {
+                                        toggleReminder(LogSleepReminder.ChannelId, logSleepShown) { logSleepWanted = it }
+                                    },
+                                    asks = notifications?.isPermissionGranted() != true,
+                                )
+                            }
+                            page(7) {
+                                Introduction7Page(
+                                    active = introduction7Settled,
+                                    onFinished = onFinished,
+                                )
+                            }
                         }
                     }
-                }
 
-                // FIXO: o X e o anel de progresso.
-                IntroTopBar(
-                    progress = progress,
-                    progressDescription = stringResource(
-                        R.string.introduction_progress,
-                        if (isEditor) step - EditorFirstStep + 1 else step.coerceAtLeast(1),
-                        if (isEditor) LastRoutineStep - EditorFirstStep + 1 else TutorialStepCount,
-                    ),
-                    onClose = ::close,
-                    closeAlpha = { 1f - toSeven() },
-                    closeEnabled = closeEnabled,
-                    ringAlpha = { ringAlpha },
-                    modifier = Modifier
-                        .padding(horizontal = CycloDimens.ScreenMargin)
-                        .zIndex(1f),
-                )
-
-                // FIXO: o indicador e, no último passo do editor, o "Done" roxo.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .zIndex(1f),
-                    contentAlignment = Alignment.BottomCenter,
-                ) {
-                    // Só a página do passo já tem a ação "Next" do TalkBack: o indicador fica só a ler-se.
-                    SwipeHint(
-                        text = stringResource(R.string.introduction_swipe_continue),
-                        alpha = hintAlpha,
-                        idle = { guideIdle },
+                    // FIXO: o X e o anel de progresso.
+                    IntroTopBar(
+                        progress = progress,
+                        progressDescription = stringResource(
+                            R.string.introduction_progress,
+                            if (isEditor) step - EditorFirstStep + 1 else step.coerceAtLeast(1),
+                            if (isEditor) LastRoutineStep - EditorFirstStep + 1 else TutorialStepCount,
+                        ),
+                        onClose = ::close,
+                        closeAlpha = { 1f - toSeven() },
+                        closeEnabled = closeEnabled,
+                        ringAlpha = { ringAlpha },
                         modifier = Modifier
-                            .padding(bottom = bottomInset + HintBottomGap)
-                            .then(if (restStep() != firstPage) Modifier.clearAndSetSemantics { } else Modifier),
+                            .padding(horizontal = CycloDimens.ScreenMargin)
+                            .zIndex(1f),
                     )
-                    if (done > 0f) {
-                        CycloPrimaryButton(
-                            text = stringResource(R.string.editor_done),
-                            enabled = step == LastRoutineStep,
-                            onClick = ::saveEditor,
-                            textAlpha = { smoothStep(done, 0.45f, 1f) },
+
+                    // FIXO: o indicador e, no último passo do editor, o "Done" roxo.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .zIndex(1f),
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        // Só a página do passo já tem a ação "Next" do TalkBack: o indicador fica só a ler-se.
+                        SwipeHint(
+                            text = stringResource(R.string.introduction_swipe_continue),
+                            alpha = hintAlpha,
+                            idle = { guideIdle },
                             modifier = Modifier
-                                .padding(horizontal = CycloDimens.ScreenMargin)
-                                .padding(bottom = bottomInset)
-                                .graphicsLayer {
-                                    alpha = done
-                                    if (effects.animationsEnabled) translationY = (1f - done) * CycloMotion.ButtonsRise.toPx() * 0.25f
-                                },
+                                .padding(bottom = bottomInset + HintBottomGap)
+                                .then(if (restStep() != firstPage) Modifier.clearAndSetSemantics { } else Modifier),
                         )
+                        if (done > 0f) {
+                            CycloPrimaryButton(
+                                text = stringResource(R.string.editor_done),
+                                enabled = step == LastRoutineStep,
+                                onClick = ::saveEditor,
+                                textAlpha = { smoothStep(done, 0.45f, 1f) },
+                                modifier = Modifier
+                                    .padding(horizontal = CycloDimens.ScreenMargin)
+                                    .padding(bottom = bottomInset)
+                                    .graphicsLayer {
+                                        alpha = done
+                                        if (effects.animationsEnabled) translationY = (1f - done) * CycloMotion.ButtonsRise.toPx() * 0.25f
+                                    },
+                            )
+                        }
                     }
                 }
 

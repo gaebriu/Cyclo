@@ -48,7 +48,7 @@
     <!-- Introduction 7 (até à Beta 2.2, o 6) -->
     <string name="introduction_7_text">You’re all set!</string>
     <!-- Introduction 4 -->
-    <string name="introduction_4_title">When should it appear on your feed?</string>
+    <string name="introduction_4_title">When should it appear on your Feed?</string>
     <string name="introduction_4_subtitle">If it\'s just for one time use, skip this part</string>
     <string name="introduction_4_repeat_field">When to show</string>
     <string name="repeat_just_once">Show just this once</string>

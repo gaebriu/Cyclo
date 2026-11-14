@@ -67,7 +67,7 @@
     <string name="saved_delete">Delete %1$s</string>
     <string name="saved_widget">Add %1$s as a widget</string>
     <string name="saved_edit">Edit %1$s</string>
-    <string name="saved_toggle">%1$s on the feed</string>
+    <string name="saved_toggle">%1$s on the Feed</string>
 
     <!-- Reordenar (ações do TalkBack em cada cartão das rotinas e bloco do Feed) -->
     <string name="reorder_move_up">Move up</string>
@@ -112,8 +112,8 @@
     <string name="language_portuguese">Portuguese</string>
     <!-- performance-group (Settings, 256:114). O texto de ajuda é o do Figma, sem ponto final. -->
     <string name="settings_interface">Interface</string>
-    <string name="settings_unified_view">Unified view</string>
-    <string name="settings_unified_view_description">Bring your daily tracking and feed together in one seamless view</string>
+    <string name="settings_unified_view">Seamless view</string>
+    <string name="settings_unified_view_description">See your Feed and your logs together, without switching pages</string>
     <string name="settings_advanced_textures">Advanced textures</string>
     <string name="settings_advanced_textures_description">Enjoy richer visual effects with advanced textures. Turn it off for a faster experience</string>
     <string name="settings_data">Data</string>

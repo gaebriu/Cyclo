@@ -68,7 +68,7 @@
     <string name="saved_delete">Apagar %1$s</string>
     <string name="saved_widget">Adicionar %1$s como widget</string>
     <string name="saved_edit">Editar %1$s</string>
-    <string name="saved_toggle">%1$s no feed</string>
+    <string name="saved_toggle">%1$s no Feed</string>
 
     <!-- Reordenar (ações do TalkBack em cada cartão das rotinas e bloco do Feed) -->
     <string name="reorder_move_up">Mover para cima</string>
@@ -113,8 +113,8 @@
     <string name="language_english">Inglês</string>
     <string name="language_portuguese">Português</string>
     <string name="settings_interface">Interface</string>
-    <string name="settings_unified_view">Vista unificada</string>
-    <string name="settings_unified_view_description">Junta o teu registo diário e o feed numa só vista</string>
+    <string name="settings_unified_view">Vista contínua</string>
+    <string name="settings_unified_view_description">Vê o teu Feed e os teus registos juntos, sem mudares de página</string>
     <string name="settings_advanced_textures">Texturas avançadas</string>
     <string name="settings_advanced_textures_description">Desfruta de efeitos visuais mais ricos com as texturas avançadas. Desliga-as para uma experiência mais rápida</string>
     <string name="settings_data">Dados</string>
