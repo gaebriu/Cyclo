@@ -8,8 +8,8 @@ import kotlin.math.abs
 /**
  * Uma página de um conjunto lado a lado, guiado por UMA posição contínua ([position]: 0 = a
  * primeira, 1 = a segunda...). É a transição do Feed, das rotinas guardadas e da Tracking
- * ([com.gaebriu.cyclo.ui.main.MainScreen]) e, desde a Beta 2.2, a das páginas do Introduction
- * (antes, a página nova passava POR CIMA da anterior, que só se deslocava 30 %):
+ * ([com.gaebriu.cyclo.ui.main.MainScreen]). As Introduction usaram-na da Beta 2.2 à 3.1; desde a
+ * beta-3.2 estão empilhadas ([stackedPage]):
  *
  * - a página desliza a largura inteira com a posição: a que entra vem encostada à que sai, e as
  *   duas veem-se sempre (nunca há um fotograma sem nenhuma);

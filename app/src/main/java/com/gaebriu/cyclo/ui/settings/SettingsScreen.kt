@@ -146,6 +146,9 @@ private val RowToDescription = 15.dp
 private val DescriptionToSection = 15.dp
 private val RowInset = 15.dp
 
+/** A faixa de baixo das definições (fx progressive-blur-bottom 2039:123, Cyclo 3). */
+private val SettingsBottomFade = 48.dp
+
 /** Scroll em que a faixa de baixo some, ao chegar ao fim da página. */
 private val BottomFadeRamp = 48.dp
 
@@ -178,7 +181,8 @@ private enum class SettingsMenu { None, Chronotype, FallAsleep, TimeFormat, Lang
  * - "Export my data" e "Restore my data" abrem o seletor de ficheiros do sistema.
  * - "View on GitHub" mostra primeiro o action-menu-big-open-github.
  * - A língua abre o action-menu-lang (Componentes 4): muda logo a língua da app toda ([onSetLanguage]).
- * - "Advanced textures" (Performance) liga e desliga o desenho completo ([onSetAdvancedTextures]).
+ * - Interface (Cyclo-2 2039:70, beta-3.0): "Unified view" junta a Tracking ao Feed
+ *   ([onSetUnifiedView]); "Advanced textures" liga e desliga o desenho completo ([onSetAdvancedTextures]).
  * - Voltar (botão, gesto) fecha primeiro o menu, a folha ou a caixa da idade, se estiverem abertos.
  *
  * @param reminderOn o interruptor "Bedtime" como se vê: ligado nas definições e com autorização.
@@ -203,6 +207,7 @@ fun SettingsScreen(
     onOpenGitHub: () -> Unit,
     onSetLanguage: (AppLanguage) -> Unit,
     onSetAdvancedTextures: (Boolean) -> Unit,
+    onSetUnifiedView: (Boolean) -> Unit,
     onClose: () -> Unit,
     update: UpdateUi? = null,
     onUpdateOpen: () -> Unit = {},
@@ -394,8 +399,16 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(SectionGap))
 
-            // Desempenho (performance-group, 256:114): "Advanced textures" e o texto de ajuda.
-            SectionLabel(stringResource(R.string.settings_performance), labelStyle)
+            // Interface (interface-group, Cyclo-2 2039:70, beta-3.0): "Unified view" (2066:137) e
+            // "Advanced textures", cada um com o seu texto de ajuda, 15 dp entre tudo.
+            SectionLabel(stringResource(R.string.settings_interface), labelStyle)
+            SwitchRow(
+                label = stringResource(R.string.settings_unified_view),
+                on = data.unifiedView,
+                onToggle = { onSetUnifiedView(!data.unifiedView) },
+            )
+            Description(stringResource(R.string.settings_unified_view_description), labelStyle)
+            Spacer(Modifier.height(RowGap))
             SwitchRow(
                 label = stringResource(R.string.settings_advanced_textures),
                 on = data.advancedTextures,
@@ -433,7 +446,8 @@ fun SettingsScreen(
         }
 
         CompositionLocalProvider(LocalBackdrop provides Backdrop.of(content)) {
-            MainEdgeFades(topExtra = topExtra, bottomAmount = { bottomAmount })
+            // Cyclo 3 (beta-3.2): em cima até #010101 a 100 % (87 dp), em baixo 48 dp.
+            MainEdgeFades(topExtra = topExtra, bottomAmount = { bottomAmount }, topAlpha = 1f, bottomHeight = SettingsBottomFade)
 
             // close-b (Cyclo-2 2055:257, Cyclo 2.2: o X no lugar da seta): fixo, a 48 dp do topo e
             // 24 dp da esquerda (a zona de toque sai 4,5 dp). Fecha as definições, como antes.

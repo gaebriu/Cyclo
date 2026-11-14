@@ -21,6 +21,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.gaebriu.cyclo.MainActivity
 import com.gaebriu.cyclo.R
+import com.gaebriu.cyclo.data.Bedtime
 import com.gaebriu.cyclo.data.BedtimeEngine
 import com.gaebriu.cyclo.data.CycloData
 import com.gaebriu.cyclo.data.CycloRepository
@@ -44,7 +45,7 @@ import kotlin.math.min
 /**
  * Os dois widgets do ecrã principal (Figma, Componentes 4):
  *
- * - **Routine Widget** (244:48, 345 x 164): uma rotina, como o cartão das rotinas guardadas, com o
+ * - **Routine Widget** (244:48, 345 x 171, beta-3.2: a mesma altura do Wake Time): uma rotina, como o cartão das rotinas guardadas, com o
  *   nome, o sol e a hora de acordar, o calendário e a repetição, o edit-routine-b (abre o editor
  *   dela na app) e o activate/deactivate-routine-b (liga e desliga). Sem o delete. Desligada, leva
  *   o véu de 63 % do cartão. Fixa-se pelo "Add as a widget" das rotinas guardadas e do Introduction 5
@@ -74,13 +75,13 @@ object BedtimeWidgets {
 
     // Medidas do Figma (Componentes 4), em unidades do Figma, a partir do canto do cartão.
     private const val Width = 345f
-    private const val RoutineHeight = 164f
+    private const val RoutineHeight = 171f
     private const val WakeHeight = 171f
     private const val Inset = 15f
     private const val IconToText = 21f
     private const val EditX = 237f
     private const val ToggleX = 291f
-    private const val ButtonsY = 110f
+    private const val ButtonsY = 117f
 
     /** Zona de toque à volta de cada botão de 39 (48 dp com o widget ao tamanho do Figma). */
     private const val TouchOutset = 4.5f
@@ -90,8 +91,11 @@ object BedtimeWidgets {
     private val RowTextTop = floatArrayOf(84f, 138f)
     private const val ItemGap = 15f
 
-    /** Margem à volta de cada hora no seu bitmap (para a sombra do texto). */
-    private const val SlotPad = 4f
+    /**
+     * Margem à volta de cada hora no seu bitmap, para a sombra do texto (desfoque 15, raio 7,5)
+     * caber inteira: com o vidro translúcido (beta-3.0) uma sombra cortada via-se como uma caixa.
+     */
+    private const val SlotPad = 8f
 
     private val SlotIds = intArrayOf(R.id.slot0, R.id.slot1, R.id.slot2, R.id.slot3, R.id.slot4, R.id.slot5)
     private val SlotChildren = arrayOf(
@@ -187,18 +191,32 @@ object BedtimeWidgets {
 
     // --- Routine Widget ---------------------------------------------------------------------
 
-    private fun updateRoutine(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData) {
+    /** O que o Routine Widget [appWidgetId] mostra: a rotina ligada a ele, ou a próxima a acordar. */
+    private class RoutineContent(val routine: Routine?, val name: String, val wake: String?, val repeat: CharSequence?, val active: Boolean)
+
+    private fun routineContent(context: Context, appWidgetId: Int, data: CycloData): RoutineContent {
         val now = LocalDateTime.now()
         val formatter = BedtimeReminder.timeFormatter(context, data.use24Hour)
         val boundId = prefs(context).getLong(routineKey(appWidgetId), -1L)
         val routine = data.routines.firstOrNull { it.id == boundId }
             ?: BedtimeEngine.nextWake(data.routines, now)?.first
             ?: data.routines.firstOrNull()
+        return RoutineContent(
+            routine = routine,
+            name = routine?.name ?: context.getString(R.string.app_name),
+            wake = routine?.let { LocalTime.of(it.wakeHour, it.wakeMinute).format(formatter) },
+            repeat = routine?.let { repeatSummary(context, it) },
+            active = routine?.active == true,
+        )
+    }
 
-        val name = routine?.name ?: context.getString(R.string.app_name)
-        val wake = routine?.let { LocalTime.of(it.wakeHour, it.wakeMinute).format(formatter) }
-        val repeat = routine?.let { repeatSummary(context, it) }
-        val active = routine?.active == true
+    private fun updateRoutine(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData) {
+        val content = routineContent(context, appWidgetId, data)
+        val routine = content.routine
+        val name = content.name
+        val wake = content.wake
+        val repeat = content.repeat
+        val active = content.active
         val description = if (routine == null) {
             "$name, ${context.getString(R.string.widget_no_routine)}"
         } else {
@@ -269,6 +287,9 @@ object BedtimeWidgets {
     private fun Canvas.routineCard(context: Context, canvas: WidgetCanvas, name: String, wake: String?, repeat: CharSequence?, active: Boolean) {
         with(canvas) {
             card(Width, RoutineHeight)
+            // Desligada: o conteúdo escurece como com o véu de 63 % do cartão (#101011 a 63 % por cima
+            // dele), mas o fundo e os botões ficam como estão (beta-3.0, decisão do utilizador).
+            val dim = if (!active && wake != null) saveLayerAlpha(0f, 0f, Width, RoutineHeight, OffContentAlpha) else -1
             // routine-name (SemiBold 15), a hora (sol) e a repetição (calendário), Medium 15.
             text(name, Inset, 15f, paint(semiBold = true), Width - Inset * 2)
             if (wake == null || repeat == null) {
@@ -279,9 +300,8 @@ object BedtimeWidgets {
             text(wake, Inset + IconToText, 47f, paint(semiBold = false), Width - Inset * 2 - IconToText)
             icon(CycloAppIconPaths.CalendarToday, Inset, 78f, WidgetCanvas.White)
             text(repeat, Inset + IconToText, 77f, paint(semiBold = false), Width - Inset * 2 - IconToText)
-            // fx upper-shadow das rotinas desligadas: #101011 a 63 %, por baixo dos botões.
-            if (!active) roundRect(Width, RoutineHeight, 0xA1101011.toInt())
-            // edit-routine-b: #A3A2A7 a 15 % e a borda #313233 a 24 %, misturados sobre o cartão.
+            if (dim >= 0) restoreToCount(dim)
+            // edit-routine-b: #A3A2A7 a 15 % e a borda #313233 a 24 %, já misturados sobre o #101011.
             circleButton(EditX, ButtonsY, fill = 0xFF262628.toInt(), border = 0x3D313233)
             icon(CycloAppIconPaths.RoutineEdit, EditX, ButtonsY, WidgetCanvas.White)
             // activate/deactivate-routine-b: ligado #4A3C99; desligado #A3A2A7 a 24 % e o visto a 24 %.
@@ -299,7 +319,10 @@ object BedtimeWidgets {
     /** Uma hora do wake-time-container já posta: o ícone, o texto e a caixa (unidades do Figma). */
     private class Slot(val icon: String, val text: String, val left: Float, val width: Float, val row: Int)
 
-    private fun updateWakeTime(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData, animate: Boolean) {
+    /** O que o Wake Time Widget mostra: o wake-time-container do Feed (a hora de acordar e as seis horas). */
+    private class WakeContent(val wakeText: String?, val bedtimes: List<Bedtime>, val times: List<String>)
+
+    private fun wakeContent(context: Context, data: CycloData): WakeContent {
         val now = LocalDateTime.now()
         val formatter = BedtimeReminder.timeFormatter(context, data.use24Hour)
         // Os mesmos dados do Feed: a primeira hora de acordar a 24 h e as seis horas para adormecer.
@@ -308,7 +331,15 @@ object BedtimeWidgets {
         val bedtimes = next?.let { (routine, wake) ->
             BedtimeEngine.feedBedtimes(routine, wake, now, data.age, data.chronotype, data.fallAsleep, data.logNow(now), cycloDay(data.routines, now))
         }.orEmpty()
-        val times = bedtimes.map { it.time.format(formatter) }
+        return WakeContent(wakeText, bedtimes, bedtimes.map { it.time.format(formatter) })
+    }
+
+    private fun updateWakeTime(context: Context, manager: AppWidgetManager, appWidgetId: Int, data: CycloData, animate: Boolean) {
+        val formatter = BedtimeReminder.timeFormatter(context, data.use24Hour)
+        val content = wakeContent(context, data)
+        val wakeText = content.wakeText
+        val bedtimes = content.bedtimes
+        val times = content.times
 
         // O estado de cada ViewFlipper: a hora antiga fica à vista e a nova entra no outro filho.
         val prefs = context.getSharedPreferences(WakePrefs, Context.MODE_PRIVATE)
@@ -316,7 +347,7 @@ object BedtimeWidgets {
         val flips = times.mapIndexed { i, text -> flip(prefs, edit, appWidgetId, i, text, animate) }
         edit.apply()
 
-        val description = if (next == null) {
+        val description = if (wakeText == null) {
             context.getString(R.string.widget_no_bedtime)
         } else {
             context.getString(R.string.feed_wake_title) + " " + wakeText + ". " +
@@ -382,7 +413,7 @@ object BedtimeWidgets {
                 Width - Inset * 2 - IconToText,
             )
             if (wakeText == null) return
-            // separator: 0,5, #A3A2A7 a 15 %.
+            // separator (244:148): 2, pontas redondas, #A3A2A7 a 15 % (sobre o #101011 sólido).
             drawLine(
                 Inset,
                 48f,
@@ -390,7 +421,7 @@ object BedtimeWidgets {
                 48f,
                 Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = 0x26A3A2A7
-                    strokeWidth = 0.5f
+                    strokeWidth = 2f
                     strokeCap = Paint.Cap.ROUND
                 },
             )
@@ -499,6 +530,9 @@ object BedtimeWidgets {
         edit.putString(shownKey(appWidgetId, slot), text).putInt(childKey(appWidgetId, slot), child)
         return FlipState(texts, child)
     }
+
+    /** Desligada, o conteúdo da rotina fica a 37 % (o véu #101011 a 63 % das rotinas guardadas). */
+    private const val OffContentAlpha = 94
 
     // --- Comum ------------------------------------------------------------------------------
 

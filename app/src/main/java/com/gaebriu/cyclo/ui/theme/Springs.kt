@@ -193,6 +193,64 @@ object CycloSprings {
      */
     val Toggle = CycloSpring(response = 0.28f, dampingFraction = 0.78f)
 
+    /*
+     * Beta-3.2, ícones grandes das Introduction ([com.gaebriu.cyclo.ui.components.IconMotion]).
+     * Antes (3.1) baloiçavam com 0,32 a 0,45 de amortecimento: duas ou três oscilações, um ar de
+     * desenho animado. Agora quase tudo assenta à primeira (≥ 0,72); o movimento vem da ordem
+     * (a luz primeiro) e das fases desfasadas, não do ressalto.
+     */
+
+    /** O holofote a acender: lento e sem ressalto, à frente do ícone. */
+    val IconLight = CycloSpring(response = 0.7f, dampingFraction = 1f)
+
+    /** Um canal secundário a assentar (subir um nadinha, crescer de um tamanho perto). */
+    val IconSettle = CycloSpring(response = 0.62f, dampingFraction = 0.86f)
+
+    /** A deformação, largura e altura desfasadas (como o gel): a altura um pouco atrás e mais solta. */
+    val IconDeformX = CycloSpring(response = 0.38f, dampingFraction = 0.8f)
+    val IconDeformY = CycloSpring(response = 0.46f, dampingFraction = 0.74f)
+
+    /** O sol a nascer: sobe devagar, com peso. */
+    val IconRise = CycloSpring(response = 0.9f, dampingFraction = 0.9f)
+
+    /** Os raios do sol a rodar até ao lugar: a mais lenta, a abrandar até parar. */
+    val IconTurn = CycloSpring(response = 1.0f, dampingFraction = 0.88f)
+
+    /** Crescer até ao tamanho (o sol, os widgets a encaixar). */
+    val IconGrow = CycloSpring(response = 0.6f, dampingFraction = 0.82f)
+
+    /** A etiqueta a balançar no furo: uma passagem suave pelo lugar e assenta. */
+    val IconSway = CycloSpring(response = 0.8f, dampingFraction = 0.74f)
+
+    /** A etiqueta a virar-se para nós (a largura a abrir). */
+    val IconTurnIn = CycloSpring(response = 0.55f, dampingFraction = 0.9f)
+
+    /** A folha do calendário a cair até ao lugar. */
+    val IconDrop = CycloSpring(response = 0.5f, dampingFraction = 0.82f)
+
+    /** O impacto da folha (achatar): muito rápido, sem ressalto. */
+    val IconImpact = CycloSpring(response = 0.16f, dampingFraction = 1f)
+
+    /** A recuperação depois do impacto (ou de um toque): volta à forma com um ressalto mínimo. */
+    val IconRecover = CycloSpring(response = 0.42f, dampingFraction = 0.74f)
+
+    /** O sino a tocar: rápido, com UMA oscilação visível (um sino oscila; não é um brinquedo). */
+    val IconRing = CycloSpring(response = 0.36f, dampingFraction = 0.5f)
+
+    /**
+     * Beta-3.2, a demonstração do gesto das Introduction: a página à vista sobe ~4,5 % devagar,
+     * como uma mão a puxá-la, e volta a descer mais depressa (sair mais rápido do que entrar).
+     */
+    val GuidePeekRise = CycloSpring(response = 0.62f, dampingFraction = 0.9f)
+    val GuidePeekFall = CycloSpring(response = 0.5f, dampingFraction = 1f)
+
+    /**
+     * Beta-3.2, as caras da cafeína e da água a mudar ([com.gaebriu.cyclo.ui.main.AnimatedFace]): a
+     * troca do desenho e da cor, e a reação (inclinar, subir) com uma só passagem suave pelo repouso.
+     */
+    val FaceChange = CycloSpring(response = 0.42f, dampingFraction = 0.9f)
+    val FaceTilt = CycloSpring(response = 0.5f, dampingFraction = 0.72f)
+
     /** O sol a crescer um pouco com a velocidade a que roda, e a voltar quando abranda. */
     val SunSwell = CycloSpring(response = 0.32f, dampingFraction = 1f)
 

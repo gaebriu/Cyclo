@@ -29,7 +29,6 @@
     <string name="feed_greeting_afternoon">Boa tarde</string>
     <string name="feed_greeting_evening">Boa noite</string>
     <!-- Ex.: "Sexta-feira, 31 de outubro - 12:08" (dia da semana, mês, dia, hora) -->
-    <string name="feed_date">%1$s, %3$d de %2$s - %4$s</string>
     <string name="feed_wake_title">Para amanhã acordares com energia:</string>
     <string name="feed_wake_more">Ações da hora de acordar</string>
     <plurals name="feed_bedtime_description">
@@ -40,9 +39,14 @@
     <string name="feed_caffeine_title">Quanta cafeína bebeste hoje?</string>
     <string name="feed_caffeine_less">Tirar um</string>
     <string name="feed_caffeine_more">Juntar um</string>
-    <string name="feed_caffeine_more_actions">Ações da cafeína</string>
-    <string name="feed_caffeine_reset">Repor</string>
-    <string name="feed_caffeine_reset_done">Cafeína reposta</string>
+    <!-- water-meter-group (Cyclo-2 2066:148, beta-3.0). -->
+    <string name="feed_water_title">Quanta água bebeste hoje?</string>
+    <string name="feed_water_less">Tirar 250 mL</string>
+    <string name="feed_water_more">Juntar 250 mL</string>
+    <string name="feed_water_amount">%1$d mL</string>
+    <string name="feed_water_unit">mL</string>
+    <string name="feed_water_state">%1$s, %2$s</string>
+    <string name="feed_water_state_above">%1$s, %2$s, mais do que precisas</string>
     <string name="feed_sleep_title">Hoje houve algo que possa afetar o teu sono?</string>
     <string name="feed_factor_exercise">Exercício intenso</string>
     <string name="feed_factor_meal">Refeição pesada e tardia</string>
@@ -64,7 +68,7 @@
     <string name="saved_delete">Apagar %1$s</string>
     <string name="saved_widget">Adicionar %1$s como widget</string>
     <string name="saved_edit">Editar %1$s</string>
-    <string name="saved_toggle">%1$s no feed</string>
+    <string name="saved_toggle">%1$s no Feed</string>
 
     <!-- Reordenar (ações do TalkBack em cada cartão das rotinas e bloco do Feed) -->
     <string name="reorder_move_up">Mover para cima</string>
@@ -108,7 +112,9 @@
     <!-- action-menu-lang (Componentes 4): o nome de cada língua -->
     <string name="language_english">Inglês</string>
     <string name="language_portuguese">Português</string>
-    <string name="settings_performance">Desempenho</string>
+    <string name="settings_interface">Interface</string>
+    <string name="settings_unified_view">Vista contínua</string>
+    <string name="settings_unified_view_description">Vê o teu Feed e os teus registos juntos, sem mudares de página</string>
     <string name="settings_advanced_textures">Texturas avançadas</string>
     <string name="settings_advanced_textures_description">Desfruta de efeitos visuais mais ricos com as texturas avançadas. Desliga-as para uma experiência mais rápida</string>
     <string name="settings_data">Dados</string>
@@ -199,6 +205,7 @@
     <string name="tracking_restfulness">Descanso</string>
     <string name="tracking_caffeine">Cafeína</string>
     <string name="tracking_mood">Humor</string>
+    <string name="tracking_water">Água</string>
     <string name="tracking_week_chart">Últimos 7 dias</string>
     <string name="tracking_month_chart">Este mês</string>
     <string name="tracking_average">Média</string>
@@ -217,4 +224,5 @@
     <string name="sleep_quality_meh">Mais ou menos</string>
     <string name="sleep_quality_poor">Mal</string>
     <string name="sleep_quality_very_poor">Muito mal</string>
+
 </resources>

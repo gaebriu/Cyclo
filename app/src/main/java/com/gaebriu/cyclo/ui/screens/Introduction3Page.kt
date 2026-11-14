@@ -30,8 +30,8 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloType
 
 /**
- * Introduction 3: "Give it a name" (só o conteúdo; o botão de cima, a barra de progresso e o
- * Next são fixos e vivem em [IntroductionFlow]).
+ * Introduction 3: "Give it a name" (só o conteúdo; o X, o anel de progresso e o
+ * indicador do gesto são fixos e vivem em [IntroductionFlow]).
  *
  * - Escrever: ao tocar na caixa abre o teclado e SÓ a caixa vai para 15 dp acima dele. O subtítulo
  *   desvanece-se com o teclado aberto e reaparece quando ele fecha, mas nunca se esconde durante
@@ -45,6 +45,7 @@ fun Introduction3Page(
     name: String,
     onNameChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val nameInput = rememberRoutineNameInput(onNameChange)
@@ -56,8 +57,7 @@ fun Introduction3Page(
             // Tocar fora da caixa fecha o teclado.
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
-        Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Label, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Label, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
         // O padding horizontal vai por dentro, para a área com scroll ocupar o ecrã todo

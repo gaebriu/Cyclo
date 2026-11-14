@@ -92,8 +92,18 @@ object FigmaNoise {
     /**
      * Onde há grão numa telha de [width] x [height] píxeis, com [pxPerUnit] píxeis por unidade do
      * Figma. Puro (testado em FigmaNoiseTest): a fração de píxeis com grão é a "densidade".
+     * [baseFrequency] e a faixa [bandLow]..[bandHigh] (entradas da tabela discreta de 100) são os do
+     * SVG de cada efeito: por omissão o dos brilhos; os widgets (beta-3.0) usam outros.
      */
-    fun grainMask(width: Int, height: Int, pxPerUnit: Double, seed: Int = Seed): BooleanArray {
+    fun grainMask(
+        width: Int,
+        height: Int,
+        pxPerUnit: Double,
+        seed: Int = Seed,
+        baseFrequency: Double = BaseFrequency,
+        bandLow: Int = BandLow,
+        bandHigh: Int = BandHigh,
+    ): BooleanArray {
         val turbulence = Turbulence(seed)
         val tileUnitsX = width / pxPerUnit
         val tileUnitsY = height / pxPerUnit
@@ -103,21 +113,21 @@ object FigmaNoise {
             point[1] = (y + 0.5) / pxPerUnit
             for (x in 0 until width) {
                 point[0] = (x + 0.5) / pxPerUnit
-                val r = channel(turbulence, 0, point, tileUnitsX, tileUnitsY)
-                val g = channel(turbulence, 1, point, tileUnitsX, tileUnitsY)
-                val b = channel(turbulence, 2, point, tileUnitsX, tileUnitsY)
+                val r = channel(turbulence, 0, point, tileUnitsX, tileUnitsY, baseFrequency)
+                val g = channel(turbulence, 1, point, tileUnitsX, tileUnitsY, baseFrequency)
+                val b = channel(turbulence, 2, point, tileUnitsX, tileUnitsY, baseFrequency)
                 // feColorMatrix luminanceToAlpha (sRGB, valores não pré-multiplicados).
                 val luminance = 0.2125 * r + 0.7154 * g + 0.0721 * b
                 // feFuncA discrete, 100 entradas: k = floor(C × 100), e C = 1 dá a última.
                 val k = floor(luminance * 100.0).toInt().coerceIn(0, 99)
-                out[y * width + x] = k in BandLow..BandHigh
+                out[y * width + x] = k in bandLow..bandHigh
             }
         }
         return out
     }
 
-    private fun channel(t: Turbulence, channel: Int, point: DoubleArray, tileW: Double, tileH: Double): Double {
-        val sum = t.turbulence(channel, point, BaseFrequency, BaseFrequency, Octaves, fractalSum = true, stitch = true, 0.0, 0.0, tileW, tileH)
+    private fun channel(t: Turbulence, channel: Int, point: DoubleArray, tileW: Double, tileH: Double, frequency: Double): Double {
+        val sum = t.turbulence(channel, point, frequency, frequency, Octaves, fractalSum = true, stitch = true, 0.0, 0.0, tileW, tileH)
         // fractalNoise: (soma + 1) / 2, limitado a [0, 1].
         return ((sum + 1.0) / 2.0).coerceIn(0.0, 1.0)
     }

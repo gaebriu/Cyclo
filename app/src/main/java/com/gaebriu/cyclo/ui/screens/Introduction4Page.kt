@@ -37,7 +37,7 @@ import com.gaebriu.cyclo.ui.theme.CycloType
 
 /**
  * Introduction 4: "When should it appear on your feed?" (só o conteúdo; o botão de cima, a barra
- * de progresso e o Next são fixos, e os menus da repetição vivem em [RepeatOverlays]).
+ * de progresso e o indicador do gesto são fixos, e os menus da repetição vivem em [RepeatOverlays]).
  *
  * - A caixa do nome mostra o nome que ficou do Introduction 3 (incluindo o "Routine [Nº]"
  *   automático) e pode editar-se, escrevendo ou ditando, como no Introduction 3.
@@ -52,6 +52,7 @@ fun Introduction4Page(
     onNameChange: (String) -> Unit,
     repeat: RepeatSelection,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val nameInput = rememberRoutineNameInput(onNameChange)
@@ -65,8 +66,7 @@ fun Introduction4Page(
             // Tocar fora da caixa fecha o teclado.
             .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
     ) {
-        Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Calendar, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Calendar, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
         Column(

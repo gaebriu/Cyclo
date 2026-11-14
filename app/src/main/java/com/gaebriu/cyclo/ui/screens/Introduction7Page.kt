@@ -32,7 +32,7 @@ private val TextTop = 265.dp
 internal const val AllSetTextSpacingEm = 0.36f
 
 /**
- * Introduction 7 (até à Beta 2.2, o 6): "You’re all set!" (o botão de cima e o Next já saíram).
+ * Introduction 7 (até à Beta 2.2, o 6): "You’re all set!" (o X já saiu; o anel sai ao chegar aos 100 %).
  *
  * Beta 2.1: a argola de fundo (fx circle-with-blur) saiu do design; fica só o texto.
  *

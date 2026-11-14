@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -382,7 +383,9 @@ private fun BoxScope.NameFieldInput(
                 },
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) BasicText(text = placeholder, style = CycloType.InputHint)
+                    // Uma linha, como o que se escreve: com letra muito grande acaba em "…" (antes partia
+                    // em duas e a segunda ficava cortada pela caixa de 48 dp).
+                    if (value.isEmpty()) BasicText(text = placeholder, style = CycloType.InputHint, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     innerTextField()
                 }
             },

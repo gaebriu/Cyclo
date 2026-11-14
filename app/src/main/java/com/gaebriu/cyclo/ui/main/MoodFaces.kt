@@ -11,6 +11,17 @@ import com.gaebriu.cyclo.ui.theme.CycloColors
  * As caras do Cyclo (ícones de 15 dp e as cores do medidor), partilhadas pelo Feed e pela Tracking.
  */
 
+/**
+ * O nível da cafeína como o das caras do medidor (menor = melhor): 0 a 2 = 1, 3 e 4 = 2, 5 = 3,
+ * 6 ou mais = 4. Diz à cara animada se a mudança melhorou ou piorou.
+ */
+fun caffeineLevel(count: Int): Int = when {
+    count <= 2 -> 1
+    count <= 4 -> 2
+    count == 5 -> 3
+    else -> 4
+}
+
 /** Cara ao lado da chávena: muda com a cafeína (0 a 2 contente ... 6 ou mais insatisfeito). */
 fun caffeineFace(count: Int): Pair<String, Color> = when {
     count <= 2 -> CycloAppIconPaths.SentimentSatisfied to CycloColors.MoodViolet

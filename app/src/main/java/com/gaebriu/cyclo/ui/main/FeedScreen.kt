@@ -8,6 +8,8 @@ import kotlinx.coroutines.Job
 import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -75,7 +77,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
-import com.gaebriu.cyclo.ui.i18n.rememberAppLocale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
@@ -105,8 +106,14 @@ import com.gaebriu.cyclo.ui.components.ReorderableColumn
 import com.gaebriu.cyclo.ui.components.CycloMeter
 import com.gaebriu.cyclo.ui.components.MeterStyle
 import com.gaebriu.cyclo.data.bedtimesFor
+import com.gaebriu.cyclo.data.CycloViewModel
+import com.gaebriu.cyclo.data.Hydration
+import com.gaebriu.cyclo.data.TrackingSection
 import com.gaebriu.cyclo.data.cycloDay
 import com.gaebriu.cyclo.data.resolveDayLogs
+import com.gaebriu.cyclo.data.showsSleepPrompt
+import com.gaebriu.cyclo.data.trackingSummary
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
 import com.gaebriu.cyclo.ui.components.CycloActionMenu
@@ -131,7 +138,6 @@ import com.gaebriu.cyclo.ui.theme.CycloType
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.format.TextStyle as DateTextStyle
 import kotlin.math.roundToInt
 
 // Medidas do Figma (Feed, frame de 393 x 852).
@@ -147,6 +153,9 @@ private val StarYellow = Color(0xFFFFC93C)
 /** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, a cor da base do brilho ([skyColorsAt]; #5FA2DB no Figma) a 24 %. */
 private const val WakeCardShadowAlpha = 0.24f
 
+/** As sombras interiores do mesmo cartão (beta-3.2): as duas cores do céu a 15 %. */
+private const val WakeCardRimAlpha = 0.15f
+
 /** Quanto as horas para dormir esperam, depois do último toque na cafeína, fatores ou emoções. */
 private const val BedtimeSettleMs = 1200L
 
@@ -155,12 +164,13 @@ object FeedRevealItems {
     const val MiniMenu = 0
     const val Greeting = 1
     const val Date = 2
-    const val Wake = 3
-    const val Caffeine = 4
-    const val Sleep = 5
-    const val Feeling = 6
-    const val NavigationBar = 7
-    const val Count = 8
+    /** O log-sleep-card (sleep-evaluation-prompt) do Unified view. */
+    const val Prompt = 3
+    const val Wake = 4
+    /** O primeiro dos blocos reordenáveis ([FeedSection]); os outros seguem-no. */
+    const val FirstSection = 5
+    const val NavigationBar = FirstSection + 4
+    const val Count = NavigationBar + 1
 }
 
 /**
@@ -174,10 +184,17 @@ object FeedRevealItems {
  *   para adormecer hoje (o "Time to fall asleep" das definições mais o que a cafeína, os fatores, as
  *   emoções e o cronótipo pedem; ver [BedtimeEngine] e [bedtimesFor]); as duas com mais ciclos têm
  *   estrela. Mudam ~1 s depois do último toque, e rolam para a hora nova.
- * - O "..." da hora de acordar abre "Edit" / "Remove"; o da cafeína abre "Reset".
- * - Os blocos da cafeína, do que pode afetar o sono e de como se sente reordenam-se com long press e
- *   arrastar ([feedOrder], [onReorder]; ver [ReorderableColumn]): os outros abrem espaço com a mesma
- *   física das rotinas guardadas. O wake-time-recommendation-group fica de fora e não muda.
+ * - O "..." da hora de acordar abre "Edit" / "Add as a widget" / "Remove". A cafeína e a água não
+ *   têm botão de repor (beta-3.0, Figma 24:10): o "−" volta atrás.
+ * - Os blocos da cafeína, da água, do que pode afetar o sono e de como se sente reordenam-se com
+ *   long press e arrastar ([feedOrder], [onReorder]; ver [ReorderableColumn]): os outros abrem espaço
+ *   com a mesma física das rotinas guardadas. O wake-time-recommendation-group fica de fora e não muda.
+ * - Unified view ([unified], beta-3.0, Cyclo-2 2066:259): a Tracking junta-se ao Feed. O
+ *   log-sleep-card (o sleep-evaluation-prompt) fica 39 dp abaixo do header-greetings, e cada gráfico
+ *   entra no cartão do Feed que lhe corresponde, por baixo de um separador, como o Restfulness no
+ *   wake-time-container do Figma: o Restfulness no da hora de acordar, a cafeína e a água nos deles,
+ *   o Mood no "How are you feeling tonight?". Sem rotina (sem o wake-time-container), o Restfulness
+ *   fica num cartão da Tracking no lugar dele.
  */
 @Composable
 fun FeedScreen(
@@ -192,16 +209,22 @@ fun FeedScreen(
     reveal: StaggeredReveal,
     bottomReserve: Dp,
     wakeShadow: Color,
+    wakeRim: Color,
     onEditRoutine: (Routine) -> Unit,
     onRemoveRoutine: (Routine) -> Unit,
     onAddWakeWidget: () -> Unit,
     onCaffeineChange: (Int) -> Unit,
-    onCaffeineReset: () -> Unit,
+    onWaterChange: (Int) -> Unit,
     onToggleFactor: (SleepFactor) -> Unit,
     onMoodChange: (Float) -> Unit,
     onReorder: (List<FeedSection>) -> Unit,
     modifier: Modifier = Modifier,
     isCurrentPage: Boolean = true,
+    unified: Boolean = false,
+    promptDismissed: Boolean = false,
+    promptGlow: () -> Color = { Color.Transparent },
+    onLogSleep: () -> Unit = {},
+    onDismissPrompt: () -> Unit = {},
 ) {
     // O dia da Cyclo (beta-3.0): da meia-noite até à hora de acordar ainda é o dia anterior, por
     // isso o registo da noite e o wake-time-container só mudam quando passa a hora de acordar.
@@ -248,10 +271,21 @@ fun FeedScreen(
         }
     }
 
+    // Unified view: o que a Tracking mostraria, para os gráficos dentro dos cartões (só se calcula
+    // com ele ligado, e só quando os registos, o dia ou a idade mudam).
+    val summary = if (unified) {
+        remember(dailyLog, history, today, age) {
+            resolveDayLogs(dailyLog, history, today).let { trackingSummary(it.history, it.current, today, age) }
+        }
+    } else {
+        null
+    }
+    val showPrompt = unified && showsSleepPrompt(routines, log, now, promptDismissed)
+    // Os hápticos dos gráficos só com o Feed escolhido; um só lambda, lembrado.
+    val active = remember { { latestCurrent } }
+
     var wakeMenuOpen by remember { mutableStateOf(false) }
     var wakeMenuAnchor by remember { mutableStateOf(Rect.Zero) }
-    var caffeineMenuOpen by remember { mutableStateOf(false) }
-    var caffeineMenuAnchor by remember { mutableStateOf(Rect.Zero) }
     // O conteúdo fica por baixo dos menus do "...": é o que eles desfocam.
     val content = rememberBackdropLayer()
     val menuBackdrop = LocalBackdrop.current + content
@@ -268,16 +302,28 @@ fun FeedScreen(
         ) {
             Greeting(now = now, reveal = reveal)
 
+            // Unified view: o log-sleep-card a 39 dp do header-greetings (o espaço abre e fecha com ele).
+            if (unified) {
+                SleepPrompt(
+                    visible = showPrompt,
+                    glowColor = promptGlow,
+                    onLogSleep = onLogSleep,
+                    onDismiss = onDismissPrompt,
+                    topGap = SectionGap,
+                    modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Prompt),
+                )
+            }
+
             if (nextRoutine != null) {
                 Spacer(Modifier.height(SectionGap))
                 // A camada da entrada (fade + desfoque) desenha fora do ecrã e corta tudo o que sai
-                // dos seus limites: alarga-se [WakeShadowBleed] para a sombra do cartão entrar na
+                // dos seus limites: alarga-se [CardShadowBleed] para a sombra do cartão entrar na
                 // animação desde o início (antes só aparecia, de repente, no fim da entrada).
                 Column(
                     modifier = Modifier
-                        .bleed(WakeShadowBleed)
+                        .bleed(CardShadowBleed)
                         .staggeredReveal(reveal, FeedRevealItems.Wake)
-                        .padding(WakeShadowBleed),
+                        .padding(CardShadowBleed),
                 ) {
                     SectionLabel(stringResource(R.string.feed_wake_title))
                     Spacer(Modifier.height(LabelToCard))
@@ -285,9 +331,29 @@ fun FeedScreen(
                         routine = nextRoutine,
                         fallAsleepMinutes = latency,
                         shadow = wakeShadow,
+                        rim = wakeRim,
                         onMoreClick = { wakeMenuOpen = true },
                         onMoreBounds = { wakeMenuAnchor = it },
+                        chart = summary?.let { sum ->
+                            {
+                                val grow = rememberChartGrowth(reveal, FeedRevealItems.Wake)
+                                UnifiedChart(restfulnessDescription(sum)) { RestfulnessChart(sum, grow, active, ChartGeometry.Unified) }
+                            }
+                        },
                     )
+                }
+            } else if (summary != null) {
+                // Unified view sem rotina: o Restfulness não tem o wake-time-container onde entrar, e
+                // fica no cartão da Tracking, no mesmo lugar.
+                Spacer(Modifier.height(SectionGap))
+                Column(
+                    modifier = Modifier
+                        .bleed(CardShadowBleed)
+                        .staggeredReveal(reveal, FeedRevealItems.Wake)
+                        .padding(CardShadowBleed),
+                ) {
+                    val grow = rememberChartGrowth(reveal, FeedRevealItems.Wake)
+                    TrackingSectionCard(TrackingSection.Restfulness, summary, grow, active)
                 }
             }
 
@@ -302,8 +368,13 @@ fun FeedScreen(
                 moveDownLabel = stringResource(R.string.reorder_move_down),
                 scrollState = scroll,
             ) { section, handle, surface ->
-                val revealIndex = FeedRevealItems.Caffeine + feedOrder.indexOf(section).coerceAtLeast(0)
-                Column(modifier = Modifier.staggeredReveal(reveal, revealIndex)) {
+                val revealIndex = FeedRevealItems.FirstSection + feedOrder.indexOf(section).coerceAtLeast(0)
+                Column(
+                    modifier = Modifier
+                        .bleed(CardShadowBleed)
+                        .staggeredReveal(reveal, revealIndex)
+                        .padding(CardShadowBleed),
+                ) {
                     Spacer(Modifier.height(SectionGap))
                     // Agarra-se pelo título ou pelo cartão; só o cartão se levanta (escala e sombra).
                     Column(modifier = handle) {
@@ -314,9 +385,29 @@ fun FeedScreen(
                                 CaffeineCard(
                                     count = log.caffeine,
                                     onChange = onCaffeineChange,
-                                    onMoreClick = { caffeineMenuOpen = true },
-                                    onMoreBounds = { caffeineMenuAnchor = it },
                                     modifier = surface,
+                                    chart = summary?.let { sum ->
+                                        {
+                                            val grow = rememberChartGrowth(reveal, revealIndex)
+                                            UnifiedChart(caffeineDescription(sum)) { CaffeineChart(sum, grow, active, ChartGeometry.Unified) }
+                                        }
+                                    },
+                                )
+                            }
+                            FeedSection.Water -> {
+                                SectionLabel(stringResource(R.string.feed_water_title))
+                                Spacer(Modifier.height(LabelToCard))
+                                WaterCard(
+                                    ml = log.water,
+                                    age = age,
+                                    onChange = onWaterChange,
+                                    modifier = surface,
+                                    chart = summary?.let { sum ->
+                                        {
+                                            val grow = rememberChartGrowth(reveal, revealIndex)
+                                            UnifiedChart(waterDescription(sum)) { WaterChart(sum, grow, active, ChartGeometry.Unified) }
+                                        }
+                                    },
                                 )
                             }
                             FeedSection.SleepFactors -> {
@@ -327,7 +418,17 @@ fun FeedScreen(
                             FeedSection.Feeling -> {
                                 SectionLabel(stringResource(R.string.feed_feeling_title))
                                 Spacer(Modifier.height(LabelToCard))
-                                FeelingCard(mood = log.mood, onMoodChange = onMoodChange, modifier = surface)
+                                FeelingCard(
+                                    mood = log.mood,
+                                    onMoodChange = onMoodChange,
+                                    modifier = surface,
+                                    chart = summary?.let { sum ->
+                                        {
+                                            val grow = rememberChartGrowth(reveal, revealIndex)
+                                            UnifiedChart(moodDescription(sum)) { MoodChart(sum, grow, ChartGeometry.Unified) }
+                                        }
+                                    },
+                                )
                             }
                         }
                     }
@@ -364,22 +465,6 @@ fun FeedScreen(
                 },
             )
         }
-        AnchoredMenuHost(
-            visible = caffeineMenuOpen,
-            anchor = { caffeineMenuAnchor },
-            onDismiss = { caffeineMenuOpen = false },
-            bottomMargin = bottomReserve,
-            alignEnd = true,
-        ) {
-            CycloActionMenu(
-                items = listOf(ActionMenuItem(stringResource(R.string.feed_caffeine_reset))),
-                selectedIndex = -1,
-                onItemClick = {
-                    caffeineMenuOpen = false
-                    onCaffeineReset()
-                },
-            )
-        }
         }
     }
 }
@@ -402,17 +487,8 @@ private fun Greeting(now: LocalDateTime, reveal: StaggeredReveal) {
             else -> R.string.feed_greeting_evening
         },
     )
-    // header-greetings: o dia da semana e o mês na língua da app (não na do sistema), na ordem
-    // dessa língua ("Monday, November 2" / "Segunda-feira, 2 de novembro").
-    val locale = rememberAppLocale()
-    val timeFormatter = LocalTimeFormat.current.formatter
-    val date = stringResource(
-        R.string.feed_date,
-        now.dayOfWeek.getDisplayName(DateTextStyle.FULL, locale).replaceFirstChar { it.titlecase(locale) },
-        now.month.getDisplayName(DateTextStyle.FULL, locale),
-        now.dayOfMonth,
-        now.format(timeFormatter),
-    )
+    // header-small (Cyclo 3, beta-3.2): só a hora, no formato escolhido (antes "Friday, October 31 - 12:08").
+    val date = now.format(LocalTimeFormat.current.formatter)
     BasicText(
         text = greeting,
         style = CycloType.Greeting.withFeedShadow(),
@@ -466,14 +542,18 @@ private fun MoreButton(description: String, onClick: () -> Unit, onBounds: (Rect
  * adormecer em duas filas (as duas melhores com estrela, as outras com a cara do medidor).
  *
  * @param shadow a cor da base do brilho do topo (muda com a hora); a sombra usa-a a 24 %.
+ * @param rim a cor de cima do brilho. Beta-3.2 (Cyclo 3, 26:125): sombras interiores a 15 %, esta
+ *        de cima (0, 2) e a da base de baixo (0, -2), desfoque 2 (#2A3290 e #5FA2DB no Figma, 11:30–15:30).
  */
 @Composable
 private fun WakeTimeCard(
     routine: Routine,
     fallAsleepMinutes: Long,
     shadow: Color,
+    rim: Color,
     onMoreClick: () -> Unit,
     onMoreBounds: (Rect) -> Unit,
+    chart: (@Composable () -> Unit)? = null,
 ) {
     val bedtimes = remember(routine.wakeHour, routine.wakeMinute, fallAsleepMinutes) {
         bedtimesFor(routine.wakeHour, routine.wakeMinute, fallAsleepMinutes)
@@ -484,7 +564,12 @@ private fun WakeTimeCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .cycloCard(shadowColor = shadow.copy(alpha = WakeCardShadowAlpha), shadowBlur = 24.dp)
+            .cycloCard(
+                shadowColor = shadow.copy(alpha = WakeCardShadowAlpha),
+                shadowBlur = 24.dp,
+                rimTop = rim.copy(alpha = WakeCardRimAlpha),
+                rimBottom = shadow.copy(alpha = WakeCardRimAlpha),
+            )
             .padding(CardPadding),
     ) {
         Row(modifier = Modifier.fillMaxWidth().heightIn(min = 18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -506,30 +591,40 @@ private fun WakeTimeCard(
                 )
             }
         }
-        Spacer(Modifier.height(15.dp))
+        Spacer(Modifier.height(SeparatorGap))
         Separator()
-        Spacer(Modifier.height(15.dp))
+        Spacer(Modifier.height(SeparatorGap))
         BedtimeRow(bedtimes.take(2))
         Spacer(Modifier.height(15.dp))
         BedtimeRow(bedtimes.drop(2))
+        // Unified view (2066:348): o separador (2066:619) a 15 dp das horas e o Restfulness 15 dp abaixo dele.
+        if (chart != null) ChartBelow(chart)
     }
 }
 
-/**
- * Dá [amount] a mais de cada lado aos modificadores que vêm a seguir (ex.: a camada da entrada),
- * sem mudar o lugar que o bloco ocupa. Quem vem depois devolve o espaço com `padding(amount)`.
- */
-private fun Modifier.bleed(amount: Dp): Modifier = layout { measurable, constraints ->
-    val px = amount.roundToPx()
-    val placeable = measurable.measure(constraints.offset(px * 2, px * 2))
-    layout(placeable.width - px * 2, placeable.height - px * 2) { placeable.place(-px, -px) }
+/** O visto de uma opção do might-affect-sleep-group entra a crescer daqui. */
+private const val CheckFromScale = 0.6f
+
+/** Do conteúdo de um cartão a um separador (2 dp, centrado 15 dp abaixo do conteúdo; Figma 31:19). */
+private val SeparatorGap = 14.dp
+
+/** Do separador ao gráfico do Unified view (o topo do gráfico 16 dp abaixo do centro do separador). */
+private val SeparatorToChart = 15.dp
+
+/** O separador e um gráfico do Unified view por baixo do conteúdo de um cartão. */
+@Composable
+private fun ChartBelow(chart: @Composable () -> Unit) {
+    Spacer(Modifier.height(SeparatorGap))
+    Separator()
+    Spacer(Modifier.height(SeparatorToChart))
+    chart()
 }
 
-/**
- * Até onde chega a sombra do wake-time-container (0, 4, desfoque 24 → sigma 12, ~3 sigma + 4) e,
- * por isso, quanto a camada da entrada se alarga à volta dele.
- */
-private val WakeShadowBleed = 44.dp
+/** Um gráfico do Unified view: o TalkBack lê-o pela descrição (o gráfico em si é só desenho). */
+@Composable
+private fun UnifiedChart(description: String, chart: @Composable () -> Unit) {
+    Box(modifier = Modifier.clearAndSetSemantics { contentDescription = description }) { chart() }
+}
 
 /** Faz uma caixa maior do que o lugar que ocupa (para zonas de toque à volta de ícones pequenos). */
 private fun Modifier.layoutOutset(outset: Dp): Modifier = this.then(
@@ -547,11 +642,11 @@ private fun Modifier.layoutOutset(outset: Dp): Modifier = this.then(
     },
 )
 
-/** separator: linha de 0,5 dp, #A3A2A7 a 15 % em Luminosity. */
+/** separator (31:19, 2066:619): linha de 2 dp com pontas redondas, #A3A2A7 a 15 % em Luminosity. */
 @Composable
 private fun Separator() {
     val effects = LocalVisualEffects.current
-    Canvas(modifier = Modifier.fillMaxWidth().height(0.5.dp)) {
+    Canvas(modifier = Modifier.fillMaxWidth().height(2.dp)) {
         drawLine(
             color = CycloColors.TextSecondary.copy(alpha = 0.15f),
             start = Offset(0f, size.height / 2f),
@@ -603,54 +698,169 @@ private fun bedtimeIcon(cycles: Int): Pair<String, Color> = CycloAppIconPaths.be
     else -> CycloColors.MoodMint
 }
 
-/** caffeine-meter-group: chávena e cara à esquerda; "−", o número e "+" à direita; e o "...". */
+/**
+ * caffeine-meter-group (37:125): chávena e cara à esquerda; "−", o número e "+" à direita. Sem o
+ * "..." do reset (beta-3.0). No Unified view, o gráfico da cafeína por baixo de um separador.
+ */
 @Composable
 private fun CaffeineCard(
     count: Int,
     onChange: (Int) -> Unit,
-    onMoreClick: () -> Unit,
-    onMoreBounds: (Rect) -> Unit,
     modifier: Modifier = Modifier,
+    chart: (@Composable () -> Unit)? = null,
 ) {
-    val outset = (CycloDimens.TouchTarget - 15.dp) / 2
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 63.dp)
-            .cycloCard()
-            .padding(horizontal = CardPadding),
-        verticalAlignment = Alignment.CenterVertically,
+    val (face, faceTint) = caffeineFace(count)
+    MeterCard(
+        icon = CycloAppIconPaths.LocalCafe,
+        face = face,
+        faceTint = faceTint,
+        faceLevel = caffeineLevel(count),
+        lessDescription = stringResource(R.string.feed_caffeine_less),
+        moreDescription = stringResource(R.string.feed_caffeine_more),
+        canLess = count > 0,
+        canMore = count < CycloViewModel.MaxCaffeine,
+        onChange = onChange,
+        modifier = modifier,
+        chart = chart,
     ) {
-        val (face, faceTint) = caffeineFace(count)
-        CycloIcon(path = CycloAppIconPaths.LocalCafe, size = 15.dp, tint = CycloColors.TextPrimary)
-        Spacer(Modifier.width(9.dp))
-        CycloIcon(path = face, size = 15.dp, tint = faceTint, luminosity = false)
-        Spacer(Modifier.weight(1f))
-        SquareButton(
-            iconPath = CycloAppIconPaths.Remove,
-            description = stringResource(R.string.feed_caffeine_less),
-            enabled = count > 0,
-            onClick = { onChange(-1) },
+        RollingNumber(value = count, style = CycloType.CardTitle)
+    }
+}
+
+/**
+ * water-meter-group (Cyclo-2 2066:148, beta-3.0): a gota (humidity_high) e a cara da avaliação da
+ * água ([Hydration.level]: melhora até à quantidade adequada para a idade e volta a piorar quando é
+ * demasiada); "−", os mL e "+" (passos de 250 mL) à direita. Sem botão de repor.
+ */
+@Composable
+private fun WaterCard(
+    ml: Int,
+    age: Int?,
+    onChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    chart: (@Composable () -> Unit)? = null,
+) {
+    val level = Hydration.level(ml, age)
+    val (face, faceTint) = moodFace(level)
+    val amount = stringResource(R.string.feed_water_amount, ml)
+    val state = stringResource(
+        if (Hydration.isAbove(ml, age)) R.string.feed_water_state_above else R.string.feed_water_state,
+        amount,
+        moodLevelLabels()[level],
+    )
+    MeterCard(
+        icon = CycloAppIconPaths.HumidityHigh,
+        face = face,
+        faceTint = faceTint,
+        faceLevel = level,
+        lessDescription = stringResource(R.string.feed_water_less),
+        moreDescription = stringResource(R.string.feed_water_more),
+        canLess = ml > 0,
+        canMore = ml < Hydration.MaxMl,
+        onChange = onChange,
+        modifier = modifier,
+        chart = chart,
+    ) {
+        // "250 mL": o número rola, a unidade fica.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clearAndSetSemantics { contentDescription = state },
+        ) {
+            RollingNumber(value = ml, style = CycloType.CardTitle)
+            BasicText(text = " " + stringResource(R.string.feed_water_unit), style = CycloType.CardTitle)
+        }
+    }
+}
+
+/**
+ * Um cartão de contador do Feed (cafeína e água): o ícone e a cara à esquerda; "−", o valor e "+"
+ * à direita, a 15 dp do valor. Sem gráfico, 63 dp com tudo ao centro; com o gráfico do Unified
+ * view, o mesmo topo (15 dp) e o separador por baixo.
+ */
+@Composable
+private fun MeterCard(
+    icon: String,
+    face: String,
+    faceTint: Color,
+    faceLevel: Int,
+    lessDescription: String,
+    moreDescription: String,
+    canLess: Boolean,
+    canMore: Boolean,
+    onChange: (Int) -> Unit,
+    modifier: Modifier,
+    chart: (@Composable () -> Unit)?,
+    value: @Composable () -> Unit,
+) {
+    val row: @Composable (Modifier) -> Unit = { rowModifier ->
+        MeterRow(
+            modifier = rowModifier.fillMaxWidth(),
+            lead = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CycloIcon(path = icon, size = 15.dp, tint = CycloColors.TextPrimary)
+                    Spacer(Modifier.width(9.dp))
+                    // Beta-3.2: a cara muda com um movimento (ergue-se a melhorar, descai a piorar).
+                    AnimatedFace(path = face, tint = faceTint, level = faceLevel)
+                }
+            },
+            controls = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SquareButton(iconPath = CycloAppIconPaths.Remove, description = lessDescription, enabled = canLess, onClick = { onChange(-1) })
+                    Box(modifier = Modifier.padding(horizontal = 15.dp)) { value() }
+                    SquareButton(iconPath = CycloAppIconPaths.Add, description = moreDescription, enabled = canMore, onClick = { onChange(1) })
+                }
+            },
         )
-        RollingNumber(
-            value = count,
-            style = CycloType.CardTitle,
-            modifier = Modifier.padding(horizontal = 15.dp),
-        )
-        SquareButton(
-            iconPath = CycloAppIconPaths.Add,
-            description = stringResource(R.string.feed_caffeine_more),
-            enabled = true,
-            onClick = { onChange(1) },
-        )
-        Spacer(Modifier.width(15.dp))
-        Box(modifier = Modifier.size(15.dp)) {
-            MoreButton(
-                description = stringResource(R.string.feed_caffeine_more_actions),
-                onClick = onMoreClick,
-                onBounds = onMoreBounds,
-                modifier = Modifier.layoutOutset(outset),
-            )
+    }
+    if (chart == null) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .heightIn(min = 63.dp)
+                .cycloCard()
+                // 15 + 33 + 15 = os 63 do Figma numa linha; em duas (letra grande), a mesma margem.
+                .padding(CardPadding),
+            contentAlignment = Alignment.CenterStart,
+        ) { row(Modifier) }
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .cycloCard()
+                .padding(CardPadding),
+        ) {
+            row(Modifier.heightIn(min = 33.dp))
+            ChartBelow(chart)
+        }
+    }
+}
+
+/**
+ * A linha de um contador: o ícone e a cara à esquerda, os controlos ("−", o valor, "+") à direita,
+ * centrados na altura. Quando não cabem lado a lado (letra grande num ecrã estreito com "10000 mL"),
+ * os controlos passam para a linha de baixo, encostados à direita, 15 dp abaixo: nada encolhe nem
+ * sai do cartão (como as horas do wake-time-container, que passam para outra fila).
+ */
+@Composable
+private fun MeterRow(modifier: Modifier, lead: @Composable () -> Unit, controls: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(contents = listOf(lead, controls), modifier = modifier) { (leadM, controlsM), constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val l = leadM.first().measure(loose)
+        val c = controlsM.first().measure(loose)
+        val width = constraints.maxWidth
+        if (l.width + c.width <= width) {
+            val height = maxOf(l.height, c.height).coerceAtLeast(constraints.minHeight)
+            layout(width, height) {
+                l.place(0, (height - l.height) / 2)
+                c.place(width - c.width, (height - c.height) / 2)
+            }
+        } else {
+            val gap = 15.dp.roundToPx()
+            val height = (l.height + gap + c.height).coerceAtLeast(constraints.minHeight)
+            layout(width, height) {
+                l.place(0, 0)
+                c.place((width - c.width).coerceAtLeast(0), l.height + gap)
+            }
         }
     }
 }
@@ -660,6 +870,12 @@ private fun CaffeineCard(
 private fun SquareButton(iconPath: String, description: String, enabled: Boolean, onClick: () -> Unit) {
     val effects = LocalVisualEffects.current
     val outset = (CycloDimens.TouchTarget - 33.dp) / 2
+    // Beta-3.2: o "−" acende e apaga com a mesma mola da cara (o cartão reage todo ao mesmo tempo).
+    val iconAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.39f,
+        animationSpec = if (effects.animationsEnabled) CycloSprings.FaceChange.float else snap(),
+        label = "squareButtonAlpha",
+    )
     Box(modifier = Modifier.size(33.dp)) {
         Box(
             modifier = Modifier
@@ -677,7 +893,7 @@ private fun SquareButton(iconPath: String, description: String, enabled: Boolean
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                CycloIcon(path = iconPath, size = 15.dp, tint = CycloColors.TextPrimary, alpha = { if (enabled) 1f else 0.39f })
+                CycloIcon(path = iconPath, size = 15.dp, tint = CycloColors.TextPrimary, alpha = { iconAlpha })
             }
         }
     }
@@ -723,6 +939,17 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
         animationSpec = CycloMotion.CardSpring,
         label = "sleepFactor",
     )
+    // Beta-3.2: o visto entra a crescer (Enter, um ressalto mínimo) ao mesmo tempo que a borda e a
+    // sombra acendem; ao sair encolhe sem ressalto.
+    val checkScale by animateFloatAsState(
+        targetValue = if (isSelected) 1f else CheckFromScale,
+        animationSpec = when {
+            !effects.animationsEnabled -> snap()
+            isSelected -> CycloSprings.Enter.float
+            else -> CycloSprings.Exit.float
+        },
+        label = "sleepFactorCheck",
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -763,7 +990,12 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
             size = 15.dp,
             tint = CycloColors.TextPrimary,
             alpha = { on },
-            modifier = Modifier.align(Alignment.CenterEnd),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .graphicsLayer {
+                    scaleX = checkScale
+                    scaleY = checkScale
+                },
         )
     }
 }
@@ -774,7 +1006,12 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
  * assenta no ponto mais perto com uma mola.
  */
 @Composable
-private fun FeelingCard(mood: Float, onMoodChange: (Float) -> Unit, modifier: Modifier = Modifier) {
+private fun FeelingCard(
+    mood: Float,
+    onMoodChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    chart: (@Composable () -> Unit)? = null,
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -800,6 +1037,8 @@ private fun FeelingCard(mood: Float, onMoodChange: (Float) -> Unit, modifier: Mo
             onValueChange = onMoodChange,
             style = MeterStyle.Emotion,
         )
+        // Unified view: o Mood por baixo do medidor.
+        if (chart != null) ChartBelow(chart)
     }
 }
 

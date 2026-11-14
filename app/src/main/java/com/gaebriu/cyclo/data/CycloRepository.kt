@@ -53,6 +53,9 @@ private val HistoryKey = stringPreferencesKey("history")
 /** O versionCode da última abertura (ver [CycloData.lastRunVersion]). */
 private val LastRunVersionKey = intPreferencesKey("last_run_version")
 
+/** "Unified view" (beta-3.0); sem valor guardado, desligado. */
+private val UnifiedViewKey = booleanPreferencesKey("unified_view")
+
 /** O DataStore da app (um só por processo: o lembrete e o widget também o leem). */
 internal val Context.cycloStore: DataStore<Preferences> get() = applicationContext.cycloDataStore
 
@@ -88,6 +91,7 @@ class CycloRepository(context: Context) {
                 trackingOrder = prefs[TrackingOrderKey]?.let(::parseTrackingOrder) ?: DefaultTrackingOrder,
                 history = prefs.history(),
                 lastRunVersion = prefs[LastRunVersionKey],
+                unifiedView = prefs[UnifiedViewKey] ?: false,
             )
         }
 
@@ -98,6 +102,10 @@ class CycloRepository(context: Context) {
 
     suspend fun setAdvancedTextures(on: Boolean) {
         store.edit { prefs -> prefs[AdvancedTexturesKey] = on }
+    }
+
+    suspend fun setUnifiedView(on: Boolean) {
+        store.edit { prefs -> prefs[UnifiedViewKey] = on }
     }
 
     suspend fun setAge(age: Int) {
@@ -150,7 +158,8 @@ class CycloRepository(context: Context) {
      * Repõe uma cópia já validada ([parseBackup]), numa só escrita: ou entra tudo, ou nada.
      * Substitui as rotinas e o registo do dia; as definições que a cópia não traz ficam como estão.
      * O tutorial fica dado como feito (quem repõe já está dentro da app).
-     * As preferências do aparelho (formato das horas, língua, "Advanced textures") nunca mudam aqui.
+     * As preferências do aparelho (formato das horas, língua, "Advanced textures", "Unified view")
+     * nunca mudam aqui.
      */
     suspend fun restore(contents: BackupContents) {
         store.edit { prefs ->
@@ -343,5 +352,6 @@ private fun parseDailyLogObject(o: JSONObject): DailyLog? = runCatching {
         // Registos de antes da Beta 2.0 não têm o campo: contam como abertos (ver DailyLog.opened).
         opened = o.optBoolean("opened", true),
         sleep = parseSleepQuality(o),
+        water = parseWater(o),
     )
 }.getOrNull()

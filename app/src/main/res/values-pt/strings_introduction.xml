@@ -12,7 +12,9 @@
 
     <!-- Introduction 0 -->
     <string name="introduction_0_greeting">Olá!</string>
-    <string name="introduction_0_get_started">Começar</string>
+    <!-- Cyclo 3 (beta-3.2): os indicadores do gesto (swipe-to-get-started / swipe-to-continue). -->
+    <string name="introduction_swipe_get_started">desliza para cima para começar</string>
+    <string name="introduction_swipe_continue">desliza para cima para continuar</string>
 
     <!-- Introduction 1 -->
     <string name="introduction_1_title">Ciclos de sono, o que são?</string>
@@ -47,7 +49,7 @@
     <!-- Introduction 7 (até à Beta 2.2, o 6) -->
     <string name="introduction_7_text">Está tudo pronto!</string>
     <!-- Introduction 4 -->
-    <string name="introduction_4_title">Quando deve aparecer no teu feed?</string>
+    <string name="introduction_4_title">Quando deve aparecer no teu Feed?</string>
     <string name="introduction_4_subtitle">Se for só para uma vez, salta esta parte</string>
     <string name="introduction_4_repeat_field">Quando mostrar</string>
     <string name="repeat_just_once">Mostrar só desta vez</string>

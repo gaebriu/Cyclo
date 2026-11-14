@@ -32,7 +32,7 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 
 /**
  * Introduction 1: "Sleep cycles, what are they?" (só o conteúdo; o botão de cima, a barra de
- * progresso e o Next são fixos e vivem em [IntroductionFlow]).
+ * progresso e o indicador do gesto são fixos e vivem em [IntroductionFlow]).
  *
  * O título aparece com desfoque 6 a 0 e fade, o texto com um simples fade. Seguem [enter]
  * (o progresso da subida do ecrã), por isso duram o mesmo que a subida.
@@ -41,6 +41,7 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 fun Introduction1Page(
     enter: () -> Float,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     val effects = LocalVisualEffects.current
 
@@ -49,8 +50,7 @@ fun Introduction1Page(
             .fillMaxSize()
             .padding(horizontal = CycloDimens.ScreenMargin),
     ) {
-        Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Bed, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Bed, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         // 7 dp de espaço + 8 dp de folga dentro da área com scroll = 15 dp até ao título.
         // A folga deixa o desfoque do título sair do texto sem ser cortado.

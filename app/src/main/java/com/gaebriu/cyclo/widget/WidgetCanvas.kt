@@ -1,9 +1,10 @@
 ﻿package com.gaebriu.cyclo.widget
 
-import androidx.compose.ui.graphics.asAndroidPath
-import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BlurMaskFilter
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -46,8 +47,11 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
 
     fun px(units: Float): Int = max(1, ceil(units * pxPerUnit).toInt())
 
-    /** Inter Medium ou SemiBold, 15 (os textos dos widgets no Figma), #FCFCFE. */
-    fun paint(semiBold: Boolean, size: Float = TextSize, color: Int = White, shadow: Boolean = false) =
+    /**
+     * Inter Medium ou SemiBold, 15 (os textos dos widgets no Figma), #FCFCFE. Todos os textos têm a
+     * sombra 0, 0, 15, preto a 24 % (Componentes 4, beta-3.0).
+     */
+    fun paint(semiBold: Boolean, size: Float = TextSize, color: Int = White, shadow: Boolean = true) =
         TextPaint(TextPaint.ANTI_ALIAS_FLAG or TextPaint.SUBPIXEL_TEXT_FLAG).apply {
             typeface = if (semiBold) this@WidgetCanvas.semiBold else medium
             textSize = size
@@ -75,12 +79,16 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
         restore()
     }
 
-    /** Um ícone do Figma (CycloAppIconPaths) numa grelha de [grid] unidades, em ([x], [y]). */
-    fun Canvas.icon(pathData: String, x: Float, y: Float, color: Int, alpha: Float = 1f) {
+    /**
+     * Um ícone do Figma (CycloAppIconPaths) numa grelha de 15 unidades, em ([x], [y]), com a sombra
+     * 0, 0, 15, preto a 24 % (beta-3.0) se [shadow].
+     */
+    fun Canvas.icon(pathData: String, x: Float, y: Float, color: Int, alpha: Float = 1f, shadow: Boolean = true) {
         val path = paths.getOrPut(pathData) { PathParser.createPathFromPathData(pathData) }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
             this.alpha = (alpha * 255).roundToInt()
+            if (shadow) setShadowLayer(ShadowBlur / 2f, 0f, 0f, ShadowColor)
         }
         save()
         translate(x, y)
@@ -88,23 +96,32 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
         restore()
     }
 
-    /** O fundo do cartão: #101011, cantos de 15 com o corner smoothing do Figma (background dos dois widgets). */
+    /** O fundo do cartão (background dos dois widgets, Componentes 4): [WidgetBackground]. */
     fun Canvas.card(width: Float, height: Float) {
-        roundRect(width, height, CardColor)
+        WidgetBackground.draw(this, width, height, pxPerUnit)
     }
 
-    /** O retângulo do cartão ([width] x [height], raio 15, smoothing 60 %) a [color]. */
-    fun Canvas.roundRect(width: Float, height: Float, color: Int) {
-        drawPath(smoothRoundRectPath(width, height, CardRadius).asAndroidPath(), Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color })
-    }
-
-    /** Um círculo de 39 com a borda de 1 (os botões das rotinas), já misturado sobre o cartão. */
+    /**
+     * Um círculo de 39 com a borda de 1 (os botões das rotinas). Sem Luminosity (beta-3.0, fundo
+     * sólido): [fill] e [border] já são as cores que o Figma dá sobre o #101011. A sombra do grupo
+     * (0, 0, 15, preto a 24 %) fica só por fora, como no Figma (não se vê através do botão).
+     */
     fun Canvas.circleButton(x: Float, y: Float, fill: Int, border: Int) {
         val r = ButtonSize / 2f
-        drawCircle(x + r, y + r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
+        val cx = x + r
+        val cy = y + r
+        val bleed = ShadowBlur * 2f
+        saveLayer(cx - r - bleed, cy - r - bleed, cx + r + bleed, cy + r + bleed, null)
+        drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ShadowColor
+            maskFilter = BlurMaskFilter(ShadowBlur / 2f, BlurMaskFilter.Blur.NORMAL)
+        })
+        drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) })
+        restore()
+        drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
         drawCircle(
-            x + r,
-            y + r,
+            cx,
+            cy,
             r - 0.5f,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = border
@@ -119,9 +136,6 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
     companion object {
         const val White = 0xFFFCFCFE.toInt()
 
-        /** #101011 (background dos widgets: opaco, sem Luminosity). */
-        const val CardColor = 0xFF101011.toInt()
-        const val CardRadius = 15f
         const val TextSize = 15f
 
         /** A altura de uma linha de Inter 15 com line-height "normal" no Figma. */

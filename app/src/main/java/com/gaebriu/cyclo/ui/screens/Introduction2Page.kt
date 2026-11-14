@@ -59,7 +59,7 @@ private val PeriodGap = 24.dp
 
 /**
  * Introduction 2: "What time do you want to wake up?" (só o conteúdo; o botão de cima, a barra
- * de progresso e o Next são fixos e vivem em [IntroductionFlow]).
+ * de progresso e o indicador do gesto são fixos e vivem em [IntroductionFlow]).
  *
  * O formato segue o das horas da app ([LocalTimeFormat]: o das definições ou, sem escolha, o do
  * sistema): 24 h com as horas e os minutos (Figma 8:146), 12 h com as horas (12, 01 ... 11), os
@@ -78,6 +78,7 @@ fun Introduction2Page(
     onHourChange: (Int) -> Unit,
     onMinuteChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     val hintAlpha by animateFloatAsState(
         targetValue = if (hintVisible) 1f else 0f,
@@ -96,6 +97,9 @@ fun Introduction2Page(
     val sunWake = remember { Channel<Unit>(Channel.CONFLATED) }
     fun turnSun(degrees: Float) {
         if (!effects.animationsEnabled || degrees == 0f) return
+        // Beta 3.1: a entrada ("dar corda") passa para a rotação das rodas: assenta com a velocidade
+        // que tem enquanto o sol segue a roda, sem cortes (as duas rotações somam-se).
+        iconMotion?.settle()
         sun.target += degrees
         sunWake.trySend(Unit)
     }
@@ -126,11 +130,11 @@ fun Introduction2Page(
             .fillMaxSize()
             .padding(horizontal = CycloDimens.ScreenMargin),
     ) {
-        Spacer(Modifier.height(46.dp))
         IntroIconHeader(
             icon = CycloHeaderIcons.Sun,
             rotation = { sun.value },
             scale = { sunSwell.value },
+            motion = iconMotion,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
 

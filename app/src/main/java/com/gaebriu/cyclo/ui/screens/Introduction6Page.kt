@@ -25,7 +25,7 @@ import com.gaebriu.cyclo.ui.theme.CycloType
 
 /**
  * Introduction 6 (Beta 2.3, Cyclo-2 2039:150): "Almost there, want to receive reminders?", só no
- * tutorial (só o conteúdo; o botão de cima, a barra de progresso e o Next são fixos e vivem em
+ * tutorial (só o conteúdo; o X, o anel de progresso e o indicador do gesto são fixos e vivem em
  * [IntroductionFlow]).
  *
  * As medidas são as do Introduction 5 (o mesmo holofote, título, subtítulo e o grupo a 454 dp do
@@ -34,7 +34,7 @@ import com.gaebriu.cyclo.ui.theme.CycloType
  *
  * Os dois começam DESLIGADOS (no Figma estão ligados só como exemplo). Ligar abre o pedido de
  * autorização nativo do Android, quando falta; recusar não mostra nada e o interruptor fica
- * desligado. Quem decide e guarda é o [IntroductionFlow] (o Next guarda tudo de uma vez).
+ * desligado. Quem decide e guarda é o [IntroductionFlow] (passar desta página guarda tudo de uma vez).
  *
  * @param bedtimeOn / logSleepOn o interruptor como se vê: escolhido E com as notificações autorizadas.
  * @param asks ligar abre primeiro o pedido do sistema (o toque tem o háptico de botão).
@@ -47,10 +47,10 @@ fun Introduction6Page(
     onToggleLogSleep: () -> Unit,
     asks: Boolean,
     modifier: Modifier = Modifier,
+    iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        Spacer(Modifier.height(46.dp))
-        IntroIconHeader(icon = CycloHeaderIcons.Notifications, modifier = Modifier.align(Alignment.CenterHorizontally))
+        IntroIconHeader(icon = CycloHeaderIcons.Notifications, motion = iconMotion, modifier = Modifier.align(Alignment.CenterHorizontally))
 
         Spacer(Modifier.height(CycloDimens.Spacing))
         Column(

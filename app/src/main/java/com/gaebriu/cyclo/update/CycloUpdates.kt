@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.gaebriu.cyclo.BuildConfig
 import com.gaebriu.cyclo.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -173,8 +174,8 @@ object CycloUpdates {
                 }
                 HttpURLConnection.HTTP_OK -> {
                     val body = connection.inputStream.bufferedReader().use { it.readText() }
-                    // Cyclo 2.2: só a estável; uma beta mais recente nunca aparece.
-                    val stable = ReleaseSelection.select(body, installedName(context)).pick(betaEnabled = false)
+                    // Só o canal desta app (beta-3.0 refeita): a estável só vê estáveis, a Cyclo Beta só betas.
+                    val stable = ReleaseSelection.select(body, installedName(context)).forChannel(betaApp = BuildConfig.BETA_APP)
                     currentCoroutineContext().ensureActive()
                     prefs.edit()
                         .putLong(KeyLastCheck, System.currentTimeMillis())

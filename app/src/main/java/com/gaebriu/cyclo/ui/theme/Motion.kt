@@ -49,8 +49,8 @@ object CycloMotion {
     val ScreenRiseSpring = CycloSprings.Sheet.float
 
     /**
-     * Páginas lado a lado (Feed / rotinas guardadas / Tracking e, desde a Beta 2.2, as do
-     * Introduction 1 a 6): quanto andam com o gesto de voltar completo (o resto faz a mola ao largar).
+     * Páginas (Feed / rotinas guardadas / Tracking, lado a lado; as Introduction e o editor,
+     * empilhadas): quanto andam com o gesto de voltar completo (o resto faz a mola ao largar).
      */
     const val PageBackReach = 0.35f
 
@@ -173,6 +173,15 @@ object CycloMotion {
 
     /** Quanto o número da cafeína se desloca a rolar, em fração da sua altura. */
     const val CounterRollDistance = 0.7f
+
+    /**
+     * Beta 3.1: nos contadores, cada algarismo rola sozinho, da direita para a esquerda; este é o
+     * atraso entre um algarismo que muda e o seguinte à esquerda.
+     */
+    const val CounterDigitStaggerMs = 40L
+
+    /** A largura de cada algarismo a abrir ou fechar espaço (o "−" vai atrás): como os vizinhos no reordenar. */
+    val CounterWidthSpring = CycloSprings.Reflow.float
 
     /**
      * Bola do medidor de emoções a assentar num ponto depois de a largar: parte com a velocidade do

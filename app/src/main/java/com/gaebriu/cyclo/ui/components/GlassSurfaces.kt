@@ -17,7 +17,9 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
 import com.gaebriu.cyclo.ui.effects.LocalBackdrop
+import com.gaebriu.cyclo.ui.effects.ShadowCache
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSampler
 import com.gaebriu.cyclo.ui.effects.cycloLightSheen
@@ -38,42 +40,41 @@ import com.gaebriu.cyclo.ui.theme.FigmaBlur
 /** A forma de todas as superfícies: raio [radius] com o corner smoothing do Figma (60 %). */
 internal fun roundRectPath(width: Float, height: Float, radius: Float) = smoothRoundRectPath(width, height, radius)
 
-/** Borda em gradiente vertical do vidro: #313233 a 63 %, 39 % ao meio, 63 %. */
-internal fun glassBorderBrush(): Brush = Brush.verticalGradient(
-    0f to CycloColors.GlassBorder.copy(alpha = 0.63f),
-    0.505f to CycloColors.GlassBorder.copy(alpha = 0.39f),
-    1f to CycloColors.GlassBorder.copy(alpha = 0.63f),
-)
-
 /**
  * Barra de navegação e mini-menu (navigation-bar, mini-menu-group): #101011 em Luminosity sobre o
- * desfoque de fundo [figmaBlur] (39 na barra, 63 no mini-menu), sombra 0, 4, desfoque 39 (preto a
- * 24 %), sombra interior 0, -6, desfoque 15 (preto a 15 %) e borda de 1 dp em gradiente.
+ * desfoque de fundo [figmaBlur] (39 na barra, 63 no mini-menu) e sombra 0, 4, desfoque 39 (preto a
+ * 24 %). Beta-3.2 (Figma): sem borda; em vez da sombra interior 0, -6, desfoque 15, duas finas em
+ * Luminosity, #A3A2A7 a 15 % deslocadas 1 e -1 com desfoque 2 (um fio de luz em cima e em baixo).
  */
 @Composable
 fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.NavigationBar): Modifier {
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
+    // As sombras desfocam-se uma vez por tamanho (ver ShadowCache), não a cada fotograma.
+    val dropShadow = remember { ShadowCache() }
+    val innerTop = remember { ShadowCache() }
+    val innerBottom = remember { ShadowCache() }
     return backdropSampler(sampler, backdrop).drawWithCache {
-        // A forma e a borda só se refazem quando o tamanho muda (antes, a cada desenho).
+        // A forma só se refaz quando o tamanho muda (antes, a cada desenho).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
-        val border = glassBorderBrush()
         onDrawBehind {
             val blend = effects.luminosity
 
             // Sombra exterior, só fora da forma.
-            clipPath(shape, clipOp = ClipOp.Difference) {
-                translate(top = 4.dp.toPx()) {
-                    drawBlurredPath(shape, Color.Black.copy(alpha = 0.24f), 39.dp.toPx())
-                }
-            }
+            dropShadow.drawDropShadow(this, shape, 39.dp.toPx(), Color.Black.copy(alpha = 0.24f), Offset(0f, 4.dp.toPx()))
             if (effects.textures) drawBackdrop(sampler, backdrop, shape, figmaBlur)
             drawPath(shape, CycloColors.GlassFill, blendMode = blend)
-            drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx()), 15.dp.toPx())
-            drawInsideBorder(cornerRadius.toPx(), border, blend)
+            drawGlassRim(this, shape, innerTop, innerBottom, blend)
         }
     }.cycloLightSheen(cornerRadius, strength = 0.8f)
+}
+
+/** O fio de luz do vidro (beta-3.2): sombras interiores #A3A2A7 a 15 %, 0,1 e 0,-1, desfoque 2. */
+internal fun drawGlassRim(scope: DrawScope, shape: Path, top: ShadowCache, bottom: ShadowCache, blend: BlendMode) = with(scope) {
+    val rim = CycloColors.TextSecondary.copy(alpha = 0.15f)
+    top.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, 1.dp.toPx()), blend)
+    bottom.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, -1.dp.toPx()), blend)
 }
 
 /**
@@ -82,6 +83,8 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
  *
  * @param shadowColor cor da sombra exterior (0, 4, desfoque [shadowBlur]); null = sem sombra.
  * @param underFill desenhado por cima do fundo e por baixo do vidro (recortado à forma).
+ * @param rimTop / [rimBottom] beta-3.2 (wake-time-container, Cyclo 3): sombras interiores 0,2 e 0,-2,
+ *        desfoque 2, com estas cores (as do céu, a 15 %); null = sem elas.
  */
 @Composable
 fun Modifier.cycloCard(
@@ -89,26 +92,31 @@ fun Modifier.cycloCard(
     shadowBlur: Dp = 39.dp,
     cornerRadius: Dp = 15.dp,
     underFill: (DrawScope.() -> Unit)? = null,
+    rimTop: Color? = null,
+    rimBottom: Color? = null,
 ): Modifier {
     val effects = LocalVisualEffects.current
     val backdrop = LocalBackdrop.current
     val sampler = rememberBackdropSampler()
+    // A sombra desfoca-se uma vez por tamanho (ver ShadowCache): o cartão redesenha-se a cada
+    // fotograma do scroll, e antes cada desenho desfocava a forma no CPU.
+    val shadow = remember { ShadowCache() }
+    val innerTop = remember { ShadowCache() }
+    val innerBottom = remember { ShadowCache() }
     return backdropSampler(sampler, backdrop).drawWithCache {
         // A forma só se refaz quando o tamanho muda (antes, a cada desenho: no scroll, a cada frame).
         val shape = roundRectPath(size.width, size.height, cornerRadius.toPx())
         onDrawBehind {
             val blend = effects.luminosity
             if (shadowColor != null) {
-                clipPath(shape, clipOp = ClipOp.Difference) {
-                    translate(top = 4.dp.toPx()) {
-                        drawBlurredPath(shape, shadowColor, shadowBlur.toPx())
-                    }
-                }
+                shadow.drawDropShadow(this, shape, shadowBlur.toPx(), shadowColor, Offset(0f, 4.dp.toPx()))
             }
             if (effects.textures) drawBackdrop(sampler, backdrop, shape)
             // O que fica entre o fundo e o vidro (ex.: o brilho roxo do new-update-group).
             if (underFill != null) clipPath(shape) { underFill() }
             drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+            if (rimTop != null) innerTop.drawInnerShadow(this, shape, 2.dp.toPx(), rimTop, Offset(0f, 2.dp.toPx()))
+            if (rimBottom != null) innerBottom.drawInnerShadow(this, shape, 2.dp.toPx(), rimBottom, Offset(0f, -2.dp.toPx()))
         }
     }
 }
