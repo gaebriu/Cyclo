@@ -425,7 +425,7 @@ private fun IntroHint(
     ) {
         SwipeHint(
             text = stringResource(R.string.introduction_swipe_get_started),
-            onClick = onGetStarted,
+            onNext = onGetStarted,
             alpha = shown,
             idle = idle,
         )

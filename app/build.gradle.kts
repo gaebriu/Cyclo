@@ -7,7 +7,7 @@ plugins {
 // (com.gaebriu.cyclo.beta: dados, preferências, widgets, notificações e atualizações à parte, instala-se
 // ao lado da estável); "release-…" é a Cyclo estável (com.gaebriu.cyclo, nunca muda). O namespace
 // (classes, R) é o mesmo nas duas.
-val cycloVersionName = "beta-3.2"
+val cycloVersionName = "beta-3.2.1"
 val cycloBeta = cycloVersionName.startsWith("beta-")
 
 android {
@@ -21,8 +21,8 @@ android {
         minSdk = 33
         targetSdk = 37
         // versionName = a tag do GitHub ("beta-3.0", prerelease; as estáveis são "release-x.x"). Mostra-se "Cyclo Beta 3.0".
-        // versionCode 45 (beta-3.2: navegação das Introduction por gestos, anel de progresso, movimento refeito; a beta-3.1 foi o 44: ícones das Introduction, contadores por algarismo, 120 Hz no deslize das sobreposições; a beta-3.0 foi o 43: água, Unified view e widgets sólidos; a beta-3.0.1 (só por adb) foi o 42, a release-2.4 republicada o 41, a beta-3.0 refeita o 40, a primeira release-2.4 o 39 e a beta-3.0 antiga, em com.gaebriu.cyclo, foi o 38; a release-2.3 foi o 37, a release-2.2 o 36, a release-2.1 o 35, a release-2.0 o 34, a beta-2.4 o 33; a beta-2.2 o 31, saltando o 30 de uma build release-1.2 de testes).
-        versionCode = 45
+        // versionCode 46 (beta-3.2.1: indicadores só na primeira página e sem toque, menus por cima do "Done"; a beta-3.2 foi o 45: navegação das Introduction por gestos, anel de progresso, movimento refeito; a beta-3.1 foi o 44: ícones das Introduction, contadores por algarismo, 120 Hz no deslize das sobreposições; a beta-3.0 foi o 43: água, Unified view e widgets sólidos; a beta-3.0.1 (só por adb) foi o 42, a release-2.4 republicada o 41, a beta-3.0 refeita o 40, a primeira release-2.4 o 39 e a beta-3.0 antiga, em com.gaebriu.cyclo, foi o 38; a release-2.3 foi o 37, a release-2.2 o 36, a release-2.1 o 35, a release-2.0 o 34, a beta-2.4 o 33; a beta-2.2 o 31, saltando o 30 de uma build release-1.2 de testes).
+        versionCode = 46
         versionName = cycloVersionName
         // O nome no launcher (e nos widgets e nas definições do Android): "Cyclo Beta" na beta.
         manifestPlaceholders["appLabel"] = if (cycloBeta) "Cyclo Beta" else "Cyclo"

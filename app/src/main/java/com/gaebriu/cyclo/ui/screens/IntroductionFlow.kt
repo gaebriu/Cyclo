@@ -642,14 +642,17 @@ fun IntroductionFlow(
         animationSpec = CycloMotion.ButtonSwapSpring,
         label = "doneButton",
     )
-    // O indicador: apaga-se assim que a página começa a mudar e acende quando assenta.
+    // O indicador: só na primeira página (Introduction 1; no editor, a hora de acordar, beta-3.2.1).
+    // Apaga-se assim que a página começa a mudar e acende quando assenta.
     val hintAlpha: () -> Float = {
-        // Sem a demonstração: o indicador fica à vista enquanto a página espreita.
-        val p = if (dragging) dragPosition.floatValue else position.value
-        val settled = 1f - smoothStep(abs(p - restStep()), 0f, HintFadeReach)
-        settled * (1f - toSeven()) * (1f - done)
+        if (restStep() != firstPage) {
+            0f
+        } else {
+            // Sem a demonstração: o indicador fica à vista enquanto a página espreita.
+            val p = if (dragging) dragPosition.floatValue else position.value
+            1f - smoothStep(abs(p - restStep()), 0f, HintFadeReach)
+        }
     }
-    val hintInteractive by remember { derivedStateOf { hintAlpha() > 0.5f } }
 
     // O frame do Figma tem 48 dp de barra de navegação; reservamos pelo menos isso.
     val bottomInset = maxOf(
@@ -853,15 +856,14 @@ fun IntroductionFlow(
                         .zIndex(1f),
                     contentAlignment = Alignment.BottomCenter,
                 ) {
+                    // Só a página do passo já tem a ação "Next" do TalkBack: o indicador fica só a ler-se.
                     SwipeHint(
                         text = stringResource(R.string.introduction_swipe_continue),
-                        onClick = { navigate(1) },
                         alpha = hintAlpha,
                         idle = { guideIdle },
-                        enabled = !saving && hintInteractive,
                         modifier = Modifier
                             .padding(bottom = bottomInset + HintBottomGap)
-                            .then(if (done > 0.5f || (!isEditor && step == TutorialStepCount)) Modifier.clearAndSetSemantics { } else Modifier),
+                            .then(if (restStep() != firstPage) Modifier.clearAndSetSemantics { } else Modifier),
                     )
                     if (done > 0f) {
                         CycloPrimaryButton(
@@ -880,9 +882,11 @@ fun IntroductionFlow(
                     }
                 }
 
-                // Menus por cima de tudo.
-                CompositionLocalProvider(LocalBackdrop provides Backdrop.of(pagesBackdrop)) {
-                    RepeatOverlays(selection = repeat, bottomMargin = bottomInset)
+                // Menus por cima de tudo, incluindo o "Done" (zIndex 1).
+                Box(Modifier.fillMaxSize().zIndex(2f)) {
+                    CompositionLocalProvider(LocalBackdrop provides Backdrop.of(pagesBackdrop)) {
+                        RepeatOverlays(selection = repeat, bottomMargin = bottomInset)
+                    }
                 }
             }
         }

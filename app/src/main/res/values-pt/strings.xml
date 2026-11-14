@@ -114,7 +114,7 @@
     <string name="language_portuguese">Português</string>
     <string name="settings_interface">Interface</string>
     <string name="settings_unified_view">Vista unificada</string>
-    <string name="settings_unified_view_description">Junta o teu registo diário e o feed numa só vista.</string>
+    <string name="settings_unified_view_description">Junta o teu registo diário e o feed numa só vista</string>
     <string name="settings_advanced_textures">Texturas avançadas</string>
     <string name="settings_advanced_textures_description">Desfruta de efeitos visuais mais ricos com as texturas avançadas. Desliga-as para uma experiência mais rápida</string>
     <string name="settings_data">Dados</string>

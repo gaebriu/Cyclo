@@ -29,8 +29,10 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -40,7 +42,6 @@ import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.components.CycloCircleButton
 import com.gaebriu.cyclo.ui.components.CycloIcon
 import com.gaebriu.cyclo.ui.components.CycloProgressRing
-import com.gaebriu.cyclo.ui.components.cycloPressable
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
@@ -146,8 +147,8 @@ internal fun hintLift(phase: Float): Float {
 
 /**
  * O indicador do gesto (swipe-to-get-started / swipe-to-continue, Cyclo 3): o texto com uma seta
- * para cima de cada lado, a 6 dp. Não é um botão desenhado, mas responde como um (TalkBack e quem
- * prefere tocar): tocar avança, como deslizar.
+ * para cima de cada lado, a 6 dp. Só indica (beta-3.2.1): tocar não faz nada, avança-se deslizando.
+ * Para o TalkBack, [onNext] fica como ação de acessibilidade ("Next"), não como clique.
  *
  * O movimento (beta-3.2): sobe e volta, devagar, e descansa; as setas vão um pouco à frente e mais
  * alto, e acendem no topo. Corre num relógio próprio só enquanto se vê e a app está à frente, lido
@@ -160,12 +161,12 @@ internal fun hintLift(phase: Float): Float {
 @Composable
 fun SwipeHint(
     text: String,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onNext: (() -> Unit)? = null,
     alpha: () -> Float = { 1f },
-    enabled: Boolean = true,
     idle: () -> Boolean = { true },
 ) {
+    val nextLabel = stringResource(R.string.next)
     val effects = LocalVisualEffects.current
     val phase = remember { mutableFloatStateOf(0f) }
     // Quanto do movimento se vê: 1 parado, 0 enquanto se interage.
@@ -198,9 +199,11 @@ fun SwipeHint(
         modifier = modifier
             .graphicsLayer { this.alpha = alpha().coerceIn(0f, 1f) }
             .heightIn(min = CycloDimens.TouchTarget)
-            .cycloPressable(onClick = onClick, enabled = enabled)
             .padding(horizontal = CycloDimens.ScreenMargin)
-            .semantics { contentDescription = text },
+            .semantics {
+                contentDescription = text
+                if (onNext != null) customActions = listOf(CustomAccessibilityAction(nextLabel) { onNext(); true })
+            },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
