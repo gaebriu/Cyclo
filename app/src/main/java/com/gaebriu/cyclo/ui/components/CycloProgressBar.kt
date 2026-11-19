@@ -95,20 +95,26 @@ private const val RingFadeInDegrees = 10f
  * progresso; [diameterDp] 16 nos medidores (beta-3.0: emotion-meter, sleep-quality-meter e os
  * sliders do Widget Studio).
  */
-fun DrawScope.drawCycloBall(center: Offset, scale: Float = 1f, diameterDp: Float = 15f) {
+fun DrawScope.drawCycloBall(
+    center: Offset,
+    scale: Float = 1f,
+    diameterDp: Float = 15f,
+    color: Color = CycloColors.TextPrimary,
+    shade: Color = Color.Black.copy(alpha = 0.15f),
+    shadeBlurDp: Float = 2f,
+) {
     val radius = (diameterDp / 2f).dp.toPx() * scale
     if (radius <= 0f) return
 
-    // Brilho por cima e por baixo: #FCFCFE a 15 %, deslocado 6, desfoque 9.
-    val glow = CycloColors.TextPrimary.copy(alpha = 0.15f)
+    // Brilho por cima e por baixo: a cor da bola a 15 %, deslocado 6, desfoque 9.
+    val glow = color.copy(alpha = 0.15f)
     drawBlurredCircle(center + Offset(0f, -6.dp.toPx()), radius, glow, cssBlurPx = 9.dp.toPx())
     drawBlurredCircle(center + Offset(0f, 6.dp.toPx()), radius, glow, cssBlurPx = 9.dp.toPx())
 
-    drawCircle(color = CycloColors.TextPrimary, radius = radius, center = center)
+    drawCircle(color = color, radius = radius, center = center)
 
-    // Sombras interiores: preto a 15 %, deslocadas -2 e 2, desfoque 2.
+    // Sombras interiores: [shade], deslocadas -2 e 2, desfoque [shadeBlurDp] (2 na barra; 4 nos medidores, Cyclo 3.2).
     val shape = Path().apply { addOval(Rect(center, radius)) }
-    val shade = Color.Black.copy(alpha = 0.15f)
-    drawInnerShadow(shape, shade, Offset(0f, -2.dp.toPx()), cssBlurPx = 2.dp.toPx())
-    drawInnerShadow(shape, shade, Offset(0f, 2.dp.toPx()), cssBlurPx = 2.dp.toPx())
+    drawInnerShadow(shape, shade, Offset(0f, -2.dp.toPx()), cssBlurPx = shadeBlurDp.dp.toPx())
+    drawInnerShadow(shape, shade, Offset(0f, 2.dp.toPx()), cssBlurPx = shadeBlurDp.dp.toPx())
 }

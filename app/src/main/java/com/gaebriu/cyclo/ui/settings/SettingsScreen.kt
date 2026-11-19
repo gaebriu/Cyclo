@@ -333,7 +333,7 @@ fun SettingsScreen(
             override fun drag(pages: Float) = coverDrag?.drag((-pages).coerceAtLeast(0f)) ?: Unit
 
             override fun release(pagesPerSecond: Float) = coverDrag?.release(-pagesPerSecond) ?: Unit
-        })
+        }, downOnly = true)
     }
 
     // Voltar do Android numa subpágina: ela sai para a direita a seguir ao dedo (o alcance das
@@ -745,7 +745,7 @@ private fun SettingsPageFrame(
                 .fillMaxSize()
                 .backdropSource(content0)
                 .background(CycloColors.Background)
-                .cycloVerticalScroll(scroll)
+                .cycloVerticalScroll(scroll, alwaysBounce = true)
                 .padding(horizontal = CycloDimens.ScreenMargin)
                 .padding(top = TitleTop + topExtra, bottom = bottomInset + CycloDimens.ScreenMargin),
         ) {

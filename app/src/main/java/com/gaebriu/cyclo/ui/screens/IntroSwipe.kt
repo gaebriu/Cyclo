@@ -58,9 +58,13 @@ internal fun introSwipeDecision(offset: Float, velocity: Float): Int {
  *    nenhum filho o consumiu (como o swipe do Feed). Não começa na zona do gesto "início" do sistema.
  *
  * A física e as regras (que página, resistência, mola) ficam em quem o usa ([Target]).
+ *
+ * [downOnly] (fechar as Settings, Cyclo 3.2): o gesto só começa com o dedo a descer; se o dedo volta
+ * para cima e passa o sítio onde começou, o gesto acaba ali e o resto do movimento vai para o
+ * scroll da página (antes ficava preso no ecrã parado e a página não seguia o dedo).
  */
 @Stable
-class IntroSwipe(private val target: Target) {
+class IntroSwipe(private val target: Target, private val downOnly: Boolean = false) {
     /** Quem move as páginas. Distâncias em páginas (a altura do ecrã), positivas para a seguinte. */
     interface Target {
         /** O dedo começou a levar as páginas: pára as molas. Falso = agora não se navega. */
@@ -100,6 +104,14 @@ class IntroSwipe(private val target: Target) {
     private val connection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
             if (!active || source != NestedScrollSource.UserInput) return Offset.Zero
+            if (downOnly && travelled - available.y >= 0f) {
+                // Voltou ao início: o ecrã fica no sítio e o resto é do scroll.
+                val back = travelled
+                move(back)
+                active = false
+                target.release(0f)
+                return Offset(0f, back)
+            }
             move(available.y)
             return Offset(0f, available.y)
         }
@@ -107,7 +119,7 @@ class IntroSwipe(private val target: Target) {
         override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
             if (source != NestedScrollSource.UserInput) return Offset.Zero
             if (consumed.y != 0f) scrolledThisDrag = true
-            if (active || scrolledThisDrag || abs(available.y) < 0.5f || !start()) return Offset.Zero
+            if (active || scrolledThisDrag || abs(available.y) < 0.5f || (downOnly && available.y < 0f) || !start()) return Offset.Zero
             move(available.y)
             return Offset(0f, available.y)
         }
@@ -141,7 +153,7 @@ class IntroSwipe(private val target: Target) {
                     tracker.addPosition(down.uptimeMillis, down.position)
                     var claimed = false
                     val drag = awaitVerticalTouchSlopOrCancellation(down.id) { change, overSlop ->
-                        if (start()) {
+                        if ((!downOnly || overSlop > 0f) && start()) {
                             claimed = true
                             change.consume()
                             move(overSlop)
@@ -159,7 +171,9 @@ class IntroSwipe(private val target: Target) {
                             completed = false
                             break
                         }
-                        val dy = change.positionChange().y
+                        var dy = change.positionChange().y
+                        // [downOnly]: o ecrã não sobe para lá de onde estava.
+                        if (downOnly) dy = dy.coerceAtLeast(travelled)
                         if (dy != 0f) move(dy)
                         tracker.addPosition(change.uptimeMillis, change.position)
                         change.consume()

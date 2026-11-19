@@ -10,16 +10,17 @@ object CycloColors {
     val GlassFill = Color(0xFF101011)
     val GlassBorder = Color(0xFF313233)
 
-    // As cores das caras e do medidor de emoções (os pontos do gradiente "emotion-meter-background"),
-    // da esquerda (contente) para a direita (insatisfeito). Também pintam a Tracking.
-    val MoodViolet = Color(0xFFB3A3E8)
-    val MoodBlue = Color(0xFF8FA8F0)
+    // As cinco cores das caras e do medidor (os pontos do gradiente "emotion-meter-background", Cyclo
+    // 3.2: 0, 25, 50, 75 e 100 %), do melhor nível (mood) ao pior (dissatisfied). Também pintam os
+    // gráficos e as horas recomendadas.
+    val MoodViolet = Color(0xFFC4A8FF)
+    val MoodBlue = Color(0xFF8FA6FF)
 
-    /**
-     * "Okay" na grelha do Mood (Tracking): o meio do gradiente do medidor (entre o azul, a 25 %, e o
-     * céu, a 75 %). Não está no Figma: pedida pelo utilizador ("entre o azul e o céu", Beta 2.0).
-     */
-    val MoodOkay = Color(0xFF87B5EC)
-    val MoodSky = Color(0xFF7FC1E8)
-    val MoodMint = Color(0xFF8FD9C4)
+    /** O meio do gradiente: "Okay"/meh, a cara sentiment_neutral (no Figma desde o Cyclo 3.2). */
+    val MoodOkay = Color(0xFF7FB4FB)
+    val MoodSky = Color(0xFF6FC2F7)
+    val MoodMint = Color(0xFF5ED6D0)
+
+    /** O branco dos medidores (ball-b, os pontos e as luzes do fundo, Cyclo 3.2). */
+    val MeterWhite = Color(0xFFF6F4FF)
 }
