@@ -1,4 +1,4 @@
-package com.gaebriu.cyclo.data
+﻿package com.gaebriu.cyclo.data
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -137,19 +137,55 @@ class HydrationTest {
             routines = emptyList(),
             dailyLog = DailyLog(day, opened = true, water = 1750),
             history = listOf(DailyLog(day.minusDays(1), opened = true, water = 500)),
-            unifiedView = true,
+            autoBackup = true,
         )
         val json = buildBackupJson(data, java.time.Instant.parse("2026-11-11T20:00:00Z"), "beta-3.0")
         val contents = (parseBackup(json) as BackupParseResult.Valid).contents
         assertEquals(1750, contents.dailyLog!!.water)
         assertEquals(500, contents.history!!.single().water)
-        // O Unified view é do aparelho: não vai na cópia.
-        assertFalse(json.contains("unified", ignoreCase = true))
+        // As cópias automáticas são do aparelho: não vão na cópia.
+        assertFalse(json.contains("autoBackup", ignoreCase = true))
         val tooMuch = json.replace("\"water\": 1750", "\"water\": ${Hydration.MaxMl + 1}")
         assertTrue(tooMuch != json)
         assertEquals(BackupProblem.Invalid, (parseBackup(tooMuch) as BackupParseResult.Rejected).problem)
         // Uma cópia antiga, sem "water": vale, com 0.
         val old = JSONObject(json).apply { getJSONObject("data").getJSONObject("dailyLog").remove("water") }.toString()
         assertEquals(0, (parseBackup(old) as BackupParseResult.Valid).contents.dailyLog!!.water)
+    }
+
+    @Test
+    fun backupKeepsWaterTimesAndOldCopiesStayValid() {
+        val day = LocalDate.of(2026, 11, 18)
+        val times = listOf(1_763_460_000_000L, 1_763_470_000_000L)
+        val data = CycloData(
+            onboarded = true,
+            routines = emptyList(),
+            dailyLog = DailyLog(day, opened = true, water = 500, waterTimes = times),
+            hydrationReminder = true,
+        )
+        val json = buildBackupJson(data, java.time.Instant.parse("2026-11-18T20:00:00Z"), "release-3.1")
+        val contents = (parseBackup(json) as BackupParseResult.Valid).contents
+        assertEquals(times, contents.dailyLog!!.waterTimes)
+        assertEquals(true, contents.hydrationReminder)
+        // Mais horas do que copos: ficam as mais recentes (uma por copo).
+        val extra = JSONObject().put("date", "2026-11-18").put("water", 250).put("waterTimes", org.json.JSONArray(times))
+        assertEquals(listOf(times.last()), parseWaterTimes(extra, 250))
+        // Cópias antigas (sem horas nem lembrete): valem, sem horas e com o lembrete como está.
+        val old = JSONObject(json).apply {
+            getJSONObject("data").getJSONObject("dailyLog").remove("waterTimes")
+            getJSONObject("data").getJSONObject("settings").remove("hydrationReminder")
+        }.toString()
+        val oldContents = (parseBackup(old) as BackupParseResult.Valid).contents
+        assertEquals(emptyList<Long>(), oldContents.dailyLog!!.waterTimes)
+        assertEquals(null, oldContents.hydrationReminder)
+    }
+
+    @Test
+    fun mergedNightKeepsTheWaterTimesOfBothLogs() {
+        val night = DailyLog(LocalDate.of(2026, 11, 17), water = 250, waterTimes = listOf(10L))
+        val later = DailyLog(LocalDate.of(2026, 11, 18), water = 500, waterTimes = listOf(20L, 30L))
+        val merged = mergeNightLogs(night, later)
+        assertEquals(750, merged.water)
+        assertEquals(listOf(10L, 20L, 30L), merged.waterTimes)
     }
 }

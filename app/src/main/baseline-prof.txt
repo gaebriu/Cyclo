@@ -1,0 +1,5 @@
+# Perfil de referência da app (Cyclo 3.1, desempenho): todo o código da Cyclo é compilado antes
+# (AOT) pelo ART, em vez de ser interpretado e compilado a quente nos primeiros arranques e nas
+# primeiras animações. As bibliotecas (Compose, DataStore…) trazem os perfis delas.
+HSPLcom/gaebriu/cyclo/**->**(**)**
+Lcom/gaebriu/cyclo/**;

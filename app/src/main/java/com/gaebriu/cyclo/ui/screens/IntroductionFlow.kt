@@ -61,6 +61,8 @@ import com.gaebriu.cyclo.data.OnboardingReminders
 import com.gaebriu.cyclo.data.RoutineDraft
 import com.gaebriu.cyclo.reminder.BedtimeReminder
 import com.gaebriu.cyclo.reminder.LogSleepReminder
+import com.gaebriu.cyclo.reminder.HydrationReminder
+import com.gaebriu.cyclo.ui.effects.LocalCoverDrag
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
 import com.gaebriu.cyclo.ui.components.IconMotion
 import com.gaebriu.cyclo.ui.components.IconMotionStyle
@@ -153,7 +155,10 @@ private fun guideDelays(step: Int): List<Long> = when (step) {
  *   sai; os gestos ficam bloqueados; no fim das animações chama [onFinished].
  *
  * **Editor** (criar ou editar uma rotina, Introduction 2 a 5):
- * - O X fecha o editor em qualquer passo ([onClose]); o gesto para baixo volta um passo.
+ * - O X fecha o editor em qualquer passo ([onClose]); o gesto para baixo volta um passo. No primeiro
+ *   (a hora de acordar, Cyclo 3.1), não há passo antes: o gesto para baixo leva o editor inteiro a
+ *   descer com o dedo e fecha-o, de volta a onde foi aberto (o Feed ou as rotinas guardadas), como o
+ *   grupo do Introduction 1 desce para o 0 no tutorial ([LocalCoverDrag]).
  * - No passo 5, o indicador dá lugar ao botão roxo "Done", que guarda a rotina (subir não faz nada).
  *
  * Em ambos:
@@ -257,8 +262,10 @@ fun IntroductionFlow(
     // só com as notificações autorizadas; é isso que se guarda ao passar dele.
     var bedtimeWanted by rememberSaveable { mutableStateOf(false) }
     var logSleepWanted by rememberSaveable { mutableStateOf(false) }
+    var hydrationWanted by rememberSaveable { mutableStateOf(false) }
     val bedtimeShown = bedtimeWanted && notifications?.isAllowed(BedtimeReminder.ChannelId) == true
     val logSleepShown = logSleepWanted && notifications?.isAllowed(LogSleepReminder.ChannelId) == true
+    val hydrationShown = hydrationWanted && notifications?.isAllowed(HydrationReminder.ChannelId) == true
 
     /**
      * Um interruptor do Introduction 6. Desligar é logo. Ligar: já autorizado, liga; sem
@@ -343,7 +350,7 @@ fun IntroductionFlow(
         scope.launch { position.animateTo(TutorialStepCount.toFloat(), pageSpring, initialVelocity = velocity) }
         onSave(
             RoutineDraft(savedRoutineName, wakeHour, wakeMinute, repeat.option, repeat.daysMask),
-            OnboardingReminders(bedtime = bedtimeShown, logSleep = logSleepShown),
+            OnboardingReminders(bedtime = bedtimeShown, logSleep = logSleepShown, hydration = hydrationShown),
             {
                 saving = false
                 step = TutorialStepCount
@@ -488,6 +495,10 @@ fun IntroductionFlow(
     val dragFrom = remember { intArrayOf(0) }
     val dragStart = remember { floatArrayOf(0f) }
     val dragBeyond = remember { booleanArrayOf(false) }
+    // Editor, primeiro passo: o que o dedo leva para baixo, para lá da primeira página, é o editor
+    // inteiro (o cover do CycloApp). [coverTaken]: já se pegou nele neste gesto.
+    val coverDrag = LocalCoverDrag.current
+    val coverTaken = remember { booleanArrayOf(false) }
     val swipe = remember {
         IntroSwipe(object : IntroSwipe.Target {
             override fun begin(): Boolean {
@@ -501,6 +512,7 @@ fun IntroductionFlow(
                 // Um só valor contínuo: no Introduction 1 do tutorial, abaixo de 1 é o grupo a descer.
                 dragStart[0] = if (!isEditor && step <= 1) p - 1f + e else p
                 dragBeyond[0] = false
+                coverTaken[0] = false
                 dragging = true
                 scope.launch {
                     position.stop()
@@ -526,6 +538,15 @@ fun IntroductionFlow(
                     hi = (if (canForward()) from + 1 else from).toFloat()
                 }
                 val base = if (enterMode) raw - dragPosition.floatValue + 1f else raw
+                // Editor no primeiro passo, a puxar para baixo: em vez da resistência, desce o editor.
+                if (isEditor && from == firstPage && base < lo && coverDrag != null && (coverTaken[0] || coverDrag.start())) {
+                    coverTaken[0] = true
+                    coverDrag.drag(lo - base)
+                    dragEnter.floatValue = 1f
+                    dragPosition.floatValue = lo
+                    return
+                }
+                if (coverTaken[0]) coverDrag?.drag(0f)
                 // Para lá do que se pode, a resistência do iOS (em páginas, como o swipe do Feed).
                 val shown = when {
                     base < lo -> lo - rubberBand(lo - base, 1f)
@@ -551,6 +572,17 @@ fun IntroductionFlow(
 
             override fun release(pagesPerSecond: Float) {
                 val from = dragFrom[0]
+                if (coverTaken[0]) {
+                    // O editor desce até ao fim ou volta a subir; as páginas ficam onde estão.
+                    coverTaken[0] = false
+                    coverDrag?.release(-pagesPerSecond)
+                    scope.launch {
+                        position.snapTo(dragPosition.floatValue)
+                        enter.snapTo(1f)
+                        dragging = false
+                    }
+                    return
+                }
                 val enterMode = !isEditor && from == 0
                 val offset = if (enterMode) {
                     dragEnter.floatValue
@@ -821,6 +853,10 @@ fun IntroductionFlow(
                                     logSleepOn = logSleepShown,
                                     onToggleLogSleep = {
                                         toggleReminder(LogSleepReminder.ChannelId, logSleepShown) { logSleepWanted = it }
+                                    },
+                                    hydrationOn = hydrationShown,
+                                    onToggleHydration = {
+                                        toggleReminder(HydrationReminder.ChannelId, hydrationShown) { hydrationWanted = it }
                                     },
                                     asks = notifications?.isPermissionGranted() != true,
                                 )

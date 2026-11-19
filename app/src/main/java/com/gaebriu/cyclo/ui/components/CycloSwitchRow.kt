@@ -105,7 +105,7 @@ internal fun SwitchRow(
 /**
  * Interruptor (y/n): 42 x 23 dp, raio 15. Ligado: #4A3C99 com a bola à direita; desligado:
  * #A3A2A7 a 15 % com a bola à esquerda a 63 %. A bola tem 15 dp, a 4 dp das pontas, com
- * gradiente #FCFCFE a #9F9FA0 em Luminosity.
+ * gradiente #FCFCFE a 100 % → 63 % em Luminosity (Cyclo 3.1; antes #FCFCFE a #9F9FA0).
  *
  * A mudança é uma mola com um ressalto muito leve: a bola desliza e, a meio do caminho, estica um
  * pouco no sentido do movimento (e volta a ser redonda ao chegar); a cor do fundo e a opacidade da
@@ -140,7 +140,7 @@ internal fun CycloSwitch(on: Boolean, modifier: Modifier = Modifier) {
                 val alpha = lerpFloat(0.63f, 1f, p.coerceIn(0f, 1f))
                 drawRoundRect(
                     brush = Brush.verticalGradient(
-                        listOf(CycloColors.TextPrimary.copy(alpha = alpha), Color(0xFF9F9FA0).copy(alpha = alpha)),
+                        listOf(CycloColors.TextPrimary.copy(alpha = alpha), CycloColors.TextPrimary.copy(alpha = alpha * 0.63f)),
                         startY = inset,
                         endY = inset + knob,
                     ),

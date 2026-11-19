@@ -65,16 +65,18 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
             dropShadow.drawDropShadow(this, shape, 39.dp.toPx(), Color.Black.copy(alpha = 0.24f), Offset(0f, 4.dp.toPx()))
             if (effects.textures) drawBackdrop(sampler, backdrop, shape, figmaBlur)
             drawPath(shape, CycloColors.GlassFill, blendMode = blend)
-            drawGlassRim(this, shape, innerTop, innerBottom, blend)
+            // A pílula (raio ≥ meia altura) desenha os fios em fatias quando muda de largura (o
+            // mini-menu no deslize das páginas; ver ShadowCache).
+            drawGlassRim(this, shape, innerTop, innerBottom, blend, pill = cornerRadius.toPx() * 2f >= size.height)
         }
     }.cycloLightSheen(cornerRadius, strength = 0.8f)
 }
 
 /** O fio de luz do vidro (beta-3.2): sombras interiores #A3A2A7 a 15 %, 0,1 e 0,-1, desfoque 2. */
-internal fun drawGlassRim(scope: DrawScope, shape: Path, top: ShadowCache, bottom: ShadowCache, blend: BlendMode) = with(scope) {
+internal fun drawGlassRim(scope: DrawScope, shape: Path, top: ShadowCache, bottom: ShadowCache, blend: BlendMode, pill: Boolean = false) = with(scope) {
     val rim = CycloColors.TextSecondary.copy(alpha = 0.15f)
-    top.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, 1.dp.toPx()), blend)
-    bottom.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, -1.dp.toPx()), blend)
+    top.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, 1.dp.toPx()), blend, pill)
+    bottom.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, -1.dp.toPx()), blend, pill)
 }
 
 /**

@@ -656,7 +656,10 @@ class WidgetActionReceiver : BroadcastReceiver() {
                 repository.setRoutineActive(routineId, !routine.active, System.currentTimeMillis())
                 // Já com a mudança: o widget responde logo, e o lembrete é reagendado (a app pode
                 // não estar a correr, e o CycloSync só reage depois do debounce).
-                com.gaebriu.cyclo.reminder.CycloSync.apply(app, repository.data.first(), animateWidgets = false)
+                val changed = repository.data.first()
+                com.gaebriu.cyclo.reminder.CycloSync.apply(app, changed, animateWidgets = false)
+                // Mudou uma rotina: a cópia automática (Cyclo 3.1), ainda dentro do tempo do recetor.
+                runCatching { com.gaebriu.cyclo.data.AutoBackup.backUp(app, changed) }
             } catch (e: Exception) {
                 // Falhou a escrita: o widget fica como estava (nada mudou).
             } finally {

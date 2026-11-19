@@ -45,7 +45,11 @@ import java.time.format.DateTimeParseException
  *
  * beta-3.0: cada registo traz "water" (mL, 0 a [Hydration.MaxMl]) e as ordens podem trazer "Water".
  * É opcional (sem ele, 0), por isso a versão do formato não mudou: as versões anteriores ignoram-no
- * e as cópias delas continuam válidas. "Unified view" é uma preferência do aparelho: fica de fora.
+ * e as cópias delas continuam válidas.
+ *
+ * Cyclo 3.1: cada registo pode trazer "waterTimes" (as horas dos copos, como "caffeineTimes") e as
+ * definições "hydrationReminder". Opcionais, por isso a versão continua a 2. "Automatic backups" é
+ * uma preferência do aparelho: fica de fora.
  */
 const val BackupFormatVersion = 2
 private const val FormatName = "cyclo-backup"
@@ -64,6 +68,8 @@ data class BackupContents(
     val exportedAt: Instant?,
     /** O lembrete "Log sleep" (Beta 2.3; null = a cópia não o traz, fica o atual). */
     val logSleepReminder: Boolean? = null,
+    /** O lembrete "Hydration" (Cyclo 3.1; null = a cópia não o traz, fica o atual). */
+    val hydrationReminder: Boolean? = null,
     /** A ordem dos blocos do Feed (null = a cópia não a traz, fica a atual). */
     val feedOrder: List<FeedSection>? = null,
     /** A ordem dos cartões da Tracking (null = a cópia não a traz, fica a atual). */
@@ -94,6 +100,7 @@ fun buildBackupJson(data: CycloData, exportedAt: Instant, appVersion: String): S
         .put("fallAsleep", data.fallAsleep.name)
         .put("bedtimeReminder", data.bedtimeReminder)
         .put("logSleepReminder", data.logSleepReminder)
+        .put("hydrationReminder", data.hydrationReminder)
         .put("feedOrder", JSONArray(data.feedOrder.map { it.name }))
         .put("trackingOrder", JSONArray(data.trackingOrder.map { it.name }))
     val content = JSONObject()
@@ -161,6 +168,7 @@ fun parseBackup(text: String): BackupParseResult {
                 fallAsleep = enumOrNull<FallAsleepTime>(settings.optString("fallAsleep")),
                 bedtimeReminder = if (settings.has("bedtimeReminder")) settings.getBoolean("bedtimeReminder") else null,
                 logSleepReminder = if (settings.has("logSleepReminder")) settings.getBoolean("logSleepReminder") else null,
+                hydrationReminder = if (settings.has("hydrationReminder")) settings.getBoolean("hydrationReminder") else null,
                 exportedAt = runCatching { Instant.parse(root.getString("exportedAt")) }.getOrNull(),
                 // Nomes que esta versão não conhece são ignorados; os que faltam vão para o fim.
                 feedOrder = settings.optJSONArray("feedOrder")?.let { array ->
@@ -238,7 +246,14 @@ private fun parseBackupDailyLog(o: JSONObject): DailyLog? {
         opened = o.optBoolean("opened", true),
         sleep = parseSleepQuality(o),
         water = parseWater(o),
+        waterTimes = parseWaterTimes(o, parseWater(o)),
     )
+}
+
+/** As horas dos copos de água (Cyclo 3.1, opcionais), como [parseCaffeineTimes]: no máximo uma por copo. */
+internal fun parseWaterTimes(o: JSONObject, water: Int): List<Long> {
+    val array = o.optJSONArray("waterTimes") ?: return emptyList()
+    return List(array.length()) { array.optLong(it, 0L) }.filter { it > 0L }.sorted().takeLast(water / Hydration.StepMl)
 }
 
 /**
@@ -281,6 +296,7 @@ internal fun dailyLogToJson(log: DailyLog): JSONObject = JSONObject()
     .put("opened", log.opened)
     .put("sleep", log.sleep?.name ?: JSONObject.NULL)
     .put("water", log.water)
+    .put("waterTimes", JSONArray(log.waterTimes))
 
 /**
  * As horas dos cafés (opcionais: registos antigos não as têm). Só as positivas, por ordem, e no

@@ -3,6 +3,7 @@
 import android.content.Context
 import android.os.SystemClock
 import com.gaebriu.cyclo.data.CycloData
+import com.gaebriu.cyclo.data.AutoBackup
 import com.gaebriu.cyclo.data.CycloRepository
 import com.gaebriu.cyclo.widget.BedtimeWidgets
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +28,7 @@ object CycloSync {
     private const val SettleMs = 900L
     private const val BurstSettleMs = 1800L
     private const val BurstGapMs = 2500L
+    private const val StartupDelayMs = 1500L
 
     private var started = false
 
@@ -44,7 +46,9 @@ object CycloSync {
                     val now = SystemClock.elapsedRealtime()
                     val gap = now - lastChange
                     lastChange = now
-                    if (!first) delay(if (gap < BurstGapMs) BurstSettleMs else SettleMs)
+                    // Cyclo 3.1 (desempenho): a primeira vez espera que o primeiro ecrã da app apareça
+                    // (redesenhar os widgets competia com ele pelo CPU no arranque).
+                    delay(if (first) StartupDelayMs else if (gap < BurstGapMs) BurstSettleMs else SettleMs)
                     apply(app, data, animateWidgets = !first)
                     first = false
                 }
@@ -65,10 +69,15 @@ object CycloSync {
         apply(context, data, animateWidgets = false)
     }
 
-    /** Reagenda os lembretes ("Bedtime" e "Log sleep") e atualiza os widgets com estes dados. */
+    /**
+     * Reagenda os lembretes ("Bedtime", "Log sleep" e "Hydration") e a cópia automática de 12 em 12
+     * horas, e atualiza os widgets com estes dados.
+     */
     fun apply(context: Context, data: CycloData, animateWidgets: Boolean) {
         runCatching { BedtimeReminder.reschedule(context, data) }
         runCatching { LogSleepReminder.reschedule(context, data) }
+        runCatching { HydrationReminder.reschedule(context, data) }
+        runCatching { AutoBackup.schedule(context, data) }
         runCatching { BedtimeWidgets.updateAll(context, data, animate = animateWidgets) }
     }
 }

@@ -114,6 +114,9 @@ enum class SleepFactor { IntenseExercise, HeavyLateMeal, LongLateNap }
  * @property sleep como dormiu na noite que acabou na manhã deste dia ("Log sleep"); null = por registar.
  * @property water a água bebida neste dia, em mL (water-meter-group, beta-3.0; passos de
  *                 [Hydration.StepMl], no máximo [Hydration.MaxMl]). Registos antigos não têm o campo: 0.
+ * @property waterTimes quando foi registado cada copo (epoch ms, do mais antigo ao mais recente;
+ *                      Cyclo 3.1, para o lembrete da água). Como [caffeineTimes]: registos antigos
+ *                      não as têm, e nunca há mais do que os copos de [water].
  */
 @Immutable
 data class DailyLog(
@@ -126,6 +129,7 @@ data class DailyLog(
     val opened: Boolean = false,
     val sleep: SleepQuality? = null,
     val water: Int = 0,
+    val waterTimes: List<Long> = emptyList(),
 )
 
 /**
@@ -256,11 +260,17 @@ data class CycloData(
      */
     val lastRunVersion: Int? = null,
     /**
-     * "Unified view" (definições, Interface, beta-3.0): a Tracking junta-se ao Feed (cada gráfico no
-     * cartão do Feed que lhe corresponde) e a barra de navegação fica só com o Feed e as rotinas
-     * guardadas. Desligado de omissão. Preferência do aparelho: não vai nas cópias.
+     * O lembrete "Hydration" (Cyclo 3.1, Settings → Reminders e Introduction 6): lembra de beber água
+     * conforme o que se registou no dia (ver HydrationReminder). Desligado de omissão; só vale de
+     * facto com a autorização de notificações. Vai nas cópias, como o "Log sleep".
      */
-    val unifiedView: Boolean = false,
+    val hydrationReminder: Boolean = false,
+    /**
+     * "Automatic backups" (Cyclo 3.1, Settings → Data): uma cópia automática, sempre o mesmo
+     * ficheiro, a cada 12 horas e quando se muda uma rotina (ver AutoBackup). Desligado de omissão.
+     * Preferência do aparelho: não vai nas cópias.
+     */
+    val autoBackup: Boolean = false,
 )
 
 /** Idades aceites na caixa da idade. */

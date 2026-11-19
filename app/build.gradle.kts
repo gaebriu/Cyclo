@@ -7,7 +7,7 @@ plugins {
 // (com.gaebriu.cyclo.beta: dados, preferências, widgets, notificações e atualizações à parte, instala-se
 // ao lado da estável); "release-…" é a Cyclo estável (com.gaebriu.cyclo, nunca muda). O namespace
 // (classes, R) é o mesmo nas duas.
-val cycloVersionName = "release-3.0"
+val cycloVersionName = "release-3.1"
 val cycloBeta = cycloVersionName.startsWith("beta-")
 
 android {
@@ -20,9 +20,9 @@ android {
         applicationId = if (cycloBeta) "com.gaebriu.cyclo.beta" else "com.gaebriu.cyclo"
         minSdk = 33
         targetSdk = 37
-        // versionName = a tag do GitHub ("release-3.0", estável, com.gaebriu.cyclo; as betas são "beta-x.x", prerelease, com.gaebriu.cyclo.beta). Mostra-se "Cyclo 3.0".
-        // versionCode 48 (release-3.0: a primeira estável da geração 3, com o código da beta-3.2.2; a beta-3.2.2 foi o 47: menus da repetição desfocam também o X, o indicador e o "Done"; "Seamless view"; a beta-3.2.1 foi o 46: indicadores só na primeira página e sem toque, menus por cima do "Done"; a beta-3.2 foi o 45: navegação das Introduction por gestos, anel de progresso, movimento refeito; a beta-3.1 foi o 44: ícones das Introduction, contadores por algarismo, 120 Hz no deslize das sobreposições; a beta-3.0 foi o 43: água, Unified view e widgets sólidos; a beta-3.0.1 (só por adb) foi o 42, a release-2.4 republicada o 41, a beta-3.0 refeita o 40, a primeira release-2.4 o 39 e a beta-3.0 antiga, em com.gaebriu.cyclo, foi o 38; a release-2.3 foi o 37, a release-2.2 o 36, a release-2.1 o 35, a release-2.0 o 34, a beta-2.4 o 33; a beta-2.2 o 31, saltando o 30 de uma build release-1.2 de testes).
-        versionCode = 48
+        // versionName = a tag do GitHub ("beta-3.0", prerelease; as estáveis são "release-x.x"). Mostra-se "Cyclo Beta 3.0".
+        // versionCode 49 (release-3.1: Settings novas, Feed e Tracking juntos, lembrete da água, cópias automáticas, desempenho; a release-3.0 foi o 48; a beta-3.2.2 foi o 47: menus da repetição desfocam também o X, o indicador e o "Done"; "Seamless view"; a beta-3.2.1 foi o 46: indicadores só na primeira página e sem toque, menus por cima do "Done"; a beta-3.2 foi o 45: navegação das Introduction por gestos, anel de progresso, movimento refeito; a beta-3.1 foi o 44: ícones das Introduction, contadores por algarismo, 120 Hz no deslize das sobreposições; a beta-3.0 foi o 43: água, Unified view e widgets sólidos; a beta-3.0.1 (só por adb) foi o 42, a release-2.4 republicada o 41, a beta-3.0 refeita o 40, a primeira release-2.4 o 39 e a beta-3.0 antiga, em com.gaebriu.cyclo, foi o 38; a release-2.3 foi o 37, a release-2.2 o 36, a release-2.1 o 35, a release-2.0 o 34, a beta-2.4 o 33; a beta-2.2 o 31, saltando o 30 de uma build release-1.2 de testes).
+        versionCode = 49
         versionName = cycloVersionName
         // O nome no launcher (e nos widgets e nas definições do Android): "Cyclo Beta" na beta.
         manifestPlaceholders["appLabel"] = if (cycloBeta) "Cyclo Beta" else "Cyclo"
