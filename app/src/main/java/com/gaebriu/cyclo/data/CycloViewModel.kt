@@ -81,23 +81,27 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Uma rotina mudou e ficou guardada: a cópia automática (Cyclo 3.1, se estiver ligada). */
+    private fun routineSaved() = AutoBackup.routinesChanged(getApplication())
+
     /** [onboarding]: a rotina do tutorial, com os lembretes do Introduction 6 (null = uma rotina nova). */
     fun addRoutine(draft: RoutineDraft, onboarding: OnboardingReminders?, onSaved: () -> Unit, onFailed: () -> Unit) =
-        write(onSaved, onFailed) { repository.addRoutine(draft, onboarding, System.currentTimeMillis()) }
+        write({ onSaved(); routineSaved() }, onFailed) { repository.addRoutine(draft, onboarding, System.currentTimeMillis()) }
 
     fun updateRoutine(id: Long, draft: RoutineDraft, onSaved: () -> Unit, onFailed: () -> Unit) =
-        write(onSaved, onFailed) { repository.updateRoutine(id, draft, System.currentTimeMillis()) }
+        write({ onSaved(); routineSaved() }, onFailed) { repository.updateRoutine(id, draft, System.currentTimeMillis()) }
 
     fun setRoutineActive(id: Long, active: Boolean) =
-        write { repository.setRoutineActive(id, active, System.currentTimeMillis()) }
+        write(::routineSaved) { repository.setRoutineActive(id, active, System.currentTimeMillis()) }
 
     /** Apaga logo e mostra "Routine removed" com "Undo", que a volta a pôr no mesmo sítio. */
     fun deleteRoutine(routine: Routine) {
         val index = data.value?.routines?.indexOfFirst { it.id == routine.id } ?: 0
         write(
             onSuccess = {
+                routineSaved()
                 showMessage(string(R.string.routine_removed), string(R.string.undo)) {
-                    write { repository.restoreRoutine(routine, index) }
+                    write(::routineSaved) { repository.restoreRoutine(routine, index) }
                 }
             },
         ) { repository.deleteRoutine(routine.id) }
@@ -126,9 +130,21 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
      * O "+" e o "−" da água (water-meter-group, beta-3.0): [steps] passos de [Hydration.StepMl], entre
      * 0 e [Hydration.MaxMl]. Sem botão de repor (como a cafeína, desde a beta-3.0): o "−" volta atrás.
      */
-    fun changeWater(steps: Int) = write {
-        repository.updateDailyLog(logDay()) {
-            it.copy(water = (it.water + steps * Hydration.StepMl).coerceIn(0, Hydration.MaxMl))
+    fun changeWater(steps: Int) {
+        // Cyclo 3.1: a hora de cada copo (o lembrete da água vê quando foi o último); "−" tira o mais recente.
+        val now = System.currentTimeMillis()
+        write {
+            repository.updateDailyLog(logDay()) {
+                val water = (it.water + steps * Hydration.StepMl).coerceIn(0, Hydration.MaxMl)
+                val glasses = water / Hydration.StepMl
+                val before = it.water / Hydration.StepMl
+                val times = when {
+                    glasses > before -> it.waterTimes + List(glasses - before) { now }
+                    glasses < before -> it.waterTimes.dropLast(before - glasses)
+                    else -> it.waterTimes
+                }
+                it.copy(water = water, waterTimes = times.takeLast(glasses))
+            }
         }
     }
 
@@ -210,16 +226,16 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         _sleepPromptDismissed.value = true
     }
 
-    /** Nova ordem dos cartões da Tracking. */
-    fun setTrackingOrder(order: List<TrackingSection>) = write { repository.setTrackingOrder(order) }
-
     fun setUse24Hour(use24Hour: Boolean) = write { repository.setUse24Hour(use24Hour) }
 
     /** "Advanced textures" (definições, Performance). */
     fun setAdvancedTextures(on: Boolean) = write { repository.setAdvancedTextures(on) }
 
-    /** "Unified view" (definições, Interface, beta-3.0). */
-    fun setUnifiedView(on: Boolean) = write { repository.setUnifiedView(on) }
+    /** "Hydration" (Settings → Reminders, Cyclo 3.1). */
+    fun setHydrationReminder(on: Boolean) = write { repository.setHydrationReminder(on) }
+
+    /** "Automatic backups" (Settings → Data, Cyclo 3.1). */
+    fun setAutoBackup(on: Boolean) = write { repository.setAutoBackup(on) }
 
     /** Nova ordem das rotinas (arrastar nas rotinas guardadas). */
     fun reorderRoutines(ids: List<Long>) = write { repository.reorderRoutines(ids) }
@@ -227,8 +243,18 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     /** Nova ordem dos blocos do Feed (arrastar no Feed). */
     fun setFeedOrder(order: List<FeedSection>) = write { repository.setFeedOrder(order) }
 
-    /** Guarda o versionCode desta abertura (o "acabou de ser atualizada" só vale uma vez). */
-    fun markVersionSeen(versionCode: Int) = write { repository.setLastRunVersion(versionCode) }
+    /**
+     * Guarda o versionCode desta abertura (o "acabou de ser atualizada" só vale uma vez). Numa
+     * atualização (já havia outra versão guardada), faz antes a cópia automática, se estiver ligada.
+     */
+    fun markVersionSeen(versionCode: Int) {
+        val current = data.value
+        val previous = current?.lastRunVersion
+        if (current != null && current.onboarded && previous != null && previous != versionCode) {
+            AutoBackup.appUpdated(getApplication(), current)
+        }
+        write { repository.setLastRunVersion(versionCode) }
+    }
 
     fun setAge(age: Int) {
         if (age in AgeRange) write { repository.setAge(age) }

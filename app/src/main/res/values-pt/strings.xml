@@ -7,7 +7,7 @@
     <!-- Comuns -->
     <string name="undo">Anular</string>
     <string name="try_again">Tentar de novo</string>
-    <string name="error_save_failed">Não foi possível guardar</string>
+    <string name="error_save_failed">Não conseguimos guardar as alterações</string>
     <string name="action_edit">Editar</string>
     <string name="action_remove">Remover</string>
     <string name="action_add_widget">Adicionar como widget</string>
@@ -19,7 +19,6 @@
     <!-- Barra de navegação e mini-menu -->
     <string name="main_tab_feed">Feed</string>
     <string name="main_tab_saved">Rotinas guardadas</string>
-    <string name="main_tab_tracking">Registos</string>
     <string name="main_search">Procurar rotinas</string>
     <string name="main_add_routine">Adicionar rotina</string>
     <string name="main_settings">Definições</string>
@@ -103,7 +102,9 @@
     <string name="settings_reminders">Lembretes</string>
     <string name="settings_bedtime_reminder">Hora de dormir</string>
     <string name="settings_log_sleep_reminder">Registar sono</string>
-    <string name="settings_notifications_denied">Permite as notificações para ligar</string>
+    <string name="settings_hydration_reminder">Hidratação</string>
+    <string name="settings_sleep_profile_description">Personaliza o teu perfil de sono para teres recomendações mais certeiras da hora de dormir</string>
+    <string name="settings_notifications_denied">Permite as notificações para o ligar</string>
     <string name="settings_format_language">Formato e idioma</string>
     <string name="settings_time_format">Formato das horas</string>
     <string name="settings_12_hour">12 horas</string>
@@ -113,14 +114,14 @@
     <string name="language_english">Inglês</string>
     <string name="language_portuguese">Português</string>
     <string name="settings_interface">Interface</string>
-    <string name="settings_unified_view">Vista contínua</string>
-    <string name="settings_unified_view_description">Vê o teu Feed e os teus registos juntos, sem mudares de página</string>
     <string name="settings_advanced_textures">Texturas avançadas</string>
-    <string name="settings_advanced_textures_description">Desfruta de efeitos visuais mais ricos com as texturas avançadas. Desliga-as para uma experiência mais rápida</string>
+    <string name="settings_advanced_textures_description">Desfruta de visuais mais ricos com as texturas avançadas, ou desliga-as para tudo correr mais fluido</string>
     <string name="settings_data">Dados</string>
     <string name="settings_export_data">Exportar os meus dados</string>
     <string name="settings_restore_data">Restaurar os meus dados</string>
-    <string name="settings_data_description">Exporta as tuas rotinas e definições para um ficheiro JSON, ou restaura-as a partir de um que guardaste antes</string>
+    <string name="settings_data_description">Guarda as tuas rotinas, registos e definições num ficheiro, ou restaura-os a partir de uma cópia anterior</string>
+    <string name="settings_auto_backup">Cópias automáticas</string>
+    <string name="settings_auto_backup_description">Guarda automaticamente as tuas rotinas, registos e definições, para os poderes restaurar quando quiseres</string>
     <string name="settings_about">Sobre</string>
     <string name="settings_github">Ver no GitHub</string>
     <!-- Ex.: "Cyclo Alpha 0.7.3" -->
@@ -134,7 +135,7 @@
     <string name="update_view_release">Ver as novidades</string>
     <string name="update_dismiss">Agora não</string>
     <!-- Ex.: "A descarregar 42%" -->
-    <string name="update_dismissed">Atualização dispensada</string>
+    <string name="update_dismissed">Lembramos-te mais tarde</string>
 
     <!-- action-menu-big-open-github -->
     <string name="github_sheet_title">O Cyclo é open source</string>
@@ -147,7 +148,7 @@
 
     <!-- Exportar e repor os dados -->
     <string name="export_done">Dados exportados</string>
-    <string name="export_cancelled">Exportação cancelada</string>
+    <string name="export_cancelled">Os teus dados não foram exportados</string>
     <string name="export_failed">Não conseguimos exportar os teus dados</string>
     <string name="restore_no_file">Não escolheste nenhum ficheiro</string>
     <string name="restore_unreadable">Não conseguimos ler este ficheiro</string>
@@ -160,7 +161,7 @@
     <string name="restore_sheet_text_1">As tuas rotinas e definições vão ser substituídas pelas deste ficheiro</string>
     <!-- Ex.: "Guardada a 2 de novembro de 2026" -->
     <string name="restore_sheet_text_date">Guardada a %1$s</string>
-    <string name="restore_sheet_text_no_date">Não é possível anular isto</string>
+    <string name="restore_sheet_text_no_date">Não dá para voltar atrás</string>
     <string name="restore_sheet_confirm">Restaurar</string>
     <!-- loading-data -->
     <string name="restore_loading">A trazer os teus dados de volta…</string>
@@ -170,33 +171,41 @@
     <string name="reminder_channel_description">Um lembrete para começares a abrandar antes de ires para a cama</string>
     <string name="log_sleep_channel_name">Registar sono</string>
     <string name="log_sleep_channel_description">Um lembrete para registares como dormiste, depois de acordares</string>
+    <string name="hydration_channel_name">Hidratação</string>
+    <string name="hydration_channel_description">Um lembrete suave para ires bebendo água ao longo do dia</string>
+    <string name="hydration_title_first">Começa com um copo de água</string>
+    <string name="hydration_text_first">Ainda não registaste água hoje</string>
+    <string name="hydration_title_gap">Hora de beber água</string>
+    <string name="hydration_text_gap">Já passou algum tempo desde o último copo</string>
+    <string name="hydration_title_pace">Um copo de água?</string>
+    <string name="hydration_text_pace">Um pouco de água agora ajuda-te a manter o ritmo do dia</string>
     <string name="reminder_title">Hora de abrandar</string>
-    <string name="reminder_title_early">Hora de abrandar</string>
+    <string name="reminder_title_early">Hora de começar a abrandar</string>
     <string name="reminder_title_now">Hora de ir para a cama</string>
     <!-- Ex.: "Tenta estar na cama às 22:45 e a dormir por volta das 23:00, para uma noite completa antes das 06:30. Baixa as luzes e pousa o telemóvel." -->
-    <string name="reminder_body">Vai para a cama às %1$s para uma noite completa antes das %3$s. %4$s</string>
-    <string name="reminder_body_now">Tenta dormir em breve para descansares o mais possível antes das %1$s.</string>
+    <string name="reminder_body">Tenta estar na cama às %1$s para teres uma noite completa antes das %3$s. %4$s</string>
+    <string name="reminder_body_now">Tenta adormecer em breve para descansares o mais possível antes das %1$s</string>
     <string-array name="reminder_tips_default">
-        <item>Baixa as luzes e pousa o telemóvel.</item>
-        <item>Algo calmo e sem ecrãs é uma boa forma de começar.</item>
-        <item>Um duche quente ou umas páginas de um livro ajudam a abrandar.</item>
-        <item>Mantém o quarto fresco, escuro e silencioso.</item>
+        <item>Reduz a luz e pousa o telemóvel</item>
+        <item>Algo calmo e sem ecrãs é uma boa forma de começar</item>
+        <item>Um duche quente ou umas páginas de um livro ajudam a abrandar</item>
+        <item>Mantém o quarto fresco, escuro e silencioso</item>
     </string-array>
-    <string name="reminder_tip_stress">Começar com calma e sem ecrãs pode ajudar-te a acalmar.</string>
-    <string name="reminder_tip_caffeine">A cafeína pode durar horas, por isso começar mais devagar ajuda.</string>
-    <string name="reminder_tip_exercise">Dá tempo ao corpo para arrefecer depois do treino.</string>
-    <string name="reminder_tip_meal">Um pouco mais de tempo ajuda o jantar a assentar.</string>
-    <string name="reminder_tip_nap">Depois de uma sesta longa, o sono pode demorar mais. Mantém as luzes baixas.</string>
-    <string name="reminder_tip_night_owl">Baixar as luzes agora ajuda o teu relógio biológico.</string>
-    <string name="reminder_tip_early_bird">O teu corpo abranda cedo. Começar agora torna a noite mais fácil.</string>
-    <string name="reminder_tip_body_clock">Hoje é mais cedo do que o teu corpo está habituado, por isso dá um pouco mais de tempo ao sono. Mantém as luzes baixas.</string>
+    <string name="reminder_tip_stress">Um início calmo e sem ecrãs ajuda-te a descontrair</string>
+    <string name="reminder_tip_caffeine">A cafeína pode fazer efeito durante horas, por isso abrandar mais cedo ajuda</string>
+    <string name="reminder_tip_exercise">Dá tempo ao corpo para arrefecer depois do treino</string>
+    <string name="reminder_tip_meal">Um pouco mais de tempo ajuda o jantar a assentar</string>
+    <string name="reminder_tip_nap">Depois de uma sesta longa, o sono pode demorar mais. Mantém a luz suave</string>
+    <string name="reminder_tip_night_owl">Reduzir a luz agora ajuda o teu relógio biológico</string>
+    <string name="reminder_tip_early_bird">O teu corpo abranda cedo. Começar já torna a noite mais tranquila</string>
+    <string name="reminder_tip_body_clock">Hoje deitas-te mais cedo do que o teu corpo está habituado, por isso dá um pouco mais de tempo ao sono. Mantém a luz suave</string>
 
     <!-- Widgets -->
     <string name="widget_routine_label">Rotina</string>
-    <string name="widget_routine_description">A tua rotina, para editar e ligar ou desligar</string>
+    <string name="widget_routine_description">A tua rotina, pronta a editar ou a ligar e desligar</string>
     <string name="widget_wake_label">Hora de acordar</string>
-    <string name="widget_wake_description">Quando adormecer, como no teu Feed</string>
-    <string name="widget_no_bedtime">Nenhuma hora de acordar a caminho</string>
+    <string name="widget_wake_description">As horas para adormecer, como no teu Feed</string>
+    <string name="widget_no_bedtime">Não há horas de acordar para breve</string>
     <string name="widget_no_routine">Ainda não há rotinas</string>
     <string name="widget_preview_name">Rotina 1</string>
     <string name="widget_pin_unsupported">O teu ecrã principal não permite adicionar widgets a partir daqui</string>

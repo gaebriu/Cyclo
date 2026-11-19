@@ -3,6 +3,7 @@
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.gaebriu.cyclo.data.AutoBackup
 import com.gaebriu.cyclo.data.CycloRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,8 @@ class BedtimeAlarmReceiver : BroadcastReceiver() {
                 if (intent.action == LogSleepReminder.ActionRemind && intent.hasExtra(LogSleepReminder.ExtraDay)) {
                     LogSleepReminder.notify(app, data, intent.getLongExtra(LogSleepReminder.ExtraDay, Long.MIN_VALUE))
                 }
+                if (intent.action == HydrationReminder.ActionRemind) HydrationReminder.notify(app, data)
+                if (intent.action == AutoBackup.ActionBackup) runCatching { AutoBackup.periodic(app, data) }
                 if (intent.action == Intent.ACTION_LOCALE_CHANGED) {
                     CycloSync.languageChanged(app, data)
                 } else {

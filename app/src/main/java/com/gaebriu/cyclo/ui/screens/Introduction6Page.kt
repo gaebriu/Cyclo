@@ -29,14 +29,15 @@ import com.gaebriu.cyclo.ui.theme.CycloType
  * [IntroductionFlow]).
  *
  * As medidas são as do Introduction 5 (o mesmo holofote, título, subtítulo e o grupo a 454 dp do
- * topo do frame); no lugar do nome e do botão do widget, as linhas "Bedtime" e "Log sleep" com o
- * interruptor (as mesmas das definições, [SwitchRow]), a 15 dp uma da outra.
+ * topo do frame); no lugar do nome e do botão do widget, as linhas "Bedtime", "Log sleep" e
+ * "Hydration" (Cyclo 3.1, 6031:65) com o interruptor (as mesmas das definições, [SwitchRow]), a 15 dp
+ * umas das outras.
  *
- * Os dois começam DESLIGADOS (no Figma estão ligados só como exemplo). Ligar abre o pedido de
+ * Todos começam DESLIGADOS (no Figma estão ligados só como exemplo). Ligar abre o pedido de
  * autorização nativo do Android, quando falta; recusar não mostra nada e o interruptor fica
  * desligado. Quem decide e guarda é o [IntroductionFlow] (passar desta página guarda tudo de uma vez).
  *
- * @param bedtimeOn / logSleepOn o interruptor como se vê: escolhido E com as notificações autorizadas.
+ * @param bedtimeOn / logSleepOn / hydrationOn o interruptor como se vê: escolhido E com as notificações autorizadas.
  * @param asks ligar abre primeiro o pedido do sistema (o toque tem o háptico de botão).
  */
 @Composable
@@ -45,6 +46,8 @@ fun Introduction6Page(
     onToggleBedtime: () -> Unit,
     logSleepOn: Boolean,
     onToggleLogSleep: () -> Unit,
+    hydrationOn: Boolean,
+    onToggleHydration: () -> Unit,
     asks: Boolean,
     modifier: Modifier = Modifier,
     iconMotion: com.gaebriu.cyclo.ui.components.IconMotion? = null,
@@ -74,7 +77,7 @@ fun Introduction6Page(
             )
             Spacer(Modifier.height(63.dp))
 
-            // group (2039:164): bedtime e log-sleep, 345 x 48 dp, 15 dp entre eles.
+            // group (2039:164): bedtime, log-sleep e hydration, 345 x 48 dp, 15 dp entre eles.
             SwitchRow(
                 label = stringResource(R.string.settings_bedtime_reminder),
                 on = bedtimeOn,
@@ -87,6 +90,13 @@ fun Introduction6Page(
                 on = logSleepOn,
                 onToggle = onToggleLogSleep,
                 toggleHaptic = logSleepOn || !asks,
+            )
+            Spacer(Modifier.height(CycloDimens.Spacing))
+            SwitchRow(
+                label = stringResource(R.string.settings_hydration_reminder),
+                on = hydrationOn,
+                onToggle = onToggleHydration,
+                toggleHaptic = hydrationOn || !asks,
             )
         }
     }

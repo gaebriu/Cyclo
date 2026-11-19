@@ -159,6 +159,8 @@ fun mergeNightLogs(night: DailyLog, later: DailyLog): DailyLog {
         mood = if (later.mood != DailyLog(later.date).mood) later.mood else night.mood,
         opened = night.opened || later.opened,
         water = (night.water + later.water).coerceAtMost(Hydration.MaxMl),
+        waterTimes = (night.waterTimes + later.waterTimes).sorted()
+            .takeLast((night.water + later.water).coerceAtMost(Hydration.MaxMl) / Hydration.StepMl),
     )
 }
 

@@ -73,7 +73,6 @@ import kotlin.math.roundToInt
 
 // Medidas do Figma (Tracking, Cyclo-2 2001:115 e 2006:449; frame de 393 x 852).
 /** O conteúdo começa a 126 dp do topo (o primeiro cartão). */
-private val TrackingContentTop = 126.dp
 private val CardPadding = 15.dp
 
 /** Do título (18 dp de altura) à linha de cima dos gráficos. */
@@ -90,112 +89,6 @@ private val TitleToMoodGrid = 15.dp
  * da hora atual ([skyColorsAt]; #5FA2DB das 11:30 às 15:30, a do Figma) a 24 %.
  */
 private const val PromptGlowAlpha = 0.24f
-
-/** Índices da entrada em cascata da Tracking: o prompt e os quatro cartões (pela ordem em que aparecem). */
-object TrackingRevealItems {
-    const val Prompt = 0
-    const val FirstCard = 1
-    const val Count = FirstCard + 4
-}
-
-/** A sessão (o processo) já mostrou a entrada da Tracking. */
-object TrackingSession {
-    @Volatile
-    var revealed = false
-}
-
-/**
- * Tracking (Cyclo-2 2001:115; com o prompt, 2006:449): o registo do sono, da cafeína, da água e do
- * humor.
- *
- * - O sleep-evaluation-prompt fica no topo desde a hora de acordar de hoje até o sono estar
- *   registado (ver data/Tracking.kt): "Log sleep" abre o action-menu-log-sleep; o X esconde-o até a
- *   app voltar a abrir. Sai a encolher (os cartões sobem com ele, no mesmo movimento).
- * - Os quatro cartões (Restfulness, Caffeine intake, Water intake, Mood) reordenam-se com long
- *   press e arrastar, como no Feed ([ReorderableColumn]); a ordem guarda-se ([onReorder]). Os
- *   gráficos não têm gestos. A água (beta-3.0) vem, de omissão, por baixo da cafeína.
- * - Na primeira vez da sessão, os cartões entram em cascata (como o Feed) e as colunas e os blocos
- *   crescem da base, um a um. Um valor que muda vai para o novo com uma mola.
- * - Com o Unified view ligado esta página não existe: tudo isto vai para o Feed.
- */
-@Composable
-fun TrackingScreen(
-    now: LocalDateTime,
-    routines: List<Routine>,
-    dailyLog: DailyLog?,
-    history: List<DailyLog>,
-    age: Int?,
-    order: List<TrackingSection>,
-    promptDismissed: Boolean,
-    promptGlow: () -> Color,
-    reveal: StaggeredReveal,
-    onShown: () -> Unit,
-    bottomReserve: Dp,
-    onLogSleep: () -> Unit,
-    onDismissPrompt: () -> Unit,
-    onReorder: (List<TrackingSection>) -> Unit,
-    modifier: Modifier = Modifier,
-    isCurrentPage: Boolean = true,
-) {
-    // O dia da Cyclo (beta-3.0): até à hora de acordar ainda é o dia anterior.
-    val today = remember(routines, now) { cycloDay(routines, now) }
-    // Beta 2.4: os hápticos dos gráficos só tocam com a Tracking escolhida (não ao espreitá-la).
-    // Um só lambda (lembrado): os gráficos não se recompõem por causa dele.
-    val current by rememberUpdatedState(isCurrentPage)
-    val active = remember { { current } }
-    // O registo da noite de agora já arrumado (resolveDayLogs), como o Feed.
-    val logs = remember(dailyLog, history, today) { resolveDayLogs(dailyLog, history, today) }
-    val summary = remember(logs, today, age) { trackingSummary(logs.history, logs.current, today, age) }
-    val showPrompt = showsSleepPrompt(routines, logs.current, now, promptDismissed)
-    val latestOnShown by rememberUpdatedState(onShown)
-    LaunchedEffect(Unit) {
-        if (!TrackingSession.revealed) {
-            latestOnShown()
-            reveal.play()
-        }
-    }
-    val scroll = rememberScrollState()
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .cycloVerticalScroll(scroll)
-            // O espaço entre cartões vai dentro de cada um: tira-se o do último.
-            .padding(top = TrackingContentTop, bottom = (bottomReserve - CycloDimens.Spacing).coerceAtLeast(0.dp))
-            .padding(horizontal = CycloDimens.ScreenMargin),
-    ) {
-        SleepPrompt(
-            visible = showPrompt,
-            glowColor = promptGlow,
-            onLogSleep = onLogSleep,
-            onDismiss = onDismissPrompt,
-            bottomGap = CycloDimens.Spacing,
-            modifier = Modifier.staggeredReveal(reveal, TrackingRevealItems.Prompt),
-        )
-        ReorderableColumn(
-            items = order,
-            key = { it },
-            onReorder = { reordered -> if (reordered != order) onReorder(reordered) },
-            moveUpLabel = stringResource(R.string.reorder_move_up),
-            moveDownLabel = stringResource(R.string.reorder_move_down),
-            scrollState = scroll,
-        ) { section, handle, surface ->
-            val revealIndex = TrackingRevealItems.FirstCard + order.indexOf(section).coerceAtLeast(0)
-            // A camada da entrada alarga-se à volta do cartão, para a sombra dele entrar com ele.
-            Column(
-                modifier = Modifier
-                    .bleed(CardShadowBleed)
-                    .staggeredReveal(reveal, revealIndex)
-                    .padding(CardShadowBleed),
-            ) {
-                Box(modifier = handle) {
-                    val grow = rememberChartGrowth(reveal, revealIndex)
-                    TrackingSectionCard(section, summary, grow, active, surface)
-                }
-                Spacer(Modifier.height(CycloDimens.Spacing))
-            }
-        }
-    }
-}
 
 /** O cartão da Tracking de [section] (o título, a média e o gráfico da geometria da Tracking). */
 @Composable

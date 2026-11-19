@@ -92,6 +92,13 @@ object BedtimeReminder {
                 ).apply {
                     description = context.getString(R.string.log_sleep_channel_description)
                 },
+                NotificationChannel(
+                    HydrationReminder.ChannelId,
+                    context.getString(R.string.hydration_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = context.getString(R.string.hydration_channel_description)
+                },
             ),
         )
     }

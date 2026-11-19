@@ -11,7 +11,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.gaebriu.cyclo.ui.routine.RepeatOption
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -53,8 +55,37 @@ private val HistoryKey = stringPreferencesKey("history")
 /** O versionCode da última abertura (ver [CycloData.lastRunVersion]). */
 private val LastRunVersionKey = intPreferencesKey("last_run_version")
 
-/** "Unified view" (beta-3.0); sem valor guardado, desligado. */
-private val UnifiedViewKey = booleanPreferencesKey("unified_view")
+/** O lembrete "Hydration" (Cyclo 3.1); sem valor guardado, desligado. */
+private val HydrationReminderKey = booleanPreferencesKey("hydration_reminder")
+
+/** "Automatic backups" (Cyclo 3.1); sem valor guardado, desligado. Fica no aparelho. */
+private val AutoBackupKey = booleanPreferencesKey("auto_backup")
+
+// A "unified_view" das versões anteriores fica esquecida no DataStore: o Feed e a Tracking são um só
+// desde a Cyclo 3.1 e já nada a lê.
+
+/**
+ * O último texto lido de uma chave e o que deu (Cyclo 3.1, desempenho): cada escrita (um toque no
+ * "+") volta a emitir os dados todos, e antes isso lia de novo um ano de histórico em JSON. Com o
+ * mesmo texto, devolve a MESMA lista: quem compara (remember, distinctUntilChanged) pára logo.
+ */
+private class ParseMemo<T>(private val parse: (String) -> T) {
+    private var text: String? = null
+    private var value: T? = null
+
+    @Synchronized
+    fun of(json: String): T {
+        val cached = value
+        if (cached != null && json == text) return cached
+        return parse(json).also {
+            text = json
+            value = it
+        }
+    }
+}
+
+private val HistoryMemo = ParseMemo(::parseHistory)
+private val RoutinesMemo = ParseMemo(::parseRoutines)
 
 /** O DataStore da app (um só por processo: o lembrete e o widget também o leem). */
 internal val Context.cycloStore: DataStore<Preferences> get() = applicationContext.cycloDataStore
@@ -74,7 +105,7 @@ class CycloRepository(context: Context) {
         .map { prefs ->
             CycloData(
                 onboarded = prefs[OnboardedKey] ?: false,
-                routines = prefs[RoutinesKey]?.let(::parseRoutines).orEmpty(),
+                routines = prefs[RoutinesKey]?.let(RoutinesMemo::of).orEmpty(),
                 dailyLog = prefs[DailyLogKey]?.let(::parseDailyLog),
                 use24Hour = prefs[Use24HourKey],
                 advancedTextures = prefs[AdvancedTexturesKey] ?: true,
@@ -87,13 +118,16 @@ class CycloRepository(context: Context) {
                     ?: FallAsleepTime.Fifteen,
                 bedtimeReminder = prefs[BedtimeReminderKey] ?: true,
                 logSleepReminder = prefs[LogSleepReminderKey] ?: false,
+                hydrationReminder = prefs[HydrationReminderKey] ?: false,
+                autoBackup = prefs[AutoBackupKey] ?: false,
                 feedOrder = prefs[FeedOrderKey]?.let(::parseFeedOrder) ?: DefaultFeedOrder,
                 trackingOrder = prefs[TrackingOrderKey]?.let(::parseTrackingOrder) ?: DefaultTrackingOrder,
                 history = prefs.history(),
                 lastRunVersion = prefs[LastRunVersionKey],
-                unifiedView = prefs[UnifiedViewKey] ?: false,
             )
         }
+        // Ler e montar os dados (JSON) fora da thread principal: antes, cada escrita lia-os nela.
+        .flowOn(Dispatchers.Default)
 
     /** Guarda o formato das horas escolhido nas definições (fica até ser mudado outra vez). */
     suspend fun setUse24Hour(use24Hour: Boolean) {
@@ -104,8 +138,12 @@ class CycloRepository(context: Context) {
         store.edit { prefs -> prefs[AdvancedTexturesKey] = on }
     }
 
-    suspend fun setUnifiedView(on: Boolean) {
-        store.edit { prefs -> prefs[UnifiedViewKey] = on }
+    suspend fun setHydrationReminder(on: Boolean) {
+        store.edit { prefs -> prefs[HydrationReminderKey] = on }
+    }
+
+    suspend fun setAutoBackup(on: Boolean) {
+        store.edit { prefs -> prefs[AutoBackupKey] = on }
     }
 
     suspend fun setAge(age: Int) {
@@ -144,11 +182,6 @@ class CycloRepository(context: Context) {
         store.edit { prefs -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
     }
 
-    /** Guarda a nova ordem dos cartões da Tracking. */
-    suspend fun setTrackingOrder(order: List<TrackingSection>) {
-        store.edit { prefs -> prefs[TrackingOrderKey] = normalizeTrackingOrder(order).joinToString(",") { it.name } }
-    }
-
     /** Guarda o versionCode desta abertura (ver [CycloData.lastRunVersion]). */
     suspend fun setLastRunVersion(versionCode: Int) {
         store.edit { prefs -> prefs[LastRunVersionKey] = versionCode }
@@ -158,7 +191,7 @@ class CycloRepository(context: Context) {
      * Repõe uma cópia já validada ([parseBackup]), numa só escrita: ou entra tudo, ou nada.
      * Substitui as rotinas e o registo do dia; as definições que a cópia não traz ficam como estão.
      * O tutorial fica dado como feito (quem repõe já está dentro da app).
-     * As preferências do aparelho (formato das horas, língua, "Advanced textures", "Unified view")
+     * As preferências do aparelho (formato das horas, língua, "Advanced textures", "Automatic backups")
      * nunca mudam aqui.
      */
     suspend fun restore(contents: BackupContents) {
@@ -172,6 +205,7 @@ class CycloRepository(context: Context) {
             contents.fallAsleep?.let { prefs[FallAsleepKey] = it.name }
             contents.bedtimeReminder?.let { prefs[BedtimeReminderKey] = it }
             contents.logSleepReminder?.let { prefs[LogSleepReminderKey] = it }
+            contents.hydrationReminder?.let { prefs[HydrationReminderKey] = it }
             contents.feedOrder?.let { order -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
             contents.trackingOrder?.let { order -> prefs[TrackingOrderKey] = normalizeTrackingOrder(order).joinToString(",") { it.name } }
             // Cópias sem histórico (formato 1, antes da Beta 2.0) não apagam o que já há.
@@ -192,6 +226,7 @@ class CycloRepository(context: Context) {
                 prefs[OnboardedKey] = true
                 prefs[BedtimeReminderKey] = onboarding.bedtime
                 prefs[LogSleepReminderKey] = onboarding.logSleep
+                prefs[HydrationReminderKey] = onboarding.hydration
             }
         }
     }
@@ -254,10 +289,10 @@ class CycloRepository(context: Context) {
 }
 
 /**
- * Os lembretes escolhidos no Introduction 6 do tutorial (Beta 2.3). Guardam-se os dois, mesmo
- * desligados: quem salta a página fica com as notificações desligadas.
+ * Os lembretes escolhidos no Introduction 6 do tutorial (Beta 2.3; "Hydration" desde a Cyclo 3.1).
+ * Guardam-se todos, mesmo desligados: quem salta a página fica com as notificações desligadas.
  */
-data class OnboardingReminders(val bedtime: Boolean, val logSleep: Boolean)
+data class OnboardingReminders(val bedtime: Boolean, val logSleep: Boolean, val hydration: Boolean = false)
 
 private fun RoutineDraft.toRoutine(id: Long, nowMillis: Long) = Routine(
     id = id,
@@ -270,9 +305,9 @@ private fun RoutineDraft.toRoutine(id: Long, nowMillis: Long) = Routine(
     anchorMillis = nowMillis,
 )
 
-private fun Preferences.routines(): List<Routine> = this[RoutinesKey]?.let(::parseRoutines).orEmpty()
+private fun Preferences.routines(): List<Routine> = this[RoutinesKey]?.let(RoutinesMemo::of).orEmpty()
 
-private fun Preferences.history(): List<DailyLog> = this[HistoryKey]?.let(::parseHistory).orEmpty()
+private fun Preferences.history(): List<DailyLog> = this[HistoryKey]?.let(HistoryMemo::of).orEmpty()
 
 /** Guarda o histórico: um registo por data (o mais recente ganha), do mais antigo ao mais recente. */
 private fun MutablePreferences.setHistory(logs: List<DailyLog>) {
@@ -353,5 +388,6 @@ private fun parseDailyLogObject(o: JSONObject): DailyLog? = runCatching {
         opened = o.optBoolean("opened", true),
         sleep = parseSleepQuality(o),
         water = parseWater(o),
+        waterTimes = parseWaterTimes(o, parseWater(o)),
     )
 }.getOrNull()

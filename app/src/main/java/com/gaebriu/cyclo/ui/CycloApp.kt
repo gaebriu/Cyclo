@@ -25,6 +25,10 @@ import com.gaebriu.cyclo.data.FilePicker
 import com.gaebriu.cyclo.reminder.BedtimeReminder
 import com.gaebriu.cyclo.reminder.CycloSync
 import com.gaebriu.cyclo.reminder.LogSleepReminder
+import com.gaebriu.cyclo.reminder.HydrationReminder
+import com.gaebriu.cyclo.ui.effects.CoverDrag
+import com.gaebriu.cyclo.ui.effects.LocalCoverDrag
+import androidx.compose.runtime.mutableFloatStateOf
 import com.gaebriu.cyclo.ui.notifications.rememberNotificationAccess
 import com.gaebriu.cyclo.ui.components.BottomSheetHost
 import com.gaebriu.cyclo.ui.components.CycloBigSheet
@@ -170,17 +174,59 @@ fun CycloApp(viewModel: CycloViewModel) {
     // Beta 3.1: o gesto de voltar a mover o ecrã de cima (o sistema fica com os toques, por isso a
     // app não recebe o "touch boost" do Android).
     var coverDragging by remember { mutableStateOf(false) }
+    // Cyclo 3.1: o dedo a levar o ecrã de cima para baixo (Settings, editor). Enquanto arrasta, a
+    // posição está aqui (sem corrotinas a cada movimento); ao largar passa para a mola.
+    var fingerCover by remember { mutableStateOf(false) }
+    val fingerCoverValue = remember { mutableFloatStateOf(1f) }
+    val coverNow: () -> Float = { if (fingerCover) fingerCoverValue.floatValue else cover.value }
     // Em ecrãs de taxa adaptável (Android 15+), uma vista do tamanho do ecrã que só muda propriedades
     // de camadas (a translação do ecrã de cima) vota a categoria NORMAL, 60 Hz: o Compose só pede
     // HIGH quando uma camada muda de sítio ou de tamanho na disposição. Com as texturas desligadas o
     // deslize ficava a 60 Hz. Enquanto se move, pede-se HIGH; parado, nada (o ecrã pode descer).
-    val coverMoving by remember { derivedStateOf { cover.isRunning || coverDragging } }
+    val coverMoving by remember { derivedStateOf { cover.isRunning || coverDragging || fingerCover } }
     LaunchedEffect(overlayOpen) {
         val v = coverRelease[0]
         coverRelease[0] = 0f
         val target = if (overlayOpen) 1f else 0f
         if (v != 0f) cover.animateTo(target, CycloMotion.ScreenRiseSpring, initialVelocity = v) else cover.animateTo(target, CycloMotion.ScreenRiseSpring)
         if (!overlayOpen) overlay = OverlayNone
+    }
+
+    // O ecrã de cima levado pelo dedo para baixo (Cyclo 3.1, ver CoverDrag): as Settings e o primeiro
+    // passo do editor. Fechar volta sempre à página de onde se abriu (o MainScreen não mudou por baixo).
+    val coverDrag = remember {
+        object : CoverDrag {
+            private var from = 1f
+
+            override fun start(): Boolean {
+                if (!overlayOpen) return false
+                from = cover.value
+                fingerCoverValue.floatValue = from
+                fingerCover = true
+                scope.launch { cover.stop() }
+                return true
+            }
+
+            override fun drag(screens: Float) {
+                fingerCoverValue.floatValue = (from - screens).coerceIn(0f, 1f)
+            }
+
+            override fun release(screensPerSecond: Float) {
+                val shown = fingerCoverValue.floatValue
+                // A mesma decisão das Introduction: um lançamento para baixo, ou passar de metade.
+                val close = com.gaebriu.cyclo.ui.screens.introSwipeDecision(1f - shown, screensPerSecond) > 0
+                scope.launch {
+                    cover.snapTo(shown)
+                    fingerCover = false
+                    if (close) {
+                        coverRelease[0] = -screensPerSecond
+                        overlayOpen = false
+                    } else {
+                        cover.animateTo(1f, CycloMotion.ScreenRiseSpring, initialVelocity = -screensPerSecond)
+                    }
+                }
+            }
+        }
     }
 
     // Entrada do Feed: uma vez por sessão, quando ele fica à vista pela primeira vez.
@@ -284,6 +330,7 @@ fun CycloApp(viewModel: CycloViewModel) {
     }
     val reminderOn = data.bedtimeReminder && notifications.isAllowed(BedtimeReminder.ChannelId)
     val logSleepOn = data.logSleepReminder && notifications.isAllowed(LogSleepReminder.ChannelId)
+    val hydrationOn = data.hydrationReminder && notifications.isAllowed(HydrationReminder.ChannelId)
 
     /**
      * Os interruptores dos lembretes nas definições. Desligar é logo; ligar pede o que faltar
@@ -341,7 +388,6 @@ fun CycloApp(viewModel: CycloViewModel) {
             onReorderFeed = viewModel::setFeedOrder,
             onLogSleep = { sleepSheetOpen = true },
             onDismissSleepPrompt = viewModel::dismissSleepPrompt,
-            onReorderTracking = viewModel::setTrackingOrder,
         )
     }
     val sleepPromptDismissed by viewModel.sleepPromptDismissed.collectAsState()
@@ -363,7 +409,7 @@ fun CycloApp(viewModel: CycloViewModel) {
         WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
     )
     // O Feed só precisa de existir quando se vê (durante o tutorial está todo tapado).
-    val showMain by remember { derivedStateOf { (overlay != OverlayTutorial && overlay != OverlayUpdated) || cover.value < 1f } }
+    val showMain by remember { derivedStateOf { (overlay != OverlayTutorial && overlay != OverlayUpdated) || coverNow() < 1f } }
 
     // O new-update-group das definições: a versão nova (se houver e não tiver sido dispensada há
     // menos de 12 horas). O botão abre a página dela no GitHub, onde se descarrega (Cyclo 2.0).
@@ -425,9 +471,9 @@ fun CycloApp(viewModel: CycloViewModel) {
                         // Todo tapado (editor ou definições abertos): não se desenha, mas fica composto
                         // (mantém a página e o scroll). Antes continuava a desenhar-se por baixo, com o
                         // desfoque do ecrã inteiro, e pesava em cada frame das definições.
-                        alpha = if (cover.value >= 1f) 0f else 1f
+                        val c = coverNow()
+                        alpha = if (c >= 1f) 0f else 1f
                         if (effects.animationsEnabled) {
-                            val c = cover.value
                             val s = 1f - (1f - CycloMotion.BackgroundScale) * c
                             scaleX = s
                             scaleY = s
@@ -456,7 +502,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer { alpha = CycloMotion.BackgroundOverlayAlpha * cover.value }
+                        .graphicsLayer { alpha = CycloMotion.BackgroundOverlayAlpha * coverNow() }
                         .background(CycloColors.Background),
                 )
             }
@@ -492,7 +538,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                     // Taxa alta só enquanto se move (passa para as camadas lá dentro); Default = sem voto.
                     .preferredFrameRate(if (coverMoving) FrameRateCategory.High else FrameRateCategory.Default)
                     .graphicsLayer {
-                        val c = cover.value
+                        val c = coverNow()
                         if (effects.animationsEnabled) {
                             translationY = (1f - c) * size.height
                         } else {
@@ -500,6 +546,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                         }
                     },
             ) {
+            CompositionLocalProvider(LocalCoverDrag provides if (overlay == OverlayEditor || overlay == OverlaySettings) coverDrag else null) {
                 if (overlay == OverlayUpdated) {
                     // Depois de uma atualização: o "Hello!" do Introduction 0 e, no fim dele, o
                     // ecrã desce e o Feed aparece com a sua entrada. Voltar salta a espera.
@@ -531,6 +578,10 @@ fun CycloApp(viewModel: CycloViewModel) {
                         onToggleReminder = { toggleReminder(BedtimeReminder.ChannelId, reminderOn, viewModel::setBedtimeReminder) },
                         logSleepOn = logSleepOn,
                         onToggleLogSleep = { toggleReminder(LogSleepReminder.ChannelId, logSleepOn, viewModel::setLogSleepReminder) },
+                        hydrationOn = hydrationOn,
+                        onToggleHydration = { toggleReminder(HydrationReminder.ChannelId, hydrationOn, viewModel::setHydrationReminder) },
+                        autoBackupOn = data.autoBackup,
+                        onToggleAutoBackup = { viewModel.setAutoBackup(!data.autoBackup) },
                         reminderAsks = !notifications.isPermissionGranted(),
                         onExport = { openPicker(FilePicker.Export) },
                         onRestore = { openPicker(FilePicker.Restore) },
@@ -546,7 +597,6 @@ fun CycloApp(viewModel: CycloViewModel) {
                         },
                         onSetLanguage = ::changeLanguage,
                         onSetAdvancedTextures = viewModel::setAdvancedTextures,
-                        onSetUnifiedView = viewModel::setUnifiedView,
                         onClose = { overlayOpen = false },
                         update = updateUi,
                         onUpdateOpen = {
@@ -581,6 +631,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                         )
                     }
                 }
+            }
             }
         }
 

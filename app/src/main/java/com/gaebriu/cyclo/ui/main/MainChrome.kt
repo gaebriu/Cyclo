@@ -15,7 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -55,11 +60,11 @@ import kotlin.math.sqrt
 
 // Medidas do Figma (frame de 393 x 852).
 /**
- * Altura da barra de navegação (navigation-bar, Cyclo-2 2001:124: 264 x 72 dp, raio 39; com o
- * Unified view, 2066:395, 177 dp e só dois botões).
+ * Altura da barra de navegação (navigation-bar do Feed, 2066:395: 177 x 72 dp, raio 39, dois botões;
+ * a de três botões, com a Tracking, saiu na Cyclo 3.1).
  */
 val NavigationBarHeight = 72.dp
-private val NavigationBarWidth = 264.dp
+private val NavigationBarWidth = 177.dp
 private val NavigationBarRadius = 39.dp
 
 /** Pílula do botão escolhido (feed-icon-background): 72 x 54 dp, a 9 dp das pontas. */
@@ -67,7 +72,7 @@ private val IndicatorWidth = 72.dp
 private val IndicatorHeight = 54.dp
 private val IndicatorInset = 9.dp
 
-/** Os três botões da barra (Feed, rotinas guardadas, Tracking): as pílulas estão a 9, 96 e 183 dp da esquerda. */
+/** Os dois botões da barra (Feed, rotinas guardadas): as pílulas estão a 9 e 96 dp da esquerda. */
 private val IndicatorPitch = 87.dp
 
 /** Mini-menu (mini-menu-group): 39 dp de altura, raio 24; os ícones de 15 dp estão a 39 dp uns dos outros. */
@@ -78,8 +83,7 @@ private val MiniMenuSlot = 39.dp
 private val MiniMenuEdge = 3.dp
 
 /**
- * Faixas escuras do topo e do fundo (Cyclo 3, beta-3.2): no Feed, nas rotinas guardadas e na
- * Tracking, 87 dp até #010101 a 39 % em cima e 120 dp até #010101 em baixo (antes 130 dp, preto a
+ * Faixas escuras do topo e do fundo (Cyclo 3, beta-3.2): no Feed e nas rotinas guardadas, 87 dp até #010101 a 39 % em cima e 120 dp até #010101 em baixo (antes 130 dp, preto a
  * 15 %, e preto). As definições têm as suas ([MainEdgeFades] com outros valores).
  */
 private val TopFadeHeight = 87.dp
@@ -101,8 +105,8 @@ private const val SavedFillMiddle = 0.39f
 private const val GlowPulseShape = 0.86f
 private const val GlowPulseIntensity = 0.55f
 
-/** Os três separadores principais, pela ordem das páginas (e da barra de navegação). */
-enum class MainTab { Feed, Saved, Tracking }
+/** Os separadores principais, pela ordem das páginas (e da barra de navegação). */
+enum class MainTab { Feed, Saved }
 
 /**
  * Brilho do topo do Feed e das rotinas guardadas, desenhado só com gradientes (ver
@@ -227,22 +231,39 @@ class MiniMenuAction(val iconPath: String, val description: String, val onClick:
  * zonas das vizinhas sobrepõem-se 9 dp (aí ganha a da direita). As zonas saem 4,5 dp por cima e
  * por baixo da pílula, sem a empurrar.
  *
- * Só com o último botão (a roda dentada, na Tracking, 2001:255) é um círculo de 39 dp: as pontas de
- * 3 dp somem com os outros botões.
+ * Só com o último botão (a roda dentada) é um círculo de 39 dp: as pontas de 3 dp somem com os
+ * outros botões.
+ *
+ * Desempenho (Cyclo 3.1): [slot] lê-se só na medida e no desenho. Antes lia-se na composição, e o
+ * mini-menu inteiro voltava a compor-se em cada fotograma do deslize Feed ↔ Saved; agora só se
+ * recompõe quando um botão aparece, desaparece ou passa a responder ao toque.
  *
  * @param slot de 0 a 1, para cada botão: quanto dele existe. A 0 fica escondido e o menu mais curto
- *             (a lupa só existe nas rotinas guardadas, o "+" não existe na Tracking); pelo meio,
- *             alarga e aparece. Segue a posição contínua das páginas.
+ *             (a lupa só existe nas rotinas guardadas); pelo meio, alarga e aparece. Segue a posição
+ *             contínua das páginas.
  */
 @Composable
 fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot: (Int) -> Float = { 1f }) {
-    val amounts = actions.indices.map { slot(it).coerceIn(0f, 1f) }
+    val latestSlot by rememberUpdatedState(slot)
+    val amount: (Int) -> Float = remember { { index -> latestSlot(index).coerceIn(0f, 1f) } }
     // As pontas de 3 dp só existem com mais de um botão (sozinha, a roda dentada é um círculo).
-    val edge = amounts.dropLast(1).maxOrNull() ?: 0f
+    val edge: () -> Float = remember(actions.size) {
+        {
+            var max = 0f
+            for (i in 0 until actions.size - 1) max = maxOf(max, amount(i))
+            max
+        }
+    }
     Box(
         modifier = modifier
-            .height(MiniMenuHeight)
-            .width(MiniMenuEdge * 2 * edge + MiniMenuSlot * amounts.sum())
+            .layout { measurable, _ ->
+                var slots = 0f
+                for (i in actions.indices) slots += amount(i)
+                val width = (MiniMenuEdge * 2 * edge() + MiniMenuSlot * slots).roundToPx()
+                val height = MiniMenuHeight.roundToPx()
+                val placeable = measurable.measure(Constraints.fixed(width, height))
+                layout(width, height) { placeable.place(0, 0) }
+            }
             .cycloGlassPill(MiniMenuRadius, FigmaBlur.MiniMenu),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -250,33 +271,47 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot:
         // ficava cortada a 39 dp e deslocada, e os ícones apareciam 4,5 dp acima do centro.
         Row(
             modifier = Modifier
-                .padding(horizontal = MiniMenuEdge * edge)
+                .layout { measurable, constraints ->
+                    val inset = (MiniMenuEdge * edge()).roundToPx()
+                    val placeable = measurable.measure(constraints.offset(horizontal = -inset * 2))
+                    layout(placeable.width + inset * 2, placeable.height) { placeable.place(inset, 0) }
+                }
                 .requiredHeight(CycloDimens.TouchTarget),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             actions.forEachIndexed { index, action ->
-                val amount = amounts[index]
-                if (amount <= 0f) return@forEachIndexed
-                Box(
-                    modifier = Modifier.size(width = MiniMenuSlot * amount, height = CycloDimens.TouchTarget),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .wrapContentWidth(unbounded = true)
-                            .size(CycloDimens.TouchTarget)
-                            .then(
-                                if (amount > 0.5f) {
-                                    Modifier
-                                        .cycloPressable(onClick = action.onClick, pressedScale = CycloMotion.IconButtonPressScale)
-                                        .semantics { contentDescription = action.description }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CycloIcon(path = action.iconPath, size = 15.dp, tint = CycloColors.TextPrimary, alpha = { amount })
+                // Um grupo por botão (sem "return" a meio: os remember de cada um ficam no sítio).
+                key(index) {
+                    val shown by remember { derivedStateOf { amount(index) > 0f } }
+                    val responds by remember { derivedStateOf { amount(index) > 0.5f } }
+                    if (shown) {
+                        Box(
+                            modifier = Modifier.layout { measurable, _ ->
+                                val width = (MiniMenuSlot * amount(index)).roundToPx()
+                                val height = CycloDimens.TouchTarget.roundToPx()
+                                val placeable = measurable.measure(Constraints.fixed(width, height))
+                                layout(width, height) { placeable.place(0, 0) }
+                            },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .wrapContentWidth(unbounded = true)
+                                    .size(CycloDimens.TouchTarget)
+                                    .then(
+                                        if (responds) {
+                                            Modifier
+                                                .cycloPressable(onClick = action.onClick, pressedScale = CycloMotion.IconButtonPressScale)
+                                                .semantics { contentDescription = action.description }
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CycloIcon(path = action.iconPath, size = 15.dp, tint = CycloColors.TextPrimary, alpha = { amount(index) })
+                            }
+                        }
                     }
                 }
             }
@@ -285,14 +320,12 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot:
 }
 
 /**
- * Barra de navegação (navigation-bar, Cyclo-2 2001:124): Feed, rotinas guardadas e Tracking. A
- * pílula do botão escolhido acompanha a página: segue o dedo durante o swipe e a mola da página ao
- * tocar; o ícone escolhido é branco e os outros cinzentos.
+ * Barra de navegação (navigation-bar do Feed, 2066:395): Feed e rotinas guardadas. A pílula do botão
+ * escolhido acompanha a página: segue o dedo durante o swipe e a mola da página ao tocar; o ícone
+ * escolhido é branco e o outro cinzento.
  *
- * @param pagePosition de 0 (Feed) a 2 (Tracking), a posição contínua das páginas.
+ * @param pagePosition de 0 (Feed) a 1 (rotinas guardadas), a posição contínua das páginas.
  * @param descriptions o nome de cada separador (TalkBack), pela ordem de [MainTab].
- * @param trackingTab de 0 a 1: quanto existe do botão da Tracking (0 com o Unified view, beta-3.0:
- *        a barra fica com 177 dp, 2066:395). A barra encolhe e o botão apaga-se com uma mola.
  */
 @Composable
 fun MainNavigationBar(
@@ -301,26 +334,13 @@ fun MainNavigationBar(
     onSelect: (MainTab) -> Unit,
     descriptions: List<String>,
     modifier: Modifier = Modifier,
-    // Beta 2.4: o esticar da pílula e o acender de cada ícone vêm de fora (ver PageChrome), para um
-    // salto por cima de um separador não esticar duas vezes nem acender o separador do meio.
-    stretch: () -> Float = {
-        val p = pagePosition().coerceIn(0f, (MainTab.entries.size - 1).toFloat())
-        kotlin.math.sin((p - kotlin.math.floor(p)) * kotlin.math.PI.toFloat())
-    },
-    iconAmount: (Int) -> Float = { index -> (1f - kotlin.math.abs(pagePosition() - index)).coerceIn(0f, 1f) },
-    trackingTab: () -> Float = { 1f },
 ) {
     val effects = LocalVisualEffects.current
+    val stretch: () -> Float = { pageStretch(pagePosition()) }
+    val iconAmount: (Int) -> Float = { index -> (1f - kotlin.math.abs(pagePosition() - index)).coerceIn(0f, 1f) }
     Box(
         modifier = modifier
-            // A largura lê-se na medida (a mola não recompõe a barra): 264 dp, ou 177 sem a Tracking.
-            .layout { measurable, _ ->
-                val shown = trackingTab().coerceIn(0f, 1f)
-                val width = (NavigationBarWidth - IndicatorPitch * (1f - shown)).roundToPx()
-                val height = NavigationBarHeight.roundToPx()
-                val placeable = measurable.measure(Constraints.fixed(width, height))
-                layout(width, height) { placeable.place(0, 0) }
-            }
+            .size(NavigationBarWidth, NavigationBarHeight)
             .cycloGlassPill(NavigationBarRadius)
             .drawBehind {
                 // feed-icon-background: #313233 a 39 % em Luminosity.
@@ -348,14 +368,10 @@ fun MainNavigationBar(
         Row(modifier = Modifier.padding(start = IndicatorInset, top = IndicatorInset)) {
             MainTab.entries.forEach { tab ->
                 if (tab.ordinal > 0) Spacer(Modifier.width(IndicatorPitch - IndicatorWidth))
-                val isTracking = tab == MainTab.Tracking
                 NavigationItem(
-                    // A Tracking apaga-se com a barra a encolher (e não responde quando não existe).
-                    shown = if (isTracking) trackingTab else { { 1f } },
                     iconPath = when (tab) {
                         MainTab.Feed -> CycloAppIconPaths.Home
                         MainTab.Saved -> CycloAppIconPaths.Bookmark
-                        MainTab.Tracking -> CycloAppIconPaths.BarChart
                     },
                     description = descriptions[tab.ordinal],
                     // O ícone acende à medida que a pílula chega a ele.
@@ -370,30 +386,20 @@ fun MainNavigationBar(
 
 @Composable
 private fun NavigationItem(
-    shown: () -> Float,
     iconPath: String,
     description: String,
     amount: () -> Float,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val present = shown() > 0.5f
     Box(
         modifier = Modifier
             .size(IndicatorWidth, IndicatorHeight)
-            .graphicsLayer { alpha = shown().coerceIn(0f, 1f) }
-            .then(
-                if (present) {
-                    Modifier
-                        .cycloPressable(onClick = onClick, pressedScale = CycloMotion.IconButtonPressScale, role = Role.Tab)
-                        .semantics {
-                            contentDescription = description
-                            selected = isSelected
-                        }
-                } else {
-                    Modifier.clearAndSetSemantics { }
-                },
-            ),
+            .cycloPressable(onClick = onClick, pressedScale = CycloMotion.IconButtonPressScale, role = Role.Tab)
+            .semantics {
+                contentDescription = description
+                selected = isSelected
+            },
         contentAlignment = Alignment.Center,
     ) {
         // Cinzento por baixo e branco por cima, com a opacidade a seguir a pílula.

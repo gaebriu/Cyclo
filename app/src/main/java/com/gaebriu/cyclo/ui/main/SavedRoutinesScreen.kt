@@ -164,6 +164,8 @@ fun SavedRoutinesScreen(
     bottomReserve: Dp,
     emptyReveal: StaggeredReveal,
     onEmptyShown: () -> Unit,
+    /** A página está à vista (ou a entrar): só então o estado vazio faz a entrada dele (Cyclo 3.1). */
+    inView: Boolean = true,
     onDelete: (Routine) -> Unit,
     onEdit: (Routine) -> Unit,
     onToggleActive: (Routine) -> Unit,
@@ -278,7 +280,7 @@ fun SavedRoutinesScreen(
         }
         ShatterOverlay(shatter, Modifier.fillMaxSize())
         if (routines.isEmpty()) {
-            SavedEmptyState(reveal = emptyReveal, onShown = onEmptyShown)
+            SavedEmptyState(reveal = emptyReveal, onShown = onEmptyShown, inView = inView)
         }
     }
 }
@@ -291,9 +293,11 @@ fun SavedRoutinesScreen(
  * por sessão: [onShown] marca-a como vista quando a cascata começa.
  */
 @Composable
-private fun SavedEmptyState(reveal: StaggeredReveal, onShown: () -> Unit) {
+private fun SavedEmptyState(reveal: StaggeredReveal, onShown: () -> Unit, inView: Boolean) {
     val latestOnShown by rememberUpdatedState(onShown)
-    LaunchedEffect(Unit) {
+    // Composta fora de vista (Cyclo 3.1, as páginas ficam compostas): a entrada espera que se veja.
+    LaunchedEffect(inView) {
+        if (!inView) return@LaunchedEffect
         latestOnShown()
         reveal.play()
     }

@@ -164,7 +164,7 @@ object FeedRevealItems {
     const val MiniMenu = 0
     const val Greeting = 1
     const val Date = 2
-    /** O log-sleep-card (sleep-evaluation-prompt) do Unified view. */
+    /** O log-sleep-card (sleep-evaluation-prompt). */
     const val Prompt = 3
     const val Wake = 4
     /** O primeiro dos blocos reordenáveis ([FeedSection]); os outros seguem-no. */
@@ -189,12 +189,12 @@ object FeedRevealItems {
  * - Os blocos da cafeína, da água, do que pode afetar o sono e de como se sente reordenam-se com
  *   long press e arrastar ([feedOrder], [onReorder]; ver [ReorderableColumn]): os outros abrem espaço
  *   com a mesma física das rotinas guardadas. O wake-time-recommendation-group fica de fora e não muda.
- * - Unified view ([unified], beta-3.0, Cyclo-2 2066:259): a Tracking junta-se ao Feed. O
- *   log-sleep-card (o sleep-evaluation-prompt) fica 39 dp abaixo do header-greetings, e cada gráfico
- *   entra no cartão do Feed que lhe corresponde, por baixo de um separador, como o Restfulness no
- *   wake-time-container do Figma: o Restfulness no da hora de acordar, a cafeína e a água nos deles,
- *   o Mood no "How are you feeling tonight?". Sem rotina (sem o wake-time-container), o Restfulness
- *   fica num cartão da Tracking no lugar dele.
+ * - A Tracking vive no Feed (Feed 2066:259; o "Unified view" da beta-3.0, sem opção para o separar
+ *   desde a Cyclo 3.1). O log-sleep-card (o sleep-evaluation-prompt) fica 39 dp abaixo do
+ *   header-greetings, e cada gráfico entra no cartão do Feed que lhe corresponde, por baixo de um
+ *   separador: o Restfulness no wake-time-container, a cafeína e a água nos deles, o Mood no
+ *   "How are you feeling tonight?". Sem rotina (sem o wake-time-container), o Restfulness fica num
+ *   cartão próprio no lugar dele.
  */
 @Composable
 fun FeedScreen(
@@ -220,7 +220,6 @@ fun FeedScreen(
     onReorder: (List<FeedSection>) -> Unit,
     modifier: Modifier = Modifier,
     isCurrentPage: Boolean = true,
-    unified: Boolean = false,
     promptDismissed: Boolean = false,
     promptGlow: () -> Color = { Color.Transparent },
     onLogSleep: () -> Unit = {},
@@ -229,8 +228,10 @@ fun FeedScreen(
     // O dia da Cyclo (beta-3.0): da meia-noite até à hora de acordar ainda é o dia anterior, por
     // isso o registo da noite e o wake-time-container só mudam quando passa a hora de acordar.
     val today = remember(routines, now) { cycloDay(routines, now) }
-    // O registo onde o próximo toque cai (resolveDayLogs): o mesmo que o repositório escreve.
-    val log = remember(dailyLog, history, today) { resolveDayLogs(dailyLog, history, today).current }
+    // O registo onde o próximo toque cai (resolveDayLogs): o mesmo que o repositório escreve. Um só
+    // arrumo por mudança, para o registo e para os gráficos (antes faziam-se dois).
+    val logs = remember(dailyLog, history, today) { resolveDayLogs(dailyLog, history, today) }
+    val log = logs.current
     // A mesma escolha do Wake Time Widget (BedtimeEngine.feedWake): a primeira hora de acordar a 24 h.
     val next = remember(routines, now) { BedtimeEngine.feedWake(routines, now) }
     val nextRoutine = next?.first
@@ -271,16 +272,9 @@ fun FeedScreen(
         }
     }
 
-    // Unified view: o que a Tracking mostraria, para os gráficos dentro dos cartões (só se calcula
-    // com ele ligado, e só quando os registos, o dia ou a idade mudam).
-    val summary = if (unified) {
-        remember(dailyLog, history, today, age) {
-            resolveDayLogs(dailyLog, history, today).let { trackingSummary(it.history, it.current, today, age) }
-        }
-    } else {
-        null
-    }
-    val showPrompt = unified && showsSleepPrompt(routines, log, now, promptDismissed)
+    // O que os gráficos dentro dos cartões mostram (só quando os registos, o dia ou a idade mudam).
+    val summary = remember(logs, today, age) { trackingSummary(logs.history, logs.current, today, age) }
+    val showPrompt = showsSleepPrompt(routines, log, now, promptDismissed)
     // Os hápticos dos gráficos só com o Feed escolhido; um só lambda, lembrado.
     val active = remember { { latestCurrent } }
 
@@ -302,17 +296,15 @@ fun FeedScreen(
         ) {
             Greeting(now = now, reveal = reveal)
 
-            // Unified view: o log-sleep-card a 39 dp do header-greetings (o espaço abre e fecha com ele).
-            if (unified) {
-                SleepPrompt(
-                    visible = showPrompt,
-                    glowColor = promptGlow,
-                    onLogSleep = onLogSleep,
-                    onDismiss = onDismissPrompt,
-                    topGap = SectionGap,
-                    modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Prompt),
-                )
-            }
+            // O log-sleep-card a 39 dp do header-greetings (o espaço abre e fecha com ele).
+            SleepPrompt(
+                visible = showPrompt,
+                glowColor = promptGlow,
+                onLogSleep = onLogSleep,
+                onDismiss = onDismissPrompt,
+                topGap = SectionGap,
+                modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Prompt),
+            )
 
             if (nextRoutine != null) {
                 Spacer(Modifier.height(SectionGap))
@@ -334,7 +326,7 @@ fun FeedScreen(
                         rim = wakeRim,
                         onMoreClick = { wakeMenuOpen = true },
                         onMoreBounds = { wakeMenuAnchor = it },
-                        chart = summary?.let { sum ->
+                        chart = summary.let { sum ->
                             {
                                 val grow = rememberChartGrowth(reveal, FeedRevealItems.Wake)
                                 UnifiedChart(restfulnessDescription(sum)) { RestfulnessChart(sum, grow, active, ChartGeometry.Unified) }
@@ -342,9 +334,9 @@ fun FeedScreen(
                         },
                     )
                 }
-            } else if (summary != null) {
-                // Unified view sem rotina: o Restfulness não tem o wake-time-container onde entrar, e
-                // fica no cartão da Tracking, no mesmo lugar.
+            } else {
+                // Sem rotina: o Restfulness não tem o wake-time-container onde entrar, e fica num
+                // cartão próprio, no mesmo lugar.
                 Spacer(Modifier.height(SectionGap))
                 Column(
                     modifier = Modifier
@@ -386,7 +378,7 @@ fun FeedScreen(
                                     count = log.caffeine,
                                     onChange = onCaffeineChange,
                                     modifier = surface,
-                                    chart = summary?.let { sum ->
+                                    chart = summary.let { sum ->
                                         {
                                             val grow = rememberChartGrowth(reveal, revealIndex)
                                             UnifiedChart(caffeineDescription(sum)) { CaffeineChart(sum, grow, active, ChartGeometry.Unified) }
@@ -402,7 +394,7 @@ fun FeedScreen(
                                     age = age,
                                     onChange = onWaterChange,
                                     modifier = surface,
-                                    chart = summary?.let { sum ->
+                                    chart = summary.let { sum ->
                                         {
                                             val grow = rememberChartGrowth(reveal, revealIndex)
                                             UnifiedChart(waterDescription(sum)) { WaterChart(sum, grow, active, ChartGeometry.Unified) }
@@ -422,7 +414,7 @@ fun FeedScreen(
                                     mood = log.mood,
                                     onMoodChange = onMoodChange,
                                     modifier = surface,
-                                    chart = summary?.let { sum ->
+                                    chart = summary.let { sum ->
                                         {
                                             val grow = rememberChartGrowth(reveal, revealIndex)
                                             UnifiedChart(moodDescription(sum)) { MoodChart(sum, grow, ChartGeometry.Unified) }
