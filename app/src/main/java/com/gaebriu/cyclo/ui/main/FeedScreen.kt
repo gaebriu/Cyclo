@@ -104,7 +104,6 @@ import com.gaebriu.cyclo.data.SleepFactor
 import com.gaebriu.cyclo.data.FeedSection
 import com.gaebriu.cyclo.ui.components.ReorderableColumn
 import com.gaebriu.cyclo.ui.components.CycloMeter
-import com.gaebriu.cyclo.ui.components.MeterStyle
 import com.gaebriu.cyclo.data.bedtimesFor
 import com.gaebriu.cyclo.data.CycloViewModel
 import com.gaebriu.cyclo.data.Hydration
@@ -147,8 +146,6 @@ private val GreetingToDate = 9.dp
 private val SectionGap = 39.dp
 private val LabelToCard = 15.dp
 private val CardPadding = 15.dp
-
-private val StarYellow = Color(0xFFFFC93C)
 
 /** Sombra do cartão da hora de acordar: 0, 4, desfoque 24, a cor da base do brilho ([skyColorsAt]; #5FA2DB no Figma) a 24 %. */
 private const val WakeCardShadowAlpha = 0.24f
@@ -681,11 +678,14 @@ private fun BedtimeRow(bedtimes: List<Bedtime>) {
     }
 }
 
-/** Ícone de cada hora: estrela (6 e 5 ciclos) e as caras do medidor, de contente a insatisfeito. */
+/**
+ * Ícone de cada hora: estrela (6 e 5 ciclos) e as caras, de contente a insatisfeito, nas cinco cores
+ * do medidor (Cyclo 3.2: as estrelas a violeta, já não a amarelo).
+ */
 private fun bedtimeIcon(cycles: Int): Pair<String, Color> = CycloAppIconPaths.bedtime(cycles) to when (cycles) {
-    6, 5 -> StarYellow
-    4 -> CycloColors.MoodViolet
-    3 -> CycloColors.MoodBlue
+    6, 5 -> CycloColors.MoodViolet
+    4 -> CycloColors.MoodBlue
+    3 -> CycloColors.MoodOkay
     2 -> CycloColors.MoodSky
     else -> CycloColors.MoodMint
 }
@@ -1027,7 +1027,6 @@ private fun FeelingCard(
             ),
             description = stringResource(R.string.feed_feeling_meter),
             onValueChange = onMoodChange,
-            style = MeterStyle.Emotion,
         )
         // Unified view: o Mood por baixo do medidor.
         if (chart != null) ChartBelow(chart)

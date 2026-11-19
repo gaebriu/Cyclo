@@ -22,7 +22,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Measurable
@@ -56,7 +58,8 @@ import kotlin.math.sign
  *   com uma mola ao largar; um lançamento que bate na ponta passa-a um pouco e volta (bounce).
  *
  * Como no iOS, só estica quando há mesmo conteúdo para percorrer: uma página que cabe no ecrã
- * fica quieta. Os seletores de horas e minutos do Introduction 2 não usam isto (têm a sua física).
+ * fica quieta, exceto com [alwaysBounce] (o "alwaysBounceVertical" do iOS: as páginas das Settings
+ * seguem sempre o dedo, Cyclo 3.2). Os seletores de horas e minutos do Introduction 2 não usam isto (têm a sua física).
  *
  * **Toques durante o movimento (Beta 2.2).** O `scrollable` do Compose consome o toque (o "down")
  * sempre que o scroll está "em curso" (`isScrollInProgress`) ou o overscroll está "em curso"
@@ -74,10 +77,10 @@ import kotlin.math.sign
  * - um toque pára a cauda logo na passagem Initial (antes dos filhos), sem consumir nada.
  */
 @Composable
-fun Modifier.cycloVerticalScroll(state: ScrollState): Modifier {
+fun Modifier.cycloVerticalScroll(state: ScrollState, alwaysBounce: Boolean = false): Modifier {
     val scope = rememberCoroutineScope()
     val handoff = with(LocalDensity.current) { TapThroughVelocity.toPx() }
-    val glide = remember(state, handoff) { ScrollGlide(state, scope, handoff) }
+    val glide = remember(state, handoff, alwaysBounce) { ScrollGlide(state, scope, handoff, alwaysBounce) }
     return this
         // Um toque pára a cauda do lançamento (vê-se antes do scroll e dos filhos e não consome).
         .pointerInput(glide) {
@@ -86,6 +89,9 @@ fun Modifier.cycloVerticalScroll(state: ScrollState): Modifier {
                 glide.stopTail()
             }
         }
+        // O Compose não chama o overscroll numa página que não tem para onde ir: com [alwaysBounce],
+        // o esticão dessa página vem do que sobra do scroll (ver [IosOverscrollEffect.stillPage]).
+        .then(if (alwaysBounce) Modifier.nestedScroll(glide.overscroll.stillPage) else Modifier)
         .verticalScroll(state = state, overscrollEffect = glide.overscroll, flingBehavior = glide.fling)
 }
 
@@ -179,10 +185,11 @@ private class ScrollGlide(
     private val state: ScrollState,
     private val scope: CoroutineScope,
     private val handoff: Float,
+    alwaysBounce: Boolean,
 ) {
     private var tailJob: Job? = null
 
-    val overscroll = IosOverscrollEffect(state, scope, handoff)
+    val overscroll = IosOverscrollEffect(state, scope, handoff, alwaysBounce)
     val fling: FlingBehavior = IosFlingBehavior()
 
     /** Pára a cauda onde está (um toque, ou outro scroll que começa). */
@@ -277,6 +284,7 @@ private class IosOverscrollEffect(
     private val state: ScrollState,
     private val scope: CoroutineScope,
     private val handoff: Float,
+    private val alwaysBounce: Boolean,
 ) : OverscrollEffect {
     private var offset by mutableFloatStateOf(0f)
 
@@ -320,6 +328,53 @@ private class IosOverscrollEffect(
         }
     }
 
+    /** O dedo ([dy], sentido do dedo) volta para trás com a página esticada: desfaz o esticão. Devolve o que usou. */
+    private fun relax(dy: Float): Float {
+        if (abs(offset) <= 0.5f || sign(dy) == sign(offset)) return 0f
+        val raw = unrubber(offset)
+        val newRaw = raw + dy
+        return if (sign(newRaw) != sign(raw)) {
+            offset = 0f
+            -raw
+        } else {
+            offset = rubber(newRaw)
+            dy
+        }
+    }
+
+    /** O dedo apanha o bounce a meio: pára-o (só o dedo escreve no deslocamento). */
+    private fun catchBounce() {
+        if (bounceJob?.isActive == true) {
+            bounceJob?.cancel()
+            bounceJob = null
+        }
+    }
+
+    /**
+     * [alwaysBounce] numa página que cabe no ecrã (o Compose não chama este efeito sem scroll): o
+     * dedo a SUBIR estica a página com resistência e, ao largar, ela volta com a mola. O dedo a
+     * descer fica para quem está por fora (fechar as Settings).
+     */
+    val stillPage = object : NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if (!alwaysBounce || canScroll || source != NestedScrollSource.UserInput) return Offset.Zero
+            catchBounce()
+            return Offset(0f, relax(available.y))
+        }
+
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+            if (!alwaysBounce || canScroll || source != NestedScrollSource.UserInput || available.y > -0.5f) return Offset.Zero
+            offset = rubber(unrubber(offset) + available.y)
+            return Offset(0f, available.y)
+        }
+
+        override suspend fun onPreFling(available: Velocity): Velocity {
+            if (!alwaysBounce || canScroll || abs(offset) <= 0.5f) return Velocity.Zero
+            bounce(available.y)
+            return available
+        }
+    }
+
     override fun applyToScroll(
         delta: Offset,
         source: NestedScrollSource,
@@ -327,25 +382,11 @@ private class IosOverscrollEffect(
     ): Offset {
         val fromUser = source == NestedScrollSource.UserInput
 
-        // O dedo apanha o bounce a meio: pára-o e continua daqui (só o dedo escreve no deslocamento).
-        if (fromUser && bounceJob?.isActive == true) {
-            bounceJob?.cancel()
-            bounceJob = null
-        }
+        // O dedo apanha o bounce a meio: pára-o e continua daqui.
+        if (fromUser) catchBounce()
 
         // Já esticado e o dedo volta para trás: primeiro desfaz o esticão, só depois faz scroll.
-        var consumedByRelax = 0f
-        if (fromUser && abs(offset) > 0.5f && sign(delta.y) != sign(offset)) {
-            val raw = unrubber(offset)
-            val newRaw = raw + delta.y
-            if (sign(newRaw) != sign(raw)) {
-                consumedByRelax = -raw
-                offset = 0f
-            } else {
-                consumedByRelax = delta.y
-                offset = rubber(newRaw)
-            }
-        }
+        val consumedByRelax = if (fromUser) relax(delta.y) else 0f
 
         val left = delta.y - consumedByRelax
         val consumedByScroll = performScroll(Offset(0f, left)).y

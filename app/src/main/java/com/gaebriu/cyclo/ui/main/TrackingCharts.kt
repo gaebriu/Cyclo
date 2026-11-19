@@ -52,10 +52,10 @@ import com.gaebriu.cyclo.data.MinBlockAlpha
 import com.gaebriu.cyclo.data.SleepQuality
 import com.gaebriu.cyclo.data.TrackedDay
 import com.gaebriu.cyclo.data.TrackingSummary
-import com.gaebriu.cyclo.data.blockAlpha
 import com.gaebriu.cyclo.ui.components.smoothRoundRectPath
 import com.gaebriu.cyclo.ui.effects.InnerShadowSpec
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
+import com.gaebriu.cyclo.ui.effects.drawBlurredPath
 import com.gaebriu.cyclo.ui.effects.StaggeredReveal
 import com.gaebriu.cyclo.ui.effects.innerShadowSprite
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
@@ -142,8 +142,9 @@ internal class ChartGeometry(
 
         /**
          * O Unified view (sleep-quality-tracker 2066:422, dentro do wake-time-container, 315 x 215):
-         * colunas até 183 dp (183, 143, 105, 67 e 28, do melhor ao pior nível), a base a 189 e as
-         * iniciais a 197; a legenda a 0, 30, 60, 90 e 120; sem a linha de cima; a cara da média à
+         * colunas até 183 dp, a base a 189 e as iniciais a 197; a legenda a 0, 30, 60, 90 e 120.
+         * Cyclo 3.2 (pedido do utilizador): o topo de cada coluna toca no topo da cara do seu nível
+         * (183, 153, 123, 93 e 63 dp, do melhor ao pior), no sono e na água; sem a linha de cima; a cara da média à
          * direita, ligada à legenda por uma linha tracejada (2066:622); a grelha a 32, para acabar
          * no fundo das iniciais. O Mood segue o mesmo padrão: a média e a linha em cima, a grelha
          * 15 dp abaixo delas.
@@ -153,7 +154,7 @@ internal class ChartGeometry(
             baseTop = 189f,
             labelTop = 197f,
             maxBar = 183f,
-            levelHeights = floatArrayOf(183f, 143f, 105f, 67f, 28f),
+            levelHeights = floatArrayOf(183f, 153f, 123f, 93f, 63f),
             legendTops = floatArrayOf(0f, 30f, 60f, 90f, 120f),
             topLine = false,
             gridTop = 32f,
@@ -257,6 +258,14 @@ private fun grown(clockMs: Float, order: Int, staggerMs: Int): Float {
 /** O preenchimento de um bloco: a cor e a opacidade. */
 private class BlockFill(val color: Color, val alpha: Float)
 
+/**
+ * O aspeto dos blocos do mês:
+ * - [Accent] (cafeína e água): #4A3C99 com a opacidade do valor e as sombras interiores antigas;
+ * - [Level] (sono e humor, Cyclo 3.2): a cor do nível a 100 %, uma sombra interior #F6F4FF a 39 %
+ *   (0, -4, desfoque 4) e uma sombra por baixo, preta a 15 % (0, 2, desfoque 9).
+ */
+private enum class BlockLook { Accent, Level }
+
 /** Opacidade de um bloco da água no mês: o melhor nível a 100 %, o pior a 9 %, como o Restfulness. */
 private fun waterBlockAlpha(level: Int): Float = 1f - level.coerceIn(0, Hydration.Levels - 1) * (1f - MinBlockAlpha) / (Hydration.Levels - 1)
 
@@ -269,7 +278,8 @@ internal fun RestfulnessChart(summary: TrackingSummary, grow: State<Float>, acti
         geometry = geometry,
         weekWidth = SleepWeekWidth,
         week = summary.sleepWeek.map { day -> day.date to day.value?.let { geometry.levelHeights[it.ordinal] / geometry.maxBar } },
-        month = summary.sleepMonth.map { day -> day.value?.let { BlockFill(CycloColors.Accent, it.blockAlpha()) } },
+        month = summary.sleepMonth.map { day -> day.value?.let { BlockFill(moodColor(it.ordinal), 1f) } },
+        blockLook = BlockLook.Level,
         grow = grow,
         active = active,
         legend = SleepQuality.entries.map { it.face() },
@@ -407,13 +417,44 @@ internal fun moodLevelLabels(): List<String> = listOf(
 // --- Desenho ------------------------------------------------------------------------------------
 
 /**
- * Os sprites das sombras interiores (feitos uma vez por tamanho, ver [innerShadowSprite]):
- * - bloco: 0, 2, desfoque 9, preto a 15 %, e 0, -4, desfoque 4, #4A3C99 a 63 % (beta-3.0: também no
- *   Restfulness e na água, como na cafeína; Cyclo-2 2003:608);
+ * Os sprites das sombras (feitos uma vez por tamanho, ver [innerShadowSprite]):
+ * - bloco [BlockLook.Accent]: 0, 2, desfoque 9, preto a 15 %, e 0, -4, desfoque 4, #4A3C99 a 63 %
+ *   (cafeína e água; Cyclo-2 2003:608);
+ * - bloco [BlockLook.Level]: ver [levelBlockSprites];
  * - coluna: 0, -6, desfoque 15, preto a 15 %, numa coluna alta que se corta em três (topo, meio
  *   esticado e fundo) para qualquer altura.
  */
-private class ChartSprites(val block: ImageBitmap, val bar: ImageBitmap, val barSlice: Int)
+private class ChartSprites(val block: ImageBitmap, val bar: ImageBitmap, val barSlice: Int, val level: LevelBlockSprites)
+
+/** Os blocos [BlockLook.Level]: a sombra interior e a de baixo (com [margin] px de folga à volta). */
+private class LevelBlockSprites(val inner: ImageBitmap, val drop: ImageBitmap, val margin: Int)
+
+private fun Density.levelBlockSprites(scale: Float): LevelBlockSprites {
+    val cell = (Cell * scale).dp.toPx().roundToInt().coerceAtLeast(1)
+    val radius = (6f * scale).dp.toPx()
+    val inner = innerShadowSprite(
+        cell,
+        cell,
+        radius,
+        listOf(InnerShadowSpec(CycloColors.MeterWhite.copy(alpha = 0.39f), Offset(0f, -4.dp.toPx() * scale), 4.dp.toPx() * scale)),
+        this,
+    )
+    // A sombra de baixo (0, 2, desfoque 9): o desfoque chega a ~9 dp para lá da forma.
+    val margin = ((9f + 2f) * scale).dp.toPx().roundToInt()
+    val side = cell + 2 * margin
+    val drop = ImageBitmap(side, side)
+    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+        this,
+        androidx.compose.ui.unit.LayoutDirection.Ltr,
+        androidx.compose.ui.graphics.Canvas(drop),
+        Size(side.toFloat(), side.toFloat()),
+    ) {
+        val shape = smoothRoundRectPath(cell.toFloat(), cell.toFloat(), radius)
+        val moved = Path().apply { addPath(shape, Offset(margin.toFloat(), margin + 2.dp.toPx() * scale)) }
+        drawBlurredPath(moved, Color.Black.copy(alpha = 0.15f), 9.dp.toPx() * scale)
+    }
+    return LevelBlockSprites(inner, drop, margin)
+}
 
 private fun Density.chartSprites(scale: Float): ChartSprites {
     val cell = (Cell * scale).dp.toPx().roundToInt().coerceAtLeast(1)
@@ -436,7 +477,7 @@ private fun Density.chartSprites(scale: Float): ChartSprites {
         listOf(InnerShadowSpec(Color.Black.copy(alpha = 0.15f), Offset(0f, -6.dp.toPx() * scale), 15.dp.toPx() * scale)),
         this,
     )
-    return ChartSprites(block, bar, barSlice = (24f * scale).dp.toPx().roundToInt())
+    return ChartSprites(block, bar, barSlice = (24f * scale).dp.toPx().roundToInt(), level = levelBlockSprites(scale))
 }
 
 /** A sombra de uma coluna de [height] px a partir do sprite alto: topo e fundo inteiros, o meio esticado. */
@@ -539,6 +580,7 @@ private fun WeekAndMonthChart(
     week: List<Pair<LocalDate, Float?>>,
     month: List<BlockFill?>,
     grow: State<Float>,
+    blockLook: BlockLook = BlockLook.Accent,
     active: () -> Boolean,
     legend: List<Pair<String, Color>> = emptyList(),
     maxLabel: String? = null,
@@ -567,6 +609,11 @@ private fun WeekAndMonthChart(
     }
     val blockLogged = month.mapIndexed { i, fill ->
         animateFloatAsState(if (fill != null) 1f else 0f, spec(), label = "logged$i")
+    }
+    // A cor de cada bloco muda com o valor (sono: a cor do nível); por registar, a do meio.
+    val neutral = if (blockLook == BlockLook.Level) CycloColors.MoodOkay else CycloColors.Accent
+    val blockColors = month.mapIndexed { i, fill ->
+        animateColorAsState(fill?.color ?: neutral, spec(), label = "blockColor$i")
     }
     val maxAlpha by animateFloatAsState(if (maxText != null) 1f else 0f, spec(), label = "max")
     ChartHaptics(week.map { it.second }, grow, active)
@@ -674,14 +721,15 @@ private fun WeekAndMonthChart(
                         month.forEachIndexed { day, _ ->
                             drawBlock(
                                 path = blockPath,
-                                sprite = sprites.block,
+                                sprite = if (blockLook == BlockLook.Level) sprites.level.inner else sprites.block,
                                 left = gridLeft + (day % 4) * CellPitch * u,
                                 top = gridTop + (day / 4) * CellPitch * u,
                                 grow = grown(clock, day, BlockStaggerMs).coerceIn(0f, 1.2f),
                                 logged = blockLogged[day].value,
                                 alpha = blockAlphas[day].value,
-                                color = CycloColors.Accent,
+                                color = blockColors[day].value,
                                 blend = blend,
+                                drop = if (blockLook == BlockLook.Level) sprites.level else null,
                             )
                         }
                     }
@@ -697,8 +745,8 @@ private fun Path.addSmoothRoundRect(x: Float, y: Float, w: Float, h: Float, radi
 
 /**
  * Um bloco de um dia: o cinzento "por registar" (#A3A2A7 a 15 % em Luminosity) e, por cima, a cor
- * do registo com a sua opacidade e as sombras interiores; [logged] passa de um para o outro.
- * A crescer ([grow] de 0 a 1), sai do centro e aparece.
+ * do registo com a sua opacidade e as sombras interiores (e, com [drop], a sombra de baixo);
+ * [logged] passa de um para o outro. A crescer ([grow] de 0 a 1), sai do centro e aparece.
  */
 private fun DrawScope.drawBlock(
     path: Path,
@@ -710,6 +758,7 @@ private fun DrawScope.drawBlock(
     alpha: Float,
     color: Color,
     blend: BlendMode,
+    drop: LevelBlockSprites? = null,
 ) {
     if (grow <= 0f) return
     val cell = sprite.width.toFloat()
@@ -721,6 +770,7 @@ private fun DrawScope.drawBlock(
     }) {
         if (logged < 1f) drawPath(path, NotLoggedColor, alpha = fade * (1f - logged), blendMode = blend)
         if (logged > 0f) {
+            if (drop != null) drawImage(drop.drop, Offset(-drop.margin.toFloat(), -drop.margin.toFloat()), alpha = fade * logged * alpha)
             drawPath(path, color, alpha = fade * logged * alpha)
             drawImage(sprite, alpha = fade * logged)
         }
@@ -740,7 +790,7 @@ private fun DrawScope.drawFace(path: Path, color: Color, x: Float, y: Float, u: 
 
 /**
  * mood-graph-montly (2006:237): 13 blocos por linha, do dia 1 ao último, centrados; cada um com a
- * cor do nível do humor desse dia ([moodColor]) e a sombra interior do Figma; por registar, cinzento.
+ * cor do nível do humor desse dia ([moodColor]) e as sombras do Figma; por registar, cinzento.
  * No Unified view, a cara da média e a linha tracejada vão por cima da grelha.
  */
 @Composable
@@ -758,22 +808,8 @@ private fun MoodGrid(days: List<TrackedDay<Int>>, grow: State<Float>, geometry: 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val scale = (maxWidth.value / FigmaContent).coerceAtMost(1f)
         val rows = (days.size + MoodColumns - 1) / MoodColumns
-        val sprite = remember(scale, density) {
-            with(density) {
-                val cellPx = (Cell * scale).dp.toPx()
-                innerShadowSprite(
-                    cellPx.roundToInt(),
-                    cellPx.roundToInt(),
-                    (6f * scale).dp.toPx(),
-                    // Os blocos do Mood (2006:238, Beta 2.2): 0, 2, 9 preto a 15 % e 0, -4, 4 #FCFCFE a 63 %.
-                    listOf(
-                        InnerShadowSpec(Color.Black.copy(alpha = 0.15f), Offset(0f, 2.dp.toPx() * scale), 9.dp.toPx() * scale),
-                        InnerShadowSpec(CycloColors.TextPrimary.copy(alpha = 0.63f), Offset(0f, -4.dp.toPx() * scale), 4.dp.toPx() * scale),
-                    ),
-                    this,
-                )
-            }
-        }
+        // Os blocos do Mood (6020:290, Cyclo 3.2): os mesmos do sono ([BlockLook.Level]).
+        val sprites = remember(scale, density) { density.levelBlockSprites(scale) }
         val height = (geometry.moodGridTop + (rows - 1) * CellPitch + Cell) * scale
         Spacer(
             modifier = Modifier
@@ -794,7 +830,7 @@ private fun MoodGrid(days: List<TrackedDay<Int>>, grow: State<Float>, geometry: 
                         days.forEachIndexed { i, _ ->
                             drawBlock(
                                 path = path,
-                                sprite = sprite,
+                                sprite = sprites.inner,
                                 left = gridLeft + (i % MoodColumns) * MoodColumnPitch * u,
                                 top = gridTop + (i / MoodColumns) * CellPitch * u,
                                 grow = grown(clock, i, BlockStaggerMs).coerceIn(0f, 1.2f),
@@ -802,6 +838,7 @@ private fun MoodGrid(days: List<TrackedDay<Int>>, grow: State<Float>, geometry: 
                                 alpha = 1f,
                                 color = colors[i].value,
                                 blend = effects.luminosity,
+                                drop = sprites,
                             )
                         }
                     }

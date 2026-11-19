@@ -24,21 +24,21 @@ fun caffeineLevel(count: Int): Int = when {
 
 /** Cara ao lado da chávena: muda com a cafeína (0 a 2 contente ... 6 ou mais insatisfeito). */
 fun caffeineFace(count: Int): Pair<String, Color> = when {
-    count <= 2 -> CycloAppIconPaths.SentimentSatisfied to CycloColors.MoodViolet
-    count <= 4 -> CycloAppIconPaths.SentimentNeutral to CycloColors.MoodBlue
+    count <= 2 -> CycloAppIconPaths.SentimentSatisfied to CycloColors.MoodBlue
+    count <= 4 -> CycloAppIconPaths.SentimentNeutral to CycloColors.MoodOkay
     count == 5 -> CycloAppIconPaths.SentimentDissatisfied to CycloColors.MoodSky
     else -> CycloAppIconPaths.SentimentDissatisfied to CycloColors.MoodMint
 }
 
 /**
- * A cara de cada nível do sono (a legenda do Restfulness, Cyclo-2 2013:101 a 2004:657): really-well
- * (mood) e well (sentiment_satisfied) a violeta, meh (sentiment_neutral) a azul, poor
- * (sentiment_dissatisfied) a céu e very-poor (sentiment_dissatisfied) a menta.
+ * A cara de cada nível do sono (a legenda do Restfulness, Cyclo 3.2 2066:487 a 2066:502), cada uma
+ * com a sua cor: really-well (mood) violeta, well (sentiment_satisfied) azul, meh
+ * (sentiment_neutral) o meio, poor (sentiment_dissatisfied) céu e very-poor menta.
  */
 fun SleepQuality.face(): Pair<String, Color> = when (this) {
     SleepQuality.ReallyWell -> CycloAppIconPaths.Mood to CycloColors.MoodViolet
-    SleepQuality.Well -> CycloAppIconPaths.SentimentSatisfied to CycloColors.MoodViolet
-    SleepQuality.Meh -> CycloAppIconPaths.SentimentNeutral to CycloColors.MoodBlue
+    SleepQuality.Well -> CycloAppIconPaths.SentimentSatisfied to CycloColors.MoodBlue
+    SleepQuality.Meh -> CycloAppIconPaths.SentimentNeutral to CycloColors.MoodOkay
     SleepQuality.Poor -> CycloAppIconPaths.SentimentDissatisfied to CycloColors.MoodSky
     SleepQuality.VeryPoor -> CycloAppIconPaths.SentimentDissatisfied to CycloColors.MoodMint
 }
@@ -55,8 +55,8 @@ val SleepQuality.label: Int
     }
 
 /**
- * A cor de cada nível do medidor de emoções na grelha do Mood (Tracking, 2006:237): Great violeta,
- * Good azul, Okay o meio do gradiente ([CycloColors.MoodOkay]), Not great céu, Bad menta.
+ * A cor de cada nível (0 o melhor ... 4 o pior) nos blocos do mês (mood-graph-montly 6020:289 e
+ * sleep-graph-montly 2066:455, Cyclo 3.2): as cinco cores do medidor, da violeta à menta.
  */
 fun moodColor(level: Int): Color = when (level.coerceIn(0, 4)) {
     0 -> CycloColors.MoodViolet
@@ -69,7 +69,6 @@ fun moodColor(level: Int): Color = when (level.coerceIn(0, 4)) {
 /**
  * A cara de cada nível do medidor de emoções (0 Great ... 4 Bad), para a média do Mood (average-mood,
  * Cyclo-2 2032:48; o Figma mostra a de Great: mood a violeta). As mesmas caras e cores, por nível,
- * da legenda do Restfulness ([face]): Great mood e Good satisfied a violeta, Okay neutral a azul,
- * Not great dissatisfied a céu e Bad dissatisfied a menta (as duas pontas são as do medidor do Feed).
+ * da legenda do Restfulness ([face]).
  */
 fun moodFace(level: Int): Pair<String, Color> = SleepQuality.entries[level.coerceIn(0, 4)].face()
