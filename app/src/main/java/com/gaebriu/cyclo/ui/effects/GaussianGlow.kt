@@ -1,11 +1,16 @@
 ﻿package com.gaebriu.cyclo.ui.effects
 
+import android.graphics.Matrix
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 /*
  * Brilhos desenhados só com gradientes, SEM RenderEffect.
@@ -47,6 +52,33 @@ fun DrawScope.drawGaussianGlow(
             center = Offset.Zero,
             alpha = peakAlpha.coerceIn(0f, 1f),
             blendMode = blendMode,
+        )
+    }
+}
+
+/**
+ * A mesma mancha branca de [drawGaussianGlow], como um shader do Android, para se juntar a outros
+ * num só desenho (o brilho do Feed, Cyclo 3.2.1; ver FeedTopGlow). Os mesmos gradientes, pelas mesmas
+ * contas: as paragens são as de [unitGlowBrush] (8 bits, como as cores do Compose) e a opacidade do
+ * desenho, que lá vinha do Paint (também 8 bits), entra aqui nas paragens. Fora da elipse não há
+ * nada (DECAL), como fora do círculo de lá. null = nada a desenhar.
+ */
+internal fun gaussianGlowShader(center: Offset, sigmaX: Float, sigmaY: Float, peakAlpha: Float): Shader? {
+    if (peakAlpha <= 0f || sigmaX <= 0f || sigmaY <= 0f) return null
+    val peak = (peakAlpha.coerceIn(0f, 1f) * 255f).roundToInt() / 255f
+    val colors = IntArray(GlowStops + 1) { i ->
+        val d = i / GlowStops.toFloat() * GlowReach
+        val stop = Color.White.copy(alpha = exp(-d * d / 2f)).alpha
+        Color.White.copy(alpha = stop * peak).toArgb()
+    }
+    val positions = FloatArray(GlowStops + 1) { it / GlowStops.toFloat() }
+    val radius = GlowReach * sigmaX
+    return RadialGradient(0f, 0f, 1f, colors, positions, Shader.TileMode.DECAL).apply {
+        setLocalMatrix(
+            Matrix().apply {
+                setScale(radius, radius * sigmaY / sigmaX)
+                postTranslate(center.x, center.y)
+            },
         )
     }
 }

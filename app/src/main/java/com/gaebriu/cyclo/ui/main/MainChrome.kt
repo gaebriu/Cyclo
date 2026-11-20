@@ -1,5 +1,9 @@
 ﻿package com.gaebriu.cyclo.ui.main
 
+import android.graphics.BitmapShader
+import android.graphics.ComposeShader
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -27,10 +31,14 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.semantics.Role
@@ -47,8 +55,7 @@ import com.gaebriu.cyclo.ui.components.cycloGlassPill
 import com.gaebriu.cyclo.ui.components.cycloPressable
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.ProgressiveBlurEdge
-import com.gaebriu.cyclo.ui.effects.drawGaussianGlow
-import com.gaebriu.cyclo.ui.effects.drawFigmaNoise
+import com.gaebriu.cyclo.ui.effects.gaussianGlowShader
 import com.gaebriu.cyclo.ui.effects.rememberFigmaNoise
 import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloColors
@@ -127,7 +134,10 @@ fun FeedTopGlow(
     modifier: Modifier = Modifier,
 ) {
     val effects = LocalVisualEffects.current
-    val noise = rememberFigmaNoise()
+    val tile = rememberFigmaNoise().value
+    // A telha do grão como shader, por cima do pixel 0,0 do brilho (como o drawRect de drawFigmaNoise).
+    val noiseShader = remember(tile) { tile?.let { BitmapShader(it.asAndroidBitmap(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) } }
+    val paint = remember { Paint().apply { filterQuality = FilterQuality.Low } }
     Spacer(
         modifier = modifier
             .fillMaxSize()
@@ -143,42 +153,45 @@ fun FeedTopGlow(
                 val b = GlowRadiusY.toPx() * shape
                 val sigmaX = sqrt(sigma * sigma + a * a / 4f)
                 val sigmaY = sqrt(sigma * sigma + b * b / 4f)
-                // Máscara: a mancha desfocada, com a opacidade do grupo.
-                drawGaussianGlow(
-                    color = Color.White,
+                // Cyclo 3.2.1: tudo num só desenho, com shaders do Android encadeados (os mesmos
+                // gradientes de antes). Antes eram cinco desenhos do tamanho do ecrã e uma segunda
+                // camada fora do ecrã para o grão, refeitos a cada fotograma da entrada (o brilho a
+                // crescer) e do deslize das páginas (o pulso). A conta é a mesma:
+                // Máscara (m): a mancha desfocada, com a opacidade do grupo.
+                val mask = gaussianGlowShader(
                     center = Offset(size.width / 2f, b),
                     sigmaX = sigmaX,
                     sigmaY = sigmaY,
                     peakAlpha = GlowGroupAlpha * a * b / (2f * sigmaX * sigmaY) * intensity,
-                )
+                ) ?: return@drawBehind
                 // Cor: o gradiente vertical da elipse (topo da elipse ao fundo dela).
                 val s = saved().coerceIn(0f, 1f)
                 val c = sky()
                 val edgeFill = lerp(FeedFill, SavedFillEdge, s)
                 val middleFill = lerp(FeedFill, SavedFillMiddle, s)
-                val fill = Brush.verticalGradient(
-                    0f to c.top.copy(alpha = edgeFill),
-                    0.5f to c.top.copy(alpha = middleFill),
-                    1f to c.base.copy(alpha = edgeFill),
-                    startY = 0f,
-                    endY = b * 2f,
+                val fill = LinearGradient(
+                    0f, 0f, 0f, b * 2f,
+                    intArrayOf(c.top.copy(alpha = edgeFill).toArgb(), c.top.copy(alpha = middleFill).toArgb(), c.base.copy(alpha = edgeFill).toArgb()),
+                    floatArrayOf(0f, 0.5f, 1f),
+                    Shader.TileMode.CLAMP,
                 )
-                drawRect(brush = fill, blendMode = BlendMode.SrcIn)
+                // A cor só onde está a mancha (era o drawRect em SrcIn): cor × m. No ComposeShader
+                // do Android, o primeiro é o destino e o segundo a fonte.
+                val glowShader = ComposeShader(mask, fill, android.graphics.BlendMode.SRC_IN)
                 // Noise do Figma (Cyclo-2: MONOTONE 2, #FCFCFE a 39 %), só dentro do brilho: a opacidade
-                // da elipse desfocada (a mancha vezes o preenchimento) recorta o grão. É textura:
-                // desligada com as "Advanced textures".
-                if (effects.textures) {
-                    drawFigmaNoise(noise.value) {
-                        drawGaussianGlow(
-                            color = Color.White,
-                            center = Offset(size.width / 2f, b),
-                            sigmaX = sigmaX,
-                            sigmaY = sigmaY,
-                            peakAlpha = GlowGroupAlpha * a * b / (2f * sigmaX * sigmaY) * intensity,
-                        )
-                        drawRect(brush = fill, blendMode = BlendMode.DstIn)
-                    }
+                // da elipse desfocada (a mancha vezes o preenchimento) recorta o grão, e o grão fica
+                // por cima da cor (era a camada de drawFigmaNoise). É textura: desligada com as
+                // "Advanced textures".
+                val shader = if (effects.textures && noiseShader != null) {
+                    val grain = ComposeShader(glowShader, noiseShader, android.graphics.BlendMode.SRC_IN)
+                    ComposeShader(glowShader, grain, android.graphics.BlendMode.SRC_OVER)
+                } else {
+                    glowShader
                 }
+                val framework = paint.asFrameworkPaint()
+                framework.shader = shader
+                drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, framework) }
+                framework.shader = null
             },
     )
 }

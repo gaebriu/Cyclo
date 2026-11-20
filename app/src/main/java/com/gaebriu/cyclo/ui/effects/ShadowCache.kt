@@ -78,6 +78,17 @@ class ShadowCache {
     }
 
     /**
+     * [shape] desfocada INTEIRA, a [color] (como [drawBlurredPath]), sem recorte: um brilho por baixo
+     * do vidro (a mancha roxa do new-update-group, Cyclo 3.2.1). [shape] tem de caber em
+     * [DrawScope.size] e só pode depender do tamanho (a imagem guardada não olha para o caminho).
+     */
+    fun drawBlurredShape(scope: DrawScope, shape: Path, cssBlurPx: Float, color: Color) = with(scope) {
+        if (color.alpha <= 0f) return
+        prepare(this, shape, cssBlurPx, inner = false, offset = Offset.Zero)
+        drawMask(this, color, Offset.Zero)
+    }
+
+    /**
      * A sombra interior de [shape]: o que fica fora da forma, deslocado [offset] e desfocado, visto
      * por dentro (como [drawInnerShadow]). [blendMode]: beta-3.2, as sombras interiores em
      * Luminosity do vidro (navigation-bar, mini-menu).

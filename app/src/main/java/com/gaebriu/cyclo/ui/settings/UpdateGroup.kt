@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,7 +25,7 @@ import com.gaebriu.cyclo.ui.components.CycloButtonSize
 import com.gaebriu.cyclo.ui.components.CycloCircleButton
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
 import com.gaebriu.cyclo.ui.components.cycloCard
-import com.gaebriu.cyclo.ui.effects.drawBlurredPath
+import com.gaebriu.cyclo.ui.effects.ShadowCache
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloType
@@ -68,6 +69,9 @@ fun UpdateGroup(
 ) {
     val title = stringResource(R.string.update_title, update.versionLabel)
     val subtitle = stringResource(R.string.update_subtitle)
+    // Cyclo 3.2.1: a mancha desfoca-se uma vez por tamanho (ver ShadowCache), não a cada fotograma
+    // do scroll das definições (o cartão lê o que tem por trás e redesenha-se).
+    val hazeCache = remember { ShadowCache() }
 
     Box(
         modifier = modifier
@@ -79,7 +83,7 @@ fun UpdateGroup(
                     val haze = Path().apply {
                         addSmoothRoundRect(GroupPadding.toPx(), 0f, size.width - GroupPadding.toPx(), 33.dp.toPx(), 16.dp.toPx())
                     }
-                    drawBlurredPath(haze, HazeColor, 39.dp.toPx())
+                    hazeCache.drawBlurredShape(this, haze, 39.dp.toPx(), HazeColor)
                 },
             ),
     ) {

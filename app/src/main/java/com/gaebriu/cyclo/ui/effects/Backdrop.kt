@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
@@ -27,7 +28,9 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
 import kotlin.math.ceil
 
@@ -101,8 +104,40 @@ fun Modifier.backdropSource(layer: BackdropLayer): Modifier = this
 
 /** Onde está uma superfície que desenha o fundo, e a camada do desfoque dela. */
 @Stable
-class BackdropSampler internal constructor(internal val blurLayer: GraphicsLayer) {
+class BackdropSampler internal constructor(internal val blurLayer: GraphicsLayer, private val copyLayer: GraphicsLayer) {
     internal var coordinates: LayoutCoordinates? = null
+
+    // A cópia sem desfoque (cartões, Cyclo 3.2.1): o fundo que leva e como gravá-la de novo sem o cartão.
+    private var copyBackdrop: List<BackdropLayer>? = null
+    private var copyDensity: Density? = null
+    private var copyDirection = LayoutDirection.Ltr
+    private var copySize = IntSize.Zero
+
+    /**
+     * O fundo sem desfoque, numa camada própria ([copyLayer]) que o cartão desenha (Cyclo 3.2.1).
+     * Antes desenhava-se no próprio cartão: cada mudança de lugar em relação ao fundo (cada
+     * fotograma do scroll, do deslize das páginas e da entrada) voltava a gravar o cartão e tudo o
+     * que ele tem dentro (textos, opções, medidores). Agora só se grava de novo a cópia
+     * ([moveCopy]), que são poucas instruções.
+     */
+    internal fun drawCopy(scope: DrawScope, backdrop: Backdrop, self: LayoutCoordinates) = with(scope) {
+        copyBackdrop = backdrop.layers
+        copyDensity = Density(density, fontScale)
+        copyDirection = layoutDirection
+        copySize = IntSize(ceil(size.width).toInt().coerceAtLeast(1), ceil(size.height).toInt().coerceAtLeast(1))
+        // Gravada aqui, as versões das fontes são lidas pelo desenho do cartão: quando uma fonte
+        // muda, o cartão volta a desenhar-se (como antes).
+        copyLayer.record(copySize) { drawLayers(backdrop, self) }
+        drawLayer(copyLayer)
+    }
+
+    /** A superfície mexeu-se em relação a [backdrop]: grava de novo só a cópia. false = não há cópia. */
+    internal fun moveCopy(backdrop: Backdrop, self: LayoutCoordinates): Boolean {
+        val density = copyDensity ?: return false
+        if (copyBackdrop != backdrop.layers) return false
+        copyLayer.record(density, copyDirection, copySize) { drawLayers(backdrop, self) }
+        return true
+    }
 
     /** Muda quando a superfície se move (ex.: com o scroll), para voltar a recortar o fundo. */
     internal var moves by mutableIntStateOf(0)
@@ -138,7 +173,8 @@ class BackdropSampler internal constructor(internal val blurLayer: GraphicsLayer
 @Composable
 fun rememberBackdropSampler(): BackdropSampler {
     val layer = rememberGraphicsLayer()
-    return remember(layer) { BackdropSampler(layer) }
+    val copy = rememberGraphicsLayer()
+    return remember(layer, copy) { BackdropSampler(layer, copy) }
 }
 
 /**
@@ -153,7 +189,11 @@ fun rememberBackdropSampler(): BackdropSampler {
  */
 fun Modifier.backdropSampler(sampler: BackdropSampler, backdrop: Backdrop? = null): Modifier = onGloballyPositioned {
     sampler.coordinates = it
-    if (backdrop == null || sampler.movedAgainst(backdrop, it)) sampler.moves++
+    if (backdrop == null) {
+        sampler.moves++
+    } else if (sampler.movedAgainst(backdrop, it) && !sampler.moveCopy(backdrop, it)) {
+        sampler.moves++
+    }
 }
 
 /**
@@ -168,25 +208,62 @@ fun DrawScope.drawBackdrop(sampler: BackdropSampler, backdrop: Backdrop, clip: P
     val sigma = if (figmaBlur <= 0f) 0f else figmaBlurPx(figmaBlur)
     clipPath(clip) {
         if (sigma <= 0f) {
-            drawLayers(backdrop, self)
+            sampler.drawCopy(this, backdrop, self)
         } else {
-            val margin = ceil(sigma * 3f)
-            val layer = sampler.blurLayer
-            if (sampler.sigma != sigma) {
-                layer.renderEffect = BlurEffect(sigma, sigma, TileMode.Clamp)
-                sampler.sigma = sigma
-            }
-            val recordSize = IntSize(
-                (size.width + margin * 2f).toInt().coerceAtLeast(1),
-                (size.height + margin * 2f).toInt().coerceAtLeast(1),
-            )
-            layer.record(recordSize) {
-                translate(margin, margin) { drawLayers(backdrop, self) }
-            }
-            translate(-margin, -margin) { drawLayer(layer) }
+            drawBlurredCopy(sampler, sigma) { drawLayers(backdrop, self) }
         }
     }
 }
+
+/**
+ * O que [content] desenha à volta desta superfície, desfocado com o raio [blurRadius] (o valor do
+ * [BlurEffect]), na camada do [sampler].
+ *
+ * Cyclo 3.2.1: o BlurEffect recebe um raio, e o desvio-padrão verdadeiro é 0,57735 × raio + 0,5
+ * (ver figmaBlurRadiusExact). A margem era 3 × raio, ~1,7× mais do que os 3 desvios-padrão que a
+ * borda precisa; agora é 3 desvios-padrão. E a cópia grava-se a uma escala menor (como as faixas
+ * de desfoque progressivo): um desfoque largo não tem detalhe fino, e com o desvio-padrão a pelo
+ * menos [BlurMinSigmaPx] px na imagem pequena, ampliar com filtro bilinear não se distingue. O
+ * raio dado ao desfoque é o que dá o MESMO desvio-padrão depois de ampliado. O recorte pela forma
+ * continua no tamanho real, nítido. Na barra de navegação eram ~384 mil píxeis gravados e
+ * desfocados por fotograma; agora são ~15 mil.
+ */
+private inline fun DrawScope.drawBlurredCopy(
+    sampler: BackdropSampler,
+    blurRadius: Float,
+    base: Color? = null,
+    crossinline content: DrawScope.() -> Unit,
+) {
+    val sigma = BlurSigmaScale * blurRadius + 0.5f
+    val margin = ceil(sigma * 3f)
+    val s = (BlurMinSigmaPx / sigma).coerceIn(BlurMinScale, 1f)
+    val smallRadius = ((sigma * s - 0.5f) / BlurSigmaScale).coerceAtLeast(0f)
+    val layer = sampler.blurLayer
+    if (sampler.sigma != smallRadius) {
+        layer.renderEffect = BlurEffect(smallRadius, smallRadius, TileMode.Clamp)
+        sampler.sigma = smallRadius
+    }
+    val recordSize = IntSize(
+        ceil((size.width + margin * 2f) * s).toInt().coerceAtLeast(1),
+        ceil((size.height + margin * 2f) * s).toInt().coerceAtLeast(1),
+    )
+    layer.record(recordSize) {
+        if (base != null) drawRect(base)
+        scale(s, s, pivot = Offset.Zero) { translate(margin, margin) { content() } }
+    }
+    translate(-margin, -margin) {
+        scale(1f / s, 1f / s, pivot = Offset.Zero) { drawLayer(layer) }
+    }
+}
+
+/** A constante do Android para passar de raio a desvio-padrão (1 / √3, HWUI Blur.cpp). */
+private const val BlurSigmaScale = 0.57735f
+
+/** O desvio-padrão mínimo (px) do desfoque na cópia pequena (o mesmo das máscaras do ShadowCache). */
+private const val BlurMinSigmaPx = 6f
+
+/** A escala mínima da cópia. */
+private const val BlurMinScale = 0.25f
 
 /**
  * O fundo desfocado de uma superfície que tem de ser OPACA: [base] por baixo de tudo, as camadas
@@ -217,22 +294,8 @@ fun DrawScope.drawOpaqueBackdrop(
             if (self != null) drawLayers(backdrop, self)
             return@clipPath
         }
-        val layer = sampler.blurLayer
-        if (sampler.sigma != blurRadius) {
-            layer.renderEffect = BlurEffect(blurRadius, blurRadius, TileMode.Clamp)
-            sampler.sigma = blurRadius
-        }
         // A margem guarda o que fica à volta da forma, para a borda desfocar com o que lá está.
-        val margin = ceil(blurRadius * 3f)
-        val recordSize = IntSize(
-            (size.width + margin * 2f).toInt().coerceAtLeast(1),
-            (size.height + margin * 2f).toInt().coerceAtLeast(1),
-        )
-        layer.record(recordSize) {
-            drawRect(base)
-            translate(margin, margin) { drawLayers(backdrop, self) }
-        }
-        translate(-margin, -margin) { drawLayer(layer) }
+        drawBlurredCopy(sampler, blurRadius, base) { drawLayers(backdrop, self) }
     }
 }
 
