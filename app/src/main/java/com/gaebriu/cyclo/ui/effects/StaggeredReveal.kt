@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
@@ -46,6 +47,9 @@ class StaggeredReveal(count: Int, startRevealed: Boolean) {
     suspend fun snapToEnd() = items.forEach { it.snapTo(1f) }
 }
 
+/** O raio de desfoque (px) abaixo do qual a entrada já não desfoca nada que se veja. */
+private const val MinVisibleBlurPx = 0.5f
+
 /**
  * Aplica o bloco [index] de [reveal]. Sem animações, só fade; sem desfoques, sem desfoque.
  *
@@ -59,12 +63,14 @@ fun Modifier.staggeredReveal(reveal: StaggeredReveal, index: Int, rise: Dp = Cyc
         alpha = p
         if (effects.animationsEnabled) {
             translationY = (1f - p) * rise.toPx()
-            renderEffect = if (effects.blurEnabled && p < 1f) {
-                val sigma = figmaBlurPx(FigmaBlur.TextReveal) * (1f - p)
-                if (sigma > 0f) BlurEffect(sigma, sigma, TileMode.Decal) else null
-            } else {
-                null
-            }
+            val sigma = if (effects.blurEnabled) figmaBlurPx(FigmaBlur.TextReveal) * (1f - p) else 0f
+            // Cyclo 3.2.1: na cauda da mola (~40 % do tempo de cada bloco) o desfoque já não se vê
+            // (raio < [MinVisibleBlurPx]), mas mantinha o bloco numa camada fora do ecrã, desfocada
+            // de novo a cada fotograma. Sem ele, o bloco deixa a camada: a opacidade que falta
+            // aplica-se a cada desenho (como nas páginas, ver sideBySidePage).
+            val blurred = sigma >= MinVisibleBlurPx
+            renderEffect = if (blurred) BlurEffect(sigma, sigma, TileMode.Decal) else null
+            compositingStrategy = if (blurred) CompositingStrategy.Auto else CompositingStrategy.ModulateAlpha
         }
     }
 }

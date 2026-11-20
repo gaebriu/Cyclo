@@ -80,6 +80,7 @@ import com.gaebriu.cyclo.ui.effects.ScreenCrossfadeOverlay
 import com.gaebriu.cyclo.ui.effects.LocalScreenCrossfade
 import com.gaebriu.cyclo.ui.effects.backdropSource
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.withTimeoutOrNull
 import com.gaebriu.cyclo.ui.effects.rememberBackdropLayer
 import com.gaebriu.cyclo.ui.settings.SettingsScreen
@@ -237,6 +238,10 @@ fun CycloApp(viewModel: CycloViewModel) {
     LaunchedEffect(feedVisible) {
         if (feedVisible && !revealPlayed) {
             revealPlayed = true
+            // Cyclo 3.2.1: o relógio da entrada só arranca depois de o Feed estar desenhado (dois
+            // fotogramas). O primeiro é o mais pesado (compor o Feed inteiro, preparar os efeitos):
+            // se a mola já estivesse a correr, saltava logo no início o tempo que ele demorou.
+            repeat(2) { withFrameNanos { } }
             // Uma só composição (Beta 2.2, como o "Hello!" e o brilho do Introduction 0): o brilho
             // nasce numa mola e os blocos só começam quando ele já vai a [FeedRevealGlowStart],
             // entrando sobre a luz a crescer. Antes eram dois relógios lançados juntos.

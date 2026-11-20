@@ -1,6 +1,7 @@
 ﻿package com.gaebriu.cyclo.ui.effects
 
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import kotlin.math.abs
@@ -20,6 +21,12 @@ import kotlin.math.abs
  * Só lê a posição na camada: arrastar ou animar a posição não recompõe nada.
  */
 fun Modifier.sideBySidePage(index: Int, position: () -> Float, animationsEnabled: Boolean): Modifier = graphicsLayer {
+    // Cyclo 3.2.1: o alpha aplica-se a cada desenho, sem camada. Com a estratégia Auto, uma página
+    // a meio do deslize (alpha < 1) era desenhada inteira numa camada fora do ecrã do tamanho do
+    // ecrã, a cada fotograma, e eram duas (a que sai e a que entra). A base dos cartões é a cópia
+    // do que está por baixo (ver Backdrop.kt), por isso a diferença só se vê no conteúdo sobreposto
+    // dentro da mesma página, e só durante o deslize.
+    compositingStrategy = CompositingStrategy.ModulateAlpha
     val local = position() - index
     val away = abs(local).coerceIn(0f, 1f)
     if (animationsEnabled) {

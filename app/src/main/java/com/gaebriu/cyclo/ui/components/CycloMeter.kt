@@ -396,13 +396,13 @@ private fun MeterTrack(steps: Int, ballInset: Float, luminosity: BlendMode, glow
                 onDrawBehind {
                     // O brilho de cima (0, -2, desfoque 9), só fora da forma ("show behind" desligado).
                     clipPath(pill, ClipOp.Difference) {
-                        drawBlurredPath(lifted, CycloColors.MeterWhite.copy(alpha = 0.24f), 9.dp.toPx())
+                        drawBlurredPath(lifted, CycloColors.MeterWhite.copy(alpha = 0.15f), 9.dp.toPx())
                     }
                     drawPath(pill, gradient)
                 }
             },
     )
-    // As sombras interiores: gravadas a 39 % e mostradas de 15 % (parado) a 39 % (a premir).
+    // As sombras interiores: gravadas a 24 % e mostradas de 15 % (parado) a 24 % (a premir).
     Spacer(
         modifier = Modifier
             .fillMaxSize()
@@ -439,7 +439,7 @@ private fun MeterTrack(steps: Int, ballInset: Float, luminosity: BlendMode, glow
 private fun pillPath(size: Size): Path =
     Path().apply { addRoundRect(RoundRect(Rect(Offset.Zero, size), CornerRadius(size.height / 2f))) }
 
-/** As duas sombras interiores do fundo (0, 4 e 0, -4, desfoque 6, #F6F4FF a 39 %), numa imagem. */
+/** As duas sombras interiores do fundo (0, 4 e 0, -4, desfoque 6, #F6F4FF a 24 %), numa imagem. */
 private fun meterGlowSprite(density: Density, size: Size): ImageBitmap {
     val image = ImageBitmap(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1))
     val area = Size(image.width.toFloat(), image.height.toFloat())
@@ -519,9 +519,9 @@ private const val PendingMeterMs = 2_000L
 /** O gradiente do fundo a 63 %. */
 private const val MoodGradientAlpha = 0.63f
 
-/** As sombras interiores do fundo: 15 % parado, 39 % enquanto o dedo prime ou arrasta a bola. */
+/** As sombras interiores do fundo: 15 % parado, 24 % enquanto o dedo prime ou arrasta a bola. */
 private const val TrackShadowRest = 0.15f
-private const val TrackShadowLit = 0.39f
+private const val TrackShadowLit = 0.24f
 
 /** A bola (ball-b) dos medidores: 16 dp desde a beta-3.0 (era 15). */
 private const val BallDiameterDp = 16f

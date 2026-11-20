@@ -60,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -69,10 +70,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
@@ -124,8 +122,7 @@ import com.gaebriu.cyclo.ui.components.drawCycloBall
 import com.gaebriu.cyclo.ui.components.drawInsideBorder
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.StaggeredReveal
-import com.gaebriu.cyclo.ui.effects.drawBlurredPath
-import com.gaebriu.cyclo.ui.effects.drawInnerShadow
+import com.gaebriu.cyclo.ui.effects.ShadowCache
 import com.gaebriu.cyclo.ui.effects.staggeredReveal
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
@@ -942,6 +939,11 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
         },
         label = "sleepFactorCheck",
     )
+    // Cyclo 3.2.1: o brilho e a sombra interior desfocam-se uma vez por tamanho (ver ShadowCache).
+    // Antes desfocavam-se no CPU a cada desenho, e a opção redesenha-se a cada fotograma do scroll,
+    // do deslize das páginas e da entrada (o cartão lê o que tem por trás).
+    val glow = remember { ShadowCache() }
+    val inner = remember { ShadowCache() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -955,22 +957,20 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
                 role = Role.Checkbox,
             )
             .semantics { toggleableState = ToggleableState(isSelected) }
-            .drawBehind {
+            .drawWithCache {
                 val radius = CycloDimens.InputRadius.toPx()
-                val blend = effects.luminosity
                 val shape = smoothRoundRectPath(size.width, size.height, radius)
-                if (on > 0f) {
-                    // Brilho de cima, só fora da forma.
-                    clipPath(shape, clipOp = ClipOp.Difference) {
-                        translate(top = -6.dp.toPx()) {
-                            drawBlurredPath(shape, CycloColors.TextSecondary.copy(alpha = 0.15f * on), 9.dp.toPx())
-                        }
+                onDrawBehind {
+                    val blend = effects.luminosity
+                    if (on > 0f) {
+                        // Brilho de cima, só fora da forma.
+                        glow.drawDropShadow(this, shape, 9.dp.toPx(), CycloColors.TextSecondary.copy(alpha = 0.15f * on), Offset(0f, -6.dp.toPx()))
                     }
-                }
-                drawPath(shape, CycloColors.TextSecondary.copy(alpha = 0.15f), blendMode = blend)
-                if (on > 0f) {
-                    drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f * on), Offset(0f, 6.dp.toPx()), 15.dp.toPx())
-                    drawInsideBorder(radius, Brush.linearGradient(List(2) { CycloColors.TextSecondary.copy(alpha = 0.24f * on) }))
+                    drawPath(shape, CycloColors.TextSecondary.copy(alpha = 0.15f), blendMode = blend)
+                    if (on > 0f) {
+                        inner.drawInnerShadow(this, shape, 15.dp.toPx(), Color.Black.copy(alpha = 0.15f * on), Offset(0f, 6.dp.toPx()))
+                        drawInsideBorder(radius, Brush.linearGradient(List(2) { CycloColors.TextSecondary.copy(alpha = 0.24f * on) }))
+                    }
                 }
             }
             .padding(horizontal = CardPadding),
