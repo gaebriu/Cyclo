@@ -32,8 +32,11 @@ import java.time.Instant
  *
  * Só nestes momentos (pedidos ou aprovados pelo utilizador; outros só com a aprovação dele):
  * 1. A cada [Interval] (um alarme inexato, sem acordar o telemóvel; ver [schedule]).
- * 2. Quando o utilizador muda uma rotina (criar, editar, ligar/desligar, apagar, desfazer o apagar;
- *    também o visto do widget): [routinesChanged], com uma pequena espera para juntar mudanças seguidas.
+ * 2. Quando os dados mudam ([dataChanged], chamado pelo [com.gaebriu.cyclo.reminder.CycloSync] a cada
+ *    mudança guardada), com uma pequena espera para juntar mudanças seguidas. Até à Cyclo 3.2.1 eram só
+ *    as rotinas: a cafeína, a água, o sono e as emoções só entravam na cópia de 12 em 12 horas (ou
+ *    nunca, se o alarme se atrasasse), e uma desinstalação perdia esses registos (Cyclo 3.2.2,
+ *    aprovado pelo utilizador). O visto do widget faz a cópia logo ([backUp]), dentro do recetor.
  * 3. Na primeira abertura depois de uma atualização da app ([appUpdated]): os dados como ficaram da
  *    versão anterior, antes de qualquer mudança feita na nova.
  *
@@ -53,7 +56,7 @@ object AutoBackup {
     /** De quanto em quanto tempo se faz a cópia automática. */
     val Interval: Duration = Duration.ofHours(12)
 
-    /** Mudanças seguidas nas rotinas juntam-se numa só cópia, esta espera depois da última. */
+    /** Mudanças seguidas nos dados juntam-se numa só cópia, esta espera depois da última. */
     private const val SettleMs = 2_000L
 
     private const val Prefs = "auto_backup"
@@ -73,8 +76,11 @@ object AutoBackup {
     private val lock = Mutex()
     private var pendingChange: Job? = null
 
-    /** Uma rotina mudou (só depois de a escrita correr bem). */
-    fun routinesChanged(context: Context) {
+    /**
+     * Os dados guardados mudaram (rotinas, registos, perfil de sono...). Com o mesmo conteúdo da última
+     * cópia (o resumo), não se escreve nada; desligada, não faz nada.
+     */
+    fun dataChanged(context: Context) {
         val app = context.applicationContext
         pendingChange?.cancel()
         pendingChange = scope.launch {

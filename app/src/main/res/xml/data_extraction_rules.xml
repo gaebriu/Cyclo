@@ -1,19 +1,34 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Cyclo 3.2.2: nada dos dados da app sai do aparelho pelo backup do Android (Google Drive) nem pela
+   transferência entre aparelhos. Antes, com allowBackup="true" e regras vazias, o Android guardava
+   o DataStore inteiro e repunha-o sozinho ao reinstalar: os dados "sobreviviam" à desinstalação.
+   A única cópia que fica depois de desinstalar é a do utilizador (Download/Cyclo, ver
+   data/AutoBackup.kt, ou um "Export my data"), e só entra quando ele a repõe.
+   allowBackup="false" já desliga o backup na nuvem; a transferência entre aparelhos (Android 12+)
+   só se desliga com estas exclusões.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </device-transfer>
-    -->
 </data-extraction-rules>

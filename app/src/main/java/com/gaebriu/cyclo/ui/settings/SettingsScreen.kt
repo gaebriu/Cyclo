@@ -299,7 +299,7 @@ fun SettingsScreen(
     // posição contínua das duas. Limiar fino, como as páginas (sem paragens antes do fim).
     var page by rememberSaveable { mutableIntStateOf(-1) }
     var shownPage by remember { mutableIntStateOf(page) }
-    val slide = remember { Animatable(if (page >= 0) 1f else 0f, visibilityThreshold = 0.0005f) }
+    val slide = remember { Animatable(if (page >= 0) 1f else 0f, visibilityThreshold = CycloMotion.PageThreshold) }
     var dragging by remember { mutableStateOf(false) }
     val dragSlide = remember { mutableFloatStateOf(0f) }
     val slideNow: () -> Float = { if (dragging) dragSlide.floatValue else slide.value }

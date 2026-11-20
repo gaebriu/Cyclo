@@ -22,15 +22,14 @@ import java.time.format.DateTimeParseException
  *     "onboarded": true,
  *     "routines": [ { "id", "name", "wakeHour", "wakeMinute", "repeat", "daysMask", "active", "anchor" } ],
  *     "dailyLog": { "date", "caffeine", "factors": [], "mood", "caffeineTimes": [ms], "factorTimes": { nome: ms } } | null,
- *     "settings": { "age": 30 | null, "chronotype", "fallAsleep", "bedtimeReminder",
+ *     "settings": { "age": 30 | null, "chronotype", "fallAsleep",
  *                   "feedOrder": ["Caffeine", "SleepFactors", "Feeling"] }
  *   }
  * }
  * ```
  * "caffeineTimes" e "factorTimes" (as horas dos registos, para o [BedtimeEngine]) vieram depois e
  * são opcionais: as versões anteriores ignoram-nos e as cópias sem eles continuam válidas, por isso
- * a versão do formato não mudou. O mesmo para "feedOrder" (a ordem dos blocos do Feed, alpha-0.7.3)
- * e para "settings.logSleepReminder" (o lembrete "Log sleep", Beta 2.3: a Beta 2.2 ignora-o).
+ * a versão do formato não mudou. O mesmo para "feedOrder" (a ordem dos blocos do Feed, alpha-0.7.3).
  * Os enums vão pelo nome, como no DataStore. Ao mudar o formato, sobe-se [BackupFormatVersion] e
  * [parseBackup] passa a saber ler as versões antigas.
  *
@@ -47,9 +46,16 @@ import java.time.format.DateTimeParseException
  * É opcional (sem ele, 0), por isso a versão do formato não mudou: as versões anteriores ignoram-no
  * e as cópias delas continuam válidas.
  *
- * Cyclo 3.1: cada registo pode trazer "waterTimes" (as horas dos copos, como "caffeineTimes") e as
- * definições "hydrationReminder". Opcionais, por isso a versão continua a 2. "Automatic backups" é
- * uma preferência do aparelho: fica de fora.
+ * Cyclo 3.1: cada registo pode trazer "waterTimes" (as horas dos copos, como "caffeineTimes"). Opcional,
+ * por isso a versão continua a 2. "Automatic backups" é uma preferência do aparelho: fica de fora.
+ *
+ * Cyclo 3.2.2 (decisão do utilizador): a cópia é UMA só, igual no "Export my data" e na cópia automática
+ * (o mesmo [buildBackupJson]): rotinas, perfil de sono (idade, cronótipo, tempo a adormecer), todos os
+ * registos (sono, cafeína com as horas, água com as horas, emoções, fatores, dias abertos, em
+ * "dailyLog" e "history") e a ordem dos blocos do Feed e dos cartões da Tracking. Os interruptores dos
+ * lembretes ("bedtimeReminder", "logSleepReminder", "hydrationReminder") deixaram de ir na cópia: as
+ * cópias antigas que os trazem continuam válidas e esses valores são ignorados ao repor (como
+ * "use24Hour"); os lembretes ficam como estão no aparelho.
  */
 const val BackupFormatVersion = 2
 private const val FormatName = "cyclo-backup"
@@ -64,12 +70,7 @@ data class BackupContents(
     val age: Int?,
     val chronotype: Chronotype?,
     val fallAsleep: FallAsleepTime?,
-    val bedtimeReminder: Boolean?,
     val exportedAt: Instant?,
-    /** O lembrete "Log sleep" (Beta 2.3; null = a cópia não o traz, fica o atual). */
-    val logSleepReminder: Boolean? = null,
-    /** O lembrete "Hydration" (Cyclo 3.1; null = a cópia não o traz, fica o atual). */
-    val hydrationReminder: Boolean? = null,
     /** A ordem dos blocos do Feed (null = a cópia não a traz, fica a atual). */
     val feedOrder: List<FeedSection>? = null,
     /** A ordem dos cartões da Tracking (null = a cópia não a traz, fica a atual). */
@@ -98,9 +99,6 @@ fun buildBackupJson(data: CycloData, exportedAt: Instant, appVersion: String): S
         .put("age", data.age ?: JSONObject.NULL)
         .put("chronotype", data.chronotype.name)
         .put("fallAsleep", data.fallAsleep.name)
-        .put("bedtimeReminder", data.bedtimeReminder)
-        .put("logSleepReminder", data.logSleepReminder)
-        .put("hydrationReminder", data.hydrationReminder)
         .put("feedOrder", JSONArray(data.feedOrder.map { it.name }))
         .put("trackingOrder", JSONArray(data.trackingOrder.map { it.name }))
     val content = JSONObject()
@@ -166,9 +164,6 @@ fun parseBackup(text: String): BackupParseResult {
                 age = age,
                 chronotype = enumOrNull<Chronotype>(settings.optString("chronotype")),
                 fallAsleep = enumOrNull<FallAsleepTime>(settings.optString("fallAsleep")),
-                bedtimeReminder = if (settings.has("bedtimeReminder")) settings.getBoolean("bedtimeReminder") else null,
-                logSleepReminder = if (settings.has("logSleepReminder")) settings.getBoolean("logSleepReminder") else null,
-                hydrationReminder = if (settings.has("hydrationReminder")) settings.getBoolean("hydrationReminder") else null,
                 exportedAt = runCatching { Instant.parse(root.getString("exportedAt")) }.getOrNull(),
                 // Nomes que esta versão não conhece são ignorados; os que faltam vão para o fim.
                 feedOrder = settings.optJSONArray("feedOrder")?.let { array ->

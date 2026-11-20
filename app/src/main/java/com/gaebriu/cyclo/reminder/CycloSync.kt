@@ -50,6 +50,9 @@ object CycloSync {
                     // (redesenhar os widgets competia com ele pelo CPU no arranque).
                     delay(if (first) StartupDelayMs else if (gap < BurstGapMs) BurstSettleMs else SettleMs)
                     apply(app, data, animateWidgets = !first)
+                    // Cyclo 3.2.2: qualquer mudança guardada vai para a cópia automática (não no apply(),
+                    // que os alarmes também chamam sem nada ter mudado).
+                    if (data.autoBackup) AutoBackup.dataChanged(app)
                     first = false
                 }
         }

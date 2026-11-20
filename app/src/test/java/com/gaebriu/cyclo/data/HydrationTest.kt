@@ -161,23 +161,17 @@ class HydrationTest {
             onboarded = true,
             routines = emptyList(),
             dailyLog = DailyLog(day, opened = true, water = 500, waterTimes = times),
-            hydrationReminder = true,
         )
         val json = buildBackupJson(data, java.time.Instant.parse("2026-11-18T20:00:00Z"), "release-3.1")
         val contents = (parseBackup(json) as BackupParseResult.Valid).contents
         assertEquals(times, contents.dailyLog!!.waterTimes)
-        assertEquals(true, contents.hydrationReminder)
         // Mais horas do que copos: ficam as mais recentes (uma por copo).
         val extra = JSONObject().put("date", "2026-11-18").put("water", 250).put("waterTimes", org.json.JSONArray(times))
         assertEquals(listOf(times.last()), parseWaterTimes(extra, 250))
-        // Cópias antigas (sem horas nem lembrete): valem, sem horas e com o lembrete como está.
-        val old = JSONObject(json).apply {
-            getJSONObject("data").getJSONObject("dailyLog").remove("waterTimes")
-            getJSONObject("data").getJSONObject("settings").remove("hydrationReminder")
-        }.toString()
+        // Cópias antigas (sem horas): valem, sem horas.
+        val old = JSONObject(json).apply { getJSONObject("data").getJSONObject("dailyLog").remove("waterTimes") }.toString()
         val oldContents = (parseBackup(old) as BackupParseResult.Valid).contents
         assertEquals(emptyList<Long>(), oldContents.dailyLog!!.waterTimes)
-        assertEquals(null, oldContents.hydrationReminder)
     }
 
     @Test
