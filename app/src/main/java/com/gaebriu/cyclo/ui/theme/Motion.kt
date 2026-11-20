@@ -49,6 +49,17 @@ object CycloMotion {
     val ScreenRiseSpring = CycloSprings.Sheet.float
 
     /**
+     * Onde as molas das páginas e dos ecrãs que sobem (o `cover` do CycloApp, as Introduction e o
+     * editor, o deslize das Settings, Feed ↔ Saved) dão o movimento por acabado, em fração de ecrã.
+     * Cyclo 3.2.2: com 0,0005 a mola parava a ~1,3 px do fim num ecrã de 2400 px, quando já só andava
+     * ~0,17 px por fotograma, e o último fotograma saltava esse 1,3 px (o "teletransporte" ao chegar ao
+     * topo; o mesmo mecanismo do 0,01 da Beta 2.2, só mais pequeno). Com este valor, o último salto fica
+     * abaixo de 0,25 px até em ecrãs de 3200 px: invisível. O movimento à vista não muda; só a cauda
+     * sub-píxel fica ~0,1 s mais longa. Ver RiseEndTest.
+     */
+    const val PageThreshold = 0.00006f
+
+    /**
      * Páginas (Feed / rotinas guardadas / Tracking, lado a lado; as Introduction e o editor,
      * empilhadas): quanto andam com o gesto de voltar completo (o resto faz a mola ao largar).
      */

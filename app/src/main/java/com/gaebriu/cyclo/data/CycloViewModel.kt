@@ -81,27 +81,23 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Uma rotina mudou e ficou guardada: a cópia automática (Cyclo 3.1, se estiver ligada). */
-    private fun routineSaved() = AutoBackup.routinesChanged(getApplication())
-
     /** [onboarding]: a rotina do tutorial, com os lembretes do Introduction 6 (null = uma rotina nova). */
     fun addRoutine(draft: RoutineDraft, onboarding: OnboardingReminders?, onSaved: () -> Unit, onFailed: () -> Unit) =
-        write({ onSaved(); routineSaved() }, onFailed) { repository.addRoutine(draft, onboarding, System.currentTimeMillis()) }
+        write(onSaved, onFailed) { repository.addRoutine(draft, onboarding, System.currentTimeMillis()) }
 
     fun updateRoutine(id: Long, draft: RoutineDraft, onSaved: () -> Unit, onFailed: () -> Unit) =
-        write({ onSaved(); routineSaved() }, onFailed) { repository.updateRoutine(id, draft, System.currentTimeMillis()) }
+        write(onSaved, onFailed) { repository.updateRoutine(id, draft, System.currentTimeMillis()) }
 
     fun setRoutineActive(id: Long, active: Boolean) =
-        write(::routineSaved) { repository.setRoutineActive(id, active, System.currentTimeMillis()) }
+        write { repository.setRoutineActive(id, active, System.currentTimeMillis()) }
 
     /** Apaga logo e mostra "Routine removed" com "Undo", que a volta a pôr no mesmo sítio. */
     fun deleteRoutine(routine: Routine) {
         val index = data.value?.routines?.indexOfFirst { it.id == routine.id } ?: 0
         write(
             onSuccess = {
-                routineSaved()
                 showMessage(string(R.string.routine_removed), string(R.string.undo)) {
-                    write(::routineSaved) { repository.restoreRoutine(routine, index) }
+                    write { repository.restoreRoutine(routine, index) }
                 }
             },
         ) { repository.deleteRoutine(routine.id) }

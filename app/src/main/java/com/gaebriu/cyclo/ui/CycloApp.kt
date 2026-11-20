@@ -168,8 +168,8 @@ fun CycloApp(viewModel: CycloViewModel) {
     var editorRoutineId by rememberSaveable { mutableLongStateOf(-1L) }
 
     // cover: 0 = nada por cima, 1 = o que está por cima tapa tudo.
-    // Limiar fino (Beta 2.2): com o de omissão (0,01) a mola parava ~24 px antes e saltava no fim.
-    val cover = remember { Animatable(if (overlayOpen) 1f else 0f, visibilityThreshold = 0.0005f) }
+    // Limiar fino (Beta 2.2; Cyclo 3.2.2, ver CycloMotion.PageThreshold): sem ele a mola parava antes e saltava no fim.
+    val cover = remember { Animatable(if (overlayOpen) 1f else 0f, visibilityThreshold = CycloMotion.PageThreshold) }
     // A velocidade com que o gesto de voltar largou o ecrã de cima (Beta 2.2): a mola continua dela.
     val coverRelease = remember { floatArrayOf(0f) }
     // Beta 3.1: o gesto de voltar a mover o ecrã de cima (o sistema fica com os toques, por isso a

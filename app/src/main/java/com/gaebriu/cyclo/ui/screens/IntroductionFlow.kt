@@ -99,8 +99,8 @@ private const val TutorialStepCount = 7
 /** Introduction 6 (Beta 2.3): os lembretes, só no tutorial. Passar dele guarda a rotina. */
 private const val NotificationsStep = 6
 
-/** O limiar de visibilidade da posição das páginas (fração de página, ~0,5 px). */
-private const val PageThreshold = 0.0005f
+/** O limiar de visibilidade da posição das páginas (ver [CycloMotion.PageThreshold]). */
+private const val PageThreshold = CycloMotion.PageThreshold
 
 /** Primeiro e último passo do editor de rotinas (Introduction 2 a 5). */
 private const val EditorFirstStep = 2

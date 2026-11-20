@@ -191,8 +191,8 @@ class CycloRepository(context: Context) {
      * Repõe uma cópia já validada ([parseBackup]), numa só escrita: ou entra tudo, ou nada.
      * Substitui as rotinas e o registo do dia; as definições que a cópia não traz ficam como estão.
      * O tutorial fica dado como feito (quem repõe já está dentro da app).
-     * As preferências do aparelho (formato das horas, língua, "Advanced textures", "Automatic backups")
-     * nunca mudam aqui.
+     * As preferências do aparelho (formato das horas, língua, "Advanced textures", "Automatic backups",
+     * os interruptores dos lembretes) nunca mudam aqui.
      */
     suspend fun restore(contents: BackupContents) {
         store.edit { prefs ->
@@ -203,9 +203,7 @@ class CycloRepository(context: Context) {
             contents.age?.let { prefs[AgeKey] = it }
             contents.chronotype?.let { prefs[ChronotypeKey] = it.name }
             contents.fallAsleep?.let { prefs[FallAsleepKey] = it.name }
-            contents.bedtimeReminder?.let { prefs[BedtimeReminderKey] = it }
-            contents.logSleepReminder?.let { prefs[LogSleepReminderKey] = it }
-            contents.hydrationReminder?.let { prefs[HydrationReminderKey] = it }
+            // Cyclo 3.2.2: os interruptores dos lembretes já não vêm na cópia (ficam os do aparelho).
             contents.feedOrder?.let { order -> prefs[FeedOrderKey] = normalizeFeedOrder(order).joinToString(",") { it.name } }
             contents.trackingOrder?.let { order -> prefs[TrackingOrderKey] = normalizeTrackingOrder(order).joinToString(",") { it.name } }
             // Cópias sem histórico (formato 1, antes da Beta 2.0) não apagam o que já há.

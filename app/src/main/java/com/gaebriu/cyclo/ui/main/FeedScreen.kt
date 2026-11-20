@@ -193,6 +193,8 @@ object FeedRevealItems {
 @Composable
 fun FeedScreen(
     now: LocalDateTime,
+    /** A saudação da fase do dia (ver [rememberDayPhase]); muda só nas fronteiras das faixas. */
+    @androidx.annotation.StringRes greeting: Int,
     routines: List<Routine>,
     dailyLog: DailyLog?,
     history: List<DailyLog>,
@@ -288,7 +290,7 @@ fun FeedScreen(
                 .padding(horizontal = CycloDimens.ScreenMargin)
                 .padding(top = FeedContentTop, bottom = bottomReserve),
         ) {
-            Greeting(now = now, reveal = reveal)
+            Greeting(greeting = greeting, now = now, reveal = reveal)
 
             // O log-sleep-card a 39 dp do header-greetings (o espaço abre e fecha com ele).
             SleepPrompt(
@@ -465,18 +467,11 @@ private fun TextStyle.withFeedShadow(): TextStyle {
 }
 
 @Composable
-private fun Greeting(now: LocalDateTime, reveal: StaggeredReveal) {
-    val greeting = stringResource(
-        when (now.hour) {
-            in 5..11 -> R.string.feed_greeting_morning
-            in 12..17 -> R.string.feed_greeting_afternoon
-            else -> R.string.feed_greeting_evening
-        },
-    )
+private fun Greeting(@androidx.annotation.StringRes greeting: Int, now: LocalDateTime, reveal: StaggeredReveal) {
     // header-small (Cyclo 3, beta-3.2): só a hora, no formato escolhido (antes "Friday, October 31 - 12:08").
     val date = now.format(LocalTimeFormat.current.formatter)
     BasicText(
-        text = greeting,
+        text = stringResource(greeting),
         style = CycloType.Greeting.withFeedShadow(),
         modifier = Modifier
             .staggeredReveal(reveal, FeedRevealItems.Greeting)

@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.Routine
+import com.gaebriu.cyclo.data.RoutineSearch
 import com.gaebriu.cyclo.ui.components.CycloIcon
 import com.gaebriu.cyclo.ui.components.RoutineNameInput
 import com.gaebriu.cyclo.ui.components.cycloCard
@@ -147,7 +148,7 @@ private const val SearchFinishDelayMs = 350L
  *   ligeiro overshoot, e os de baixo descem para lhe dar lugar.
  *
  * Com a pesquisa aberta ([searchOpen]), a caixa de pesquisa (search-box) aparece no topo da lista
- * e só ficam os cartões com o texto no nome. [onSearchFinished] avisa quando se acaba de escrever
+ * e só ficam as rotinas que respondem à pesquisa ([RoutineSearch]: nome, dias, hora, estado...). [onSearchFinished] avisa quando se acaba de escrever
  * (quem mostra decide se a caixa fecha); [onSearchEnter] avisa do Enter e diz se há resultados.
  *
  * Sem rotinas nenhumas, mostra o estado vazio do Figma (Saved routines (no routines), 255:40), que
@@ -195,9 +196,11 @@ fun SavedRoutinesScreen(
     val returning = remember { ReturningCards() }
     val entering = remember(routines) { returning.update(routines) }
     val filtering = searchOpen && query.isNotBlank()
-    val visible = remember(routines, query, searchOpen) {
-        val q = query.trim()
-        if (!filtering) routines else routines.filter { it.name.contains(q, ignoreCase = true) }
+    // Cyclo 3.2.2: a pesquisa (RoutineSearch, no aparelho) prepara os nomes uma vez por lista de rotinas;
+    // cada tecla só lê a pesquisa e percorre as rotinas uma vez (os resultados vêm pela relevância).
+    val routineSearch = remember(routines) { RoutineSearch(routines) }
+    val visible = remember(routineSearch, query, searchOpen) {
+        if (!filtering) routines else routineSearch.find(query)
     }
     val shatter = remember { ShatterState() }
     val overlayCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }

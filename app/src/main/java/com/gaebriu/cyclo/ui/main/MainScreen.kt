@@ -171,7 +171,7 @@ fun MainScreen(
     // "Log sleep" leva ao Feed, onde está o registo do sono desde a Cyclo 3.1.
     var selected by rememberSaveable { mutableIntStateOf(FeedPage) }
     // Limiar fino (Beta 2.2): com o de omissão (0,01 de página) a mola parava ~10 px antes e saltava.
-    val page = remember { Animatable(selected.toFloat(), visibilityThreshold = 0.0005f) }
+    val page = remember { Animatable(selected.toFloat(), visibilityThreshold = CycloMotion.PageThreshold) }
     // Enquanto o dedo arrasta, a posição está aqui (sem corrotinas a cada movimento).
     var dragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
@@ -214,9 +214,12 @@ fun MainScreen(
     val gestureInsets = WindowInsets.systemGestures
     val layoutDirection = LocalLayoutDirection.current
 
-    // Cores do brilho conforme a hora, com transição lenta quando a faixa horária muda.
+    // A hora ao minuto (o HH:mm e as contas do Feed) e a fase do dia (o brilho e a saudação): a fase
+    // só muda nas fronteiras das faixas, sem consultar o relógio entretanto (ver rememberDayPhase).
     val now by rememberMinuteClock()
-    val sky = skyColorsAt(now.hour, now.minute)
+    val phase by rememberDayPhase()
+    val sky = phase.sky
+    // Transição lenta quando a faixa horária muda.
     val skyTop by animateColorAsState(sky.top, tween(CycloMotion.SkyChangeDurationMs), label = "skyTop")
     val skyBase by animateColorAsState(sky.base, tween(CycloMotion.SkyChangeDurationMs), label = "skyBase")
     // Ao passar de página o brilho encolhe e apaga-se um pouco a meio do caminho e volta a crescer
@@ -419,6 +422,7 @@ fun MainScreen(
                         saveable.SaveableStateProvider("feed") {
                             FeedScreen(
                                 now = now,
+                                greeting = phase.greeting,
                                 routines = data.routines,
                                 dailyLog = data.dailyLog,
                                 history = data.history,

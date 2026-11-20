@@ -23,12 +23,24 @@ class BackupTest {
             // Um café sem hora (registo antigo) e dois com hora.
             caffeineTimes = listOf(1_793_300_000_000L, 1_793_310_000_000L),
             factorTimes = mapOf(SleepFactor.LongLateNap to 1_793_320_000_000L),
+            // Cyclo 3.2.2: todos os campos dos registos na ida e volta (sono, água, aberto).
+            opened = true,
+            sleep = SleepQuality.Poor,
+            water = 750,
+            waterTimes = listOf(1_793_300_100_000L, 1_793_300_200_000L, 1_793_300_300_000L),
         ),
         age = 29,
         chronotype = Chronotype.NightOwl,
         fallAsleep = FallAsleepTime.ThirtyOrMore,
-        bedtimeReminder = false,
-        logSleepReminder = true,
+        history = listOf(
+            DailyLog(
+                LocalDate.of(2026, 10, 28), caffeine = 2, caffeineTimes = listOf(1_793_100_000_000L, 1_793_110_000_000L),
+                factors = setOf(SleepFactor.IntenseExercise, SleepFactor.HeavyLateMeal),
+                factorTimes = mapOf(SleepFactor.IntenseExercise to 1_793_120_000_000L, SleepFactor.HeavyLateMeal to 1_793_130_000_000L),
+                mood = 1f, opened = true, sleep = SleepQuality.ReallyWell, water = 2000, waterTimes = listOf(1_793_140_000_000L),
+            ),
+            DailyLog(LocalDate.of(2026, 10, 29), opened = false),
+        ),
         feedOrder = listOf(FeedSection.Feeling, FeedSection.Caffeine, FeedSection.Water, FeedSection.SleepFactors),
     )
     private val exportedAt = Instant.parse("2026-11-02T21:00:00Z")
@@ -41,13 +53,40 @@ class BackupTest {
         val c = valid(buildBackupJson(data, exportedAt, "alpha-0.8.0"))
         assertEquals(data.routines, c.routines)
         assertEquals(data.dailyLog, c.dailyLog) // o registo de outro dia também volta
+        assertEquals(data.history, c.history) // cada dia na sua data, com todos os campos
         assertEquals(29, c.age)
         assertEquals(Chronotype.NightOwl, c.chronotype)
         assertEquals(FallAsleepTime.ThirtyOrMore, c.fallAsleep)
-        assertEquals(false, c.bedtimeReminder)
-        assertEquals(true, c.logSleepReminder)
         assertEquals(exportedAt, c.exportedAt)
         assertEquals(data.feedOrder, c.feedOrder)
+        assertEquals(data.trackingOrder, c.trackingOrder)
+    }
+
+    /** Exportar o que se repôs dá a mesma cópia (fora a hora e a versão): nada se perde em vários ciclos. */
+    @Test
+    fun repeatedCyclesAreStable() {
+        fun restored(c: BackupContents) = data.copy(
+            routines = c.routines, dailyLog = c.dailyLog, history = c.history!!, age = c.age,
+            chronotype = c.chronotype!!, fallAsleep = c.fallAsleep!!, feedOrder = c.feedOrder!!, trackingOrder = c.trackingOrder!!,
+        )
+        val first = buildBackupJson(data, exportedAt, "x")
+        var json = first
+        repeat(3) { json = buildBackupJson(restored(valid(json)), exportedAt, "x") }
+        assertEquals(first, json)
+    }
+
+    @Test
+    fun reminderSwitchesAreNotExportedAndOldOnesAreIgnored() {
+        // Cyclo 3.2.2: os interruptores dos lembretes não vão na cópia.
+        val json = buildBackupJson(data.copy(bedtimeReminder = false, logSleepReminder = true, hydrationReminder = true), exportedAt, "x")
+        val settings = org.json.JSONObject(json).getJSONObject("data").getJSONObject("settings")
+        for (key in listOf("bedtimeReminder", "logSleepReminder", "hydrationReminder")) {
+            assertTrue("$key não pode ir na cópia", !settings.has(key))
+        }
+        // Uma cópia antiga que os traz continua válida; o resto entra.
+        val old = """{"format":"cyclo-backup","version":2,"data":{"routines":[],
+            "settings":{"age":40,"bedtimeReminder":true,"logSleepReminder":false,"hydrationReminder":true}}}"""
+        assertEquals(40, valid(old).age)
     }
 
     @Test
@@ -133,17 +172,6 @@ class BackupTest {
         assertTrue(c.routines.isEmpty())
         assertNull(c.age)
         assertNull(c.chronotype)
-        assertNull(c.bedtimeReminder)
-        assertNull(c.logSleepReminder)
-    }
-
-    @Test
-    fun backupWithoutLogSleepKeepsTheCurrentChoice() {
-        // Uma cópia da Beta 2.2 (formato 2, sem "logSleepReminder"): o lembrete fica como está.
-        val json = """{"format":"cyclo-backup","version":2,"data":{"routines":[],"settings":{"bedtimeReminder":true}}}"""
-        val c = valid(json)
-        assertEquals(true, c.bedtimeReminder)
-        assertNull(c.logSleepReminder)
     }
 
     @Test
