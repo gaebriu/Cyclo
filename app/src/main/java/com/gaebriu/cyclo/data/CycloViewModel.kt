@@ -210,16 +210,34 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
         _logSleepRequest.value = false
     }
 
-    private val _sleepPromptDismissed = MutableStateFlow(false)
+    // --- Prompts (Cyclo 3.2.3, ver data/Prompts.kt) ----------------------------------------------
+
+    private val prompts = PromptStore(application)
+
+    /** O que ficou guardado dos X dos prompts. */
+    val promptMemory: StateFlow<PromptMemory> = prompts.memory
+
+    /** O X de um prompt (as regras de cada um estão em [PromptRules]). */
+    fun dismissPrompt(prompt: CycloPrompt) {
+        if (prompt == CycloPrompt.NewUpdate) return
+        prompts.dismiss(prompt, logDay(), System.currentTimeMillis(), com.gaebriu.cyclo.BuildConfig.VERSION_CODE)
+    }
+
+    private val _updateDismissedTag = MutableStateFlow<String?>(null)
 
     /**
-     * O X do sleep-evaluation-prompt esconde-o até a app voltar a abrir. Vive no ViewModel: sobrevive
-     * a rodar o ecrã, mas não a fechar a app (o ViewModel acaba com a atividade).
+     * A tag da versão nova cujo new-update-group se fechou (Cyclo 3.2.3): só volta quando a app voltar
+     * a abrir. Vive no ViewModel: sobrevive a rodar o ecrã, mas não a fechar a app (acaba com a
+     * atividade). Até à 3.2.2 ficava 12 horas guardado.
      */
-    val sleepPromptDismissed: StateFlow<Boolean> = _sleepPromptDismissed.asStateFlow()
+    val updateDismissedTag: StateFlow<String?> = _updateDismissedTag.asStateFlow()
 
-    fun dismissSleepPrompt() {
-        _sleepPromptDismissed.value = true
+    /** O X do new-update-group: "We'll remind you later" com "Undo", que o volta a mostrar logo. */
+    fun dismissUpdate(tag: String) {
+        _updateDismissedTag.value = tag
+        showMessage(string(R.string.update_dismissed), actionLabel = string(R.string.undo)) {
+            if (_updateDismissedTag.value == tag) _updateDismissedTag.value = null
+        }
     }
 
     fun setUse24Hour(use24Hour: Boolean) = write { repository.setUse24Hour(use24Hour) }
@@ -283,10 +301,6 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
 
     /** O lançador não deixa fixar o widget a partir da app. */
     fun widgetPinUnsupported() = showMessage(string(R.string.widget_pin_unsupported))
-
-    /** O X do new-update-group: "Update dismissed" com "Undo", que o volta a mostrar logo. */
-    fun updateDismissed(undo: () -> Unit) =
-        showMessage(string(R.string.update_dismissed), actionLabel = string(R.string.undo), action = undo)
 
     /** Não há nada para abrir a página do GitHub. */
     fun gitHubOpenFailed() = showMessage(string(R.string.github_open_failed), isError = true)
@@ -400,6 +414,8 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
             val started = SystemClock.elapsedRealtime()
             val ok = try {
                 repository.restore(contents)
+                // Uma cópia com uma semana de progresso volta a tornar elegível o keep-your-progress-safe.
+                prompts.dataRestored(contents)
                 true
             } catch (e: CancellationException) {
                 throw e

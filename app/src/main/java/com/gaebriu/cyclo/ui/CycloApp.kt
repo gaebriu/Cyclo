@@ -22,6 +22,7 @@ import com.gaebriu.cyclo.data.sleepMeterStart
 import com.gaebriu.cyclo.ui.main.SleepLogSheet
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.FilePicker
+import com.gaebriu.cyclo.data.PromptRules
 import com.gaebriu.cyclo.reminder.BedtimeReminder
 import com.gaebriu.cyclo.reminder.CycloSync
 import com.gaebriu.cyclo.reminder.LogSleepReminder
@@ -392,10 +393,13 @@ fun CycloApp(viewModel: CycloViewModel) {
             onReorderRoutines = { ordered -> viewModel.reorderRoutines(ordered.map { it.id }) },
             onReorderFeed = viewModel::setFeedOrder,
             onLogSleep = { sleepSheetOpen = true },
-            onDismissSleepPrompt = viewModel::dismissSleepPrompt,
+            onDismissPrompt = viewModel::dismissPrompt,
+            // Como ligar o interruptor nas definições: pede a autorização que faltar.
+            onTurnOnBedtimeReminder = { toggleReminder(BedtimeReminder.ChannelId, false, viewModel::setBedtimeReminder) },
+            onTurnOnHydrationReminder = { toggleReminder(HydrationReminder.ChannelId, false, viewModel::setHydrationReminder) },
         )
     }
-    val sleepPromptDismissed by viewModel.sleepPromptDismissed.collectAsState()
+    val promptMemory by viewModel.promptMemory.collectAsState()
 
     // Tracking: o dia conta como "aberto" quando a app está à frente depois da hora de acordar de
     // hoje. Vê-se ao voltar à frente e a cada minuto enquanto se vê (a hora pode passar com a app
@@ -416,13 +420,17 @@ fun CycloApp(viewModel: CycloViewModel) {
     // O Feed só precisa de existir quando se vê (durante o tutorial está todo tapado).
     val showMain by remember { derivedStateOf { (overlay != OverlayTutorial && overlay != OverlayUpdated) || coverNow() < 1f } }
 
-    // O new-update-group das definições: a versão nova (se houver e não tiver sido dispensada há
-    // menos de 12 horas). O botão abre a página dela no GitHub, onde se descarrega (Cyclo 2.0).
+    // O new-update-group das definições: a versão nova (se houver e não tiver sido fechada nesta
+    // abertura da app, Cyclo 3.2.3). O botão abre a página dela no GitHub, onde se descarrega (Cyclo 2.0).
     val availableUpdate by CycloUpdates.available.collectAsState()
-    val dismissedUntil by CycloUpdates.dismissedUntil.collectAsState()
+    val updateDismissedTag by viewModel.updateDismissedTag.collectAsState()
     val updateUi = availableUpdate
-        ?.takeIf { System.currentTimeMillis() >= dismissedUntil }
+        ?.takeIf { it.tag != updateDismissedTag }
         ?.let { UpdateUi(it.tag, it.version.label(), hasApk = it.apkUrl != null) }
+    // Os prompts do topo das definições (o new-update-group e o keep-your-progress-safe).
+    val settingsPrompts = remember(updateUi != null, data, promptMemory) {
+        PromptRules.settings(updateUi != null, data, promptMemory, com.gaebriu.cyclo.BuildConfig.VERSION_CODE)
+    }
 
     // Tudo o que fica por baixo da barra de baixo (undo-action), que o desfoca.
     val screens = rememberBackdropLayer()
@@ -500,7 +508,9 @@ fun CycloApp(viewModel: CycloViewModel) {
                     actions = actions,
                     reveal = reveal,
                     glow = { glow.value },
-                    sleepPromptDismissed = sleepPromptDismissed,
+                    promptMemory = promptMemory,
+                    bedtimeReminderOn = reminderOn,
+                    hydrationReminderOn = hydrationOn,
                     trackingRequest = trackingRequest,
                 )
                 // Véu #010101 a 24 % quando o Feed está recuado.
@@ -609,10 +619,11 @@ fun CycloApp(viewModel: CycloViewModel) {
                                 if (!CycloUpdates.openReleasePage(context, update)) viewModel.gitHubOpenFailed()
                             }
                         },
-                        onUpdateDismiss = {
-                            CycloUpdates.dismiss(context)
-                            viewModel.updateDismissed { CycloUpdates.undoDismiss(context) }
-                        },
+                        onUpdateDismiss = { availableUpdate?.let { viewModel.dismissUpdate(it.tag) } },
+                        prompts = settingsPrompts,
+                        // "Turn on automatic backups": o mesmo do interruptor (Settings → Data).
+                        onBackupTurnOn = { viewModel.setAutoBackup(true) },
+                        onPromptDismiss = viewModel::dismissPrompt,
                     )
                 } else {
                     key(editorKey) {

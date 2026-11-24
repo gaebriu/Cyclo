@@ -203,8 +203,8 @@ private fun DayChip(day: Weekday, selected: Boolean, onToggle: () -> Unit) {
  * - preenchimento: #A3A2A7 a 24 % (desligado) ou #4A3C99 (ligado);
  * - sombra interior: preto a 15 %, (0, 6), desfoque 15;
  * - contorno de 1 dp por dentro (círculo de raio 19 com traço 1), em Luminosity: desligado, o
- *   gradiente vertical #313233 a 24 / 9 / 24 % (Cyclo 3.1, 178:92; antes #A3A2A7 a 24 %); ligado,
- *   #4A3C99 a 24 %. Pelo meio, um passa para o outro.
+ *   #A3A2A7 a 24 % (Cyclo 3.2.3, 178:92; na 3.1 e na 3.2 foi o gradiente vertical #313233 a
+ *   24 / 9 / 24 %); ligado, #4A3C99 a 24 %. Pelo meio, um passa para o outro.
  */
 private fun DrawScope.drawDay(progress: Float, blend: BlendMode) {
     val radius = size.minDimension / 2f
@@ -245,11 +245,7 @@ private val DescriptionStyle: TextStyle = CycloType.Body.copy(lineHeight = 18.sp
 // Cores do Figma (178:92 background-off, 178:117 background-on, letras 178:114 / 178:118).
 private val DayFillOff = CycloColors.TextSecondary.copy(alpha = 0.24f)
 private val DayFillOn = CycloColors.Accent
-private val DayStrokeOff = androidx.compose.ui.graphics.Brush.verticalGradient(
-    0f to CycloColors.GlassBorder.copy(alpha = 0.24f),
-    0.5f to CycloColors.GlassBorder.copy(alpha = 0.09f),
-    1f to CycloColors.GlassBorder.copy(alpha = 0.24f),
-)
+private val DayStrokeOff = androidx.compose.ui.graphics.SolidColor(CycloColors.TextSecondary.copy(alpha = 0.24f))
 private val DayStrokeOn = CycloColors.Accent.copy(alpha = 0.24f)
 private val DayLetterOff = CycloColors.TextPrimary.copy(alpha = 0.24f)
 private val DayShadow = Color.Black.copy(alpha = 0.15f)

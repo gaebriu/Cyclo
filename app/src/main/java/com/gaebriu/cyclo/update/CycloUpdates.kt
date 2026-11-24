@@ -59,9 +59,8 @@ data class AvailableUpdate(
  *   anteriores (`beta_enabled`, que já não se lê). [ReleaseSelection] continua a reconhecer os dois
  *   canais (uma beta instalada à mão pelo GitHub continua a receber as estáveis); daqui só sai a
  *   estável ([ReleaseSelection.Candidates.pick] sem as betas).
- * - Dispensar (o X) esconde o aviso durante [DismissMs] (guardado entre sessões); "Undo" na barra de
- *   baixo ([undoDismiss]) volta a mostrá-lo logo, sem nova verificação. Passado o intervalo, se a
- *   atualização continuar disponível, volta a aparecer.
+ * - Dispensar (o X) é do ecrã (Cyclo 3.2.3, CycloViewModel.dismissUpdate): esconde o aviso até a app
+ *   voltar a abrir. Até à 3.2.2 ficava 12 horas guardado aqui (`dismissed_at`, que se apaga ao ler).
  */
 object CycloUpdates {
     private const val Prefs = "updates"
@@ -80,11 +79,8 @@ object CycloUpdates {
      */
     private const val KeyLegacyBeta = "release_beta"
     private const val KeyLegacyCheckedBeta = "checked_beta"
-    private const val KeyDismissedAt = "dismissed_at"
+    private const val KeyLegacyDismissedAt = "dismissed_at"
     private const val KeyLegacyDismissedTag = "dismissed_tag"
-
-    /** Quanto tempo o aviso fica escondido depois de o dispensar. */
-    const val DismissMs = 12L * 60 * 60 * 1000
 
     private const val ConnectTimeoutMs = 10_000
     private const val ReadTimeoutMs = 20_000
@@ -96,11 +92,6 @@ object CycloUpdates {
 
     /** A atualização disponível (null = nenhuma, ou a instalada já é a mais recente). */
     val available: StateFlow<AvailableUpdate?> = _available.asStateFlow()
-
-    private val _dismissedUntil = MutableStateFlow(0L)
-
-    /** Até quando o aviso está dispensado (epoch ms). */
-    val dismissedUntil: StateFlow<Long> = _dismissedUntil.asStateFlow()
 
     private var loaded = false
 
@@ -114,15 +105,13 @@ object CycloUpdates {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull()
 
-    /** Lê o que ficou guardado (a última release vista e quando foi dispensada). */
+    /** Lê o que ficou guardado (a última release vista). */
     private fun load(context: Context) {
         if (loaded) return
         loaded = true
         val prefs = prefs(context)
         // O .apk que as versões anteriores (até à Beta 2.4) descarregavam para a cache já não serve.
         File(context.cacheDir, "updates").deleteRecursively()
-        val dismissedAt = prefs.getLong(KeyDismissedAt, 0L)
-        _dismissedUntil.value = if (dismissedAt > 0) dismissedAt + DismissMs else 0L
         // A estável guardada só vale para a versão instalada com que foi escolhida.
         val sameInstall = prefs.getString(KeyCheckedFor, null) == installedName(context)
         _available.value = prefs.getString(KeyStable, null)?.takeIf { sameInstall }?.let { decode(it) }
@@ -131,6 +120,7 @@ object CycloUpdates {
             .remove(KeyLegacyBeta)
             .remove(KeyLegacyCheckedBeta)
             .remove(KeyLegacyDismissedTag)
+            .remove(KeyLegacyDismissedAt)
             .apply()
     }
 
@@ -196,23 +186,6 @@ object CycloUpdates {
         } finally {
             connection.disconnect()
         }
-    }
-
-    /** O X do new-update-group: esconde o aviso durante 12 horas (guardado entre sessões). */
-    fun dismiss(context: Context) {
-        val now = System.currentTimeMillis()
-        prefs(context).edit()
-            .putLong(KeyDismissedAt, now)
-            .apply()
-        _dismissedUntil.value = now + DismissMs
-    }
-
-    /** "Undo" depois de dispensar: o aviso volta já, com a release que já se conhecia (sem verificar). */
-    fun undoDismiss(context: Context) {
-        prefs(context).edit()
-            .remove(KeyDismissedAt)
-            .apply()
-        _dismissedUntil.value = 0L
     }
 
     /** "dono/repositório" a partir do endereço do GitHub do projeto. */

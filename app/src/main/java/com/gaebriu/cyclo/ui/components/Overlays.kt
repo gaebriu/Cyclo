@@ -182,7 +182,7 @@ fun BottomSheetHost(
         if (!effects.animationsEnabled) {
             position.snapTo(target)
         } else {
-            val spring = if (visible) CycloSprings.SheetOpen.float else CycloSprings.SheetClose.float
+            val spring = if (visible) CycloSprings.SheetOpen.precise else CycloSprings.SheetClose.precise
             position.animateTo(target, spring, initialVelocity = velocity)
         }
     }
@@ -247,7 +247,7 @@ fun BottomSheetHost(
                             onDismiss()
                         } else {
                             launch {
-                                position.animateTo(0f, CycloSprings.SheetOpen.float, initialVelocity = velocity)
+                                position.animateTo(0f, CycloSprings.SheetOpen.precise, initialVelocity = velocity)
                             }
                         }
                     },

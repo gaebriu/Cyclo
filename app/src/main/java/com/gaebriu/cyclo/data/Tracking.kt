@@ -59,7 +59,8 @@ fun cycloDay(routines: List<Routine>, now: LocalDateTime, zone: ZoneId = ZoneId.
 
 /**
  * O prompt do sono (sleep-evaluation-prompt) aparece desde o início do dia (a hora de acordar dessa
- * manhã) até o sono de hoje estar registado; o X esconde-o até a app voltar a abrir ([dismissed]).
+ * manhã) até o sono de hoje estar registado; o X esconde-o até ao dia seguinte da Cyclo ([dismissed],
+ * ver [PromptRules.feedTop]; até à 3.2.2, só até a app voltar a abrir).
  */
 fun showsSleepPrompt(
     routines: List<Routine>,

@@ -9,7 +9,6 @@
     <string name="try_again">Tentar de novo</string>
     <string name="error_save_failed">Não conseguimos guardar as alterações</string>
     <string name="action_edit">Editar</string>
-    <string name="action_remove">Remover</string>
     <string name="action_add_widget">Adicionar como widget</string>
     <string name="routine_removed">Rotina removida</string>
 
@@ -61,7 +60,7 @@
     <!-- Rotinas guardadas -->
     <string name="saved_search_placeholder">O que procuras?</string>
     <string name="saved_empty_title">Ainda não há nada aqui</string>
-    <string name="saved_empty_text">Toca no + para criares a tua primeira rotina</string>
+    <string name="saved_empty_text">Toca em + para criares a tua primeira rotina</string>
     <string name="saved_state_on">Ligada</string>
     <string name="saved_state_off">Desligada</string>
     <string name="saved_delete">Apagar %1$s</string>
@@ -224,6 +223,16 @@
     <string name="sleep_prompt_text">Diz-nos como dormiste para manteres o teu sono no bom caminho</string>
     <string name="sleep_prompt_log">Registar sono</string>
     <string name="sleep_prompt_close">Fechar</string>
+    <!-- Prompts do Feed e das definições -->
+    <string name="prompt_never_miss_title">Nunca percas a hora de dormir</string>
+    <string name="prompt_never_miss_text">Recebe um lembrete antes de ires dormir, mesmo quando precisas</string>
+    <string name="prompt_water_title">Mantém a água a correr</string>
+    <string name="prompt_water_text">Mantém-te hidratado sem teres de pensar nisso</string>
+    <string name="prompt_turn_on_reminders">Ligar lembretes</string>
+    <string name="prompt_backup_title">Mantém o teu progresso seguro</string>
+    <string name="prompt_backup_text">Tudo o que registaste, seguro e pronto a restaurar</string>
+    <string name="prompt_backup_turn_on">Ligar cópias automáticas</string>
+    <string name="prompt_position">%1$d de %2$d</string>
     <!-- action-menu-log-sleep e o sleep-quality-meter -->
     <string name="sleep_sheet_title">Como dormiste esta noite?</string>
     <string name="sleep_sheet_done">Concluído</string>

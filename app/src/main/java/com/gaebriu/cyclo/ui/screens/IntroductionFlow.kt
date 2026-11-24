@@ -459,7 +459,7 @@ fun IntroductionFlow(
             guideIdle = true
         }
         // A demonstração a meio desce já (sem se sobrepor ao que o utilizador está a fazer).
-        if (peek.value != 0f && !dragging) scope.launch { peek.animateTo(0f, CycloSprings.Exit.float) }
+        if (peek.value != 0f && !dragging) scope.launch { peek.animateTo(0f, CycloSprings.Exit.precise) }
     }
     val keyboardOpen = rememberIsKeyboardOpen()
     val latestKeyboardOpen by rememberUpdatedState(keyboardOpen)
@@ -483,9 +483,9 @@ fun IntroductionFlow(
                 if (idleFor >= gap && settled()) break
                 delay((gap - idleFor).coerceAtLeast(GuideCheckMs))
             }
-            peek.animateTo(GuidePeek, CycloSprings.GuidePeekRise.float)
+            peek.animateTo(GuidePeek, CycloSprings.GuidePeekRise.precise)
             delay(GuidePeekHoldMs)
-            peek.animateTo(0f, CycloSprings.GuidePeekFall.float)
+            peek.animateTo(0f, CycloSprings.GuidePeekFall.precise)
             // O próximo intervalo conta a partir do fim desta.
             lastInteraction[0] = SystemClock.uptimeMillis()
         }
@@ -519,7 +519,7 @@ fun IntroductionFlow(
                     enter.stop()
                 }
                 // A demonstração a meio desce depressa (o dedo manda a partir daqui).
-                if (peek.value != 0f) scope.launch { peek.animateTo(0f, CycloSprings.Exit.float) }
+                if (peek.value != 0f) scope.launch { peek.animateTo(0f, CycloSprings.Exit.precise) }
                 return true
             }
 

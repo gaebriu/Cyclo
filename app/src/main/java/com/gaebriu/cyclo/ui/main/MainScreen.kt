@@ -48,6 +48,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.CycloData
+import com.gaebriu.cyclo.data.CycloPrompt
+import com.gaebriu.cyclo.data.PromptMemory
 import com.gaebriu.cyclo.data.FeedSection
 import com.gaebriu.cyclo.data.TrackingSection
 import com.gaebriu.cyclo.data.Routine
@@ -99,10 +101,14 @@ class MainActions(
     val onReorderRoutines: (List<Routine>) -> Unit,
     /** Nova ordem dos blocos do Feed. */
     val onReorderFeed: (List<FeedSection>) -> Unit,
-    /** "Log sleep" do sleep-evaluation-prompt: abre o action-menu-log-sleep. */
+    /** "Log sleep" do sleep-evaluation-prompt e do action-menu (w/ log sleep): abre o action-menu-log-sleep. */
     val onLogSleep: () -> Unit,
-    /** O X do sleep-evaluation-prompt (esconde-o até a app voltar a abrir). */
-    val onDismissSleepPrompt: () -> Unit,
+    /** O X de um prompt do Feed (Cyclo 3.2.3, ver [com.gaebriu.cyclo.data.PromptRules]). */
+    val onDismissPrompt: (CycloPrompt) -> Unit,
+    /** "Turn on reminders" do never-miss-bedtime: liga o lembrete da hora de dormir. */
+    val onTurnOnBedtimeReminder: () -> Unit,
+    /** "Turn on reminders" do keep-the-water-flowing: liga o lembrete da água. */
+    val onTurnOnHydrationReminder: () -> Unit,
 )
 
 private const val FeedPage = 0
@@ -158,7 +164,9 @@ fun MainScreen(
     reveal: StaggeredReveal,
     glow: () -> Float,
     modifier: Modifier = Modifier,
-    sleepPromptDismissed: Boolean = false,
+    promptMemory: PromptMemory = PromptMemory(),
+    bedtimeReminderOn: Boolean = true,
+    hydrationReminderOn: Boolean = true,
     trackingRequest: Int = 0,
 ) {
     val effects = LocalVisualEffects.current
@@ -242,7 +250,7 @@ fun MainScreen(
         selected = target
         scope.launch {
             if (effects.animationsEnabled) {
-                page.animateTo(target.toFloat(), CycloSprings.Page.float, initialVelocity = velocity)
+                page.animateTo(target.toFloat(), CycloSprings.Page.precise, initialVelocity = velocity)
             } else {
                 page.animateTo(target.toFloat(), tween(CycloMotion.TabSwitchDurationMs))
             }
@@ -435,7 +443,6 @@ fun MainScreen(
                                 wakeShadow = skyBase,
                                 wakeRim = skyTop,
                                 onEditRoutine = actions.onEditRoutine,
-                                onRemoveRoutine = actions.onDeleteRoutine,
                                 onAddWakeWidget = actions.onAddWakeWidget,
                                 onCaffeineChange = actions.onCaffeineChange,
                                 onWaterChange = actions.onWaterChange,
@@ -443,10 +450,14 @@ fun MainScreen(
                                 onMoodChange = actions.onMoodChange,
                                 onReorder = actions.onReorderFeed,
                                 isCurrentPage = selected == FeedPage,
-                                promptDismissed = sleepPromptDismissed,
+                                promptMemory = promptMemory,
+                                bedtimeReminderOn = bedtimeReminderOn,
+                                hydrationReminderOn = hydrationReminderOn,
                                 promptGlow = { skyBase },
                                 onLogSleep = actions.onLogSleep,
-                                onDismissPrompt = actions.onDismissSleepPrompt,
+                                onDismissPrompt = actions.onDismissPrompt,
+                                onTurnOnBedtimeReminder = actions.onTurnOnBedtimeReminder,
+                                onTurnOnHydrationReminder = actions.onTurnOnHydrationReminder,
                             )
                         }
                     }
