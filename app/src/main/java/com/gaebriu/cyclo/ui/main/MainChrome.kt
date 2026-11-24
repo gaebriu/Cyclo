@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.gaebriu.cyclo.ui.theme.smoothStep
 import com.gaebriu.cyclo.ui.components.CycloIcon
 import com.gaebriu.cyclo.ui.components.cycloGlassPill
 import com.gaebriu.cyclo.ui.components.cycloPressable
@@ -88,6 +89,11 @@ private val MiniMenuHeight = 39.dp
 private val MiniMenuRadius = 24.dp
 private val MiniMenuSlot = 39.dp
 private val MiniMenuEdge = 3.dp
+
+/** A lupa a entrar no mini-menu: cresce deste tamanho (a partir de 10 % do lugar aberto) e acende a partir de 45 %. */
+private const val SlotIconFromScale = 0.55f
+private const val SlotIconGrowFrom = 0.1f
+private const val SlotIconAlphaFrom = 0.45f
 
 /**
  * Faixas escuras do topo e do fundo (Cyclo 3, beta-3.2): no Feed e nas rotinas guardadas, 87 dp até #010101 a 39 % em cima e 120 dp até #010101 em baixo (antes 130 dp, preto a
@@ -259,11 +265,15 @@ class MiniMenuAction(val iconPath: String, val description: String, val onClick:
 fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot: (Int) -> Float = { 1f }) {
     val latestSlot by rememberUpdatedState(slot)
     val amount: (Int) -> Float = remember { { index -> latestSlot(index).coerceIn(0f, 1f) } }
+    // Cyclo 3.2.3: o lugar abre com uma curva suave (devagar a começar e a acabar), sempre preso à
+    // posição das páginas (o dedo continua a mandar). Antes abria em linha reta e a lupa, do tamanho
+    // inteiro e meio apagada, ficava por cima do "+" enquanto o lugar ainda abria.
+    val open: (Int) -> Float = remember { { index -> smoothStep(amount(index)) } }
     // As pontas de 3 dp só existem com mais de um botão (sozinha, a roda dentada é um círculo).
     val edge: () -> Float = remember(actions.size) {
         {
             var max = 0f
-            for (i in 0 until actions.size - 1) max = maxOf(max, amount(i))
+            for (i in 0 until actions.size - 1) max = maxOf(max, open(i))
             max
         }
     }
@@ -271,7 +281,7 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot:
         modifier = modifier
             .layout { measurable, _ ->
                 var slots = 0f
-                for (i in actions.indices) slots += amount(i)
+                for (i in actions.indices) slots += open(i)
                 val width = (MiniMenuEdge * 2 * edge() + MiniMenuSlot * slots).roundToPx()
                 val height = MiniMenuHeight.roundToPx()
                 val placeable = measurable.measure(Constraints.fixed(width, height))
@@ -300,7 +310,7 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot:
                     if (shown) {
                         Box(
                             modifier = Modifier.layout { measurable, _ ->
-                                val width = (MiniMenuSlot * amount(index)).roundToPx()
+                                val width = (MiniMenuSlot * open(index)).roundToPx()
                                 val height = CycloDimens.TouchTarget.roundToPx()
                                 val placeable = measurable.measure(Constraints.fixed(width, height))
                                 layout(width, height) { placeable.place(0, 0) }
@@ -322,7 +332,19 @@ fun MiniMenu(actions: List<MiniMenuAction>, modifier: Modifier = Modifier, slot:
                                     ),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                CycloIcon(path = action.iconPath, size = 15.dp, tint = CycloColors.TextPrimary, alpha = { amount(index) })
+                                // O ícone cresce com o lugar e só acende quando já tem espaço (lido
+                                // no desenho: o deslize não recompõe o mini-menu).
+                                CycloIcon(
+                                    path = action.iconPath,
+                                    size = 15.dp,
+                                    tint = CycloColors.TextPrimary,
+                                    alpha = { smoothStep(amount(index), SlotIconAlphaFrom, 1f) },
+                                    modifier = Modifier.graphicsLayer {
+                                        val s = lerp(SlotIconFromScale, 1f, smoothStep(amount(index), SlotIconGrowFrom, 1f))
+                                        scaleX = s
+                                        scaleY = s
+                                    },
+                                )
                             }
                         }
                     }

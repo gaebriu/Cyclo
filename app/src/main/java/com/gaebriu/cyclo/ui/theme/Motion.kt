@@ -46,7 +46,7 @@ object CycloMotion {
      * de uma folha do iOS / Material You: reage ao toque e pode ser interrompida sem saltos.
      * O fade e o desfoque dos textos seguem o progresso desta mola, por isso têm a mesma duração.
      */
-    val ScreenRiseSpring = CycloSprings.Sheet.float
+    val ScreenRiseSpring = CycloSprings.Sheet.precise
 
     /**
      * Onde as molas das páginas e dos ecrãs que sobem (o `cover` do CycloApp, as Introduction e o
@@ -56,6 +56,9 @@ object CycloMotion {
      * topo; o mesmo mecanismo do 0,01 da Beta 2.2, só mais pequeno). Com este valor, o último salto fica
      * abaixo de 0,25 px até em ecrãs de 3200 px: invisível. O movimento à vista não muda; só a cauda
      * sub-píxel fica ~0,1 s mais longa. Ver RiseEndTest.
+     *
+     * Cyclo 3.2.3: este limiar tem de ir NA MOLA ([CycloSpring.precise]); passado só ao Animatable
+     * não chegava às molas dadas no animateTo, que acabavam no 0,01 do Compose.
      */
     const val PageThreshold = 0.00006f
 

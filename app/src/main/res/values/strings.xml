@@ -8,7 +8,6 @@
     <string name="try_again">Try again</string>
     <string name="error_save_failed">Couldn\'t save your changes</string>
     <string name="action_edit">Edit</string>
-    <string name="action_remove">Remove</string>
     <string name="action_add_widget">Add as a widget</string>
     <string name="routine_removed">Routine removed</string>
 
@@ -60,7 +59,7 @@
     <!-- Rotinas guardadas -->
     <string name="saved_search_placeholder">What are you looking for?</string>
     <string name="saved_empty_title">Nothing here just yet</string>
-    <string name="saved_empty_text">Tap the + to create your first routine</string>
+    <string name="saved_empty_text">Tap + to create your first routine</string>
     <string name="saved_state_on">On</string>
     <string name="saved_state_off">Off</string>
     <string name="saved_delete">Delete %1$s</string>
@@ -237,6 +236,17 @@
     <string name="sleep_prompt_text">Let us know how you slept to keep your sleep on track</string>
     <string name="sleep_prompt_log">Log sleep</string>
     <string name="sleep_prompt_close">Close</string>
+    <!-- Prompts do Feed e das definições (Componentes (Prompts) 6062:70, Componentes (Prompts 2) 6063:111 e 6063:141) -->
+    <string name="prompt_never_miss_title">Never miss bedtime</string>
+    <string name="prompt_never_miss_text">Get reminded before bed, right when you need it</string>
+    <string name="prompt_water_title">Keep the water flowing</string>
+    <string name="prompt_water_text">Stay hydrated without having to think about it</string>
+    <string name="prompt_turn_on_reminders">Turn on reminders</string>
+    <string name="prompt_backup_title">Keep your progress safe</string>
+    <string name="prompt_backup_text">Everything you\'ve tracked, safe and ready to restore</string>
+    <string name="prompt_backup_turn_on">Turn on automatic backups</string>
+    <!-- TalkBack: o card-indicator dos prompts que partilham o lugar (sleep-evaluation-prompt (w/side swipe), 6062:69) -->
+    <string name="prompt_position">%1$d of %2$d</string>
     <!-- action-menu-log-sleep (Componentes 5, 2013:40) e o sleep-quality-meter -->
     <string name="sleep_sheet_title">How well did you sleep last night?</string>
     <string name="sleep_sheet_done">Done</string>

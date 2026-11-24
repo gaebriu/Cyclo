@@ -109,6 +109,9 @@ import com.gaebriu.cyclo.data.TrackingSection
 import com.gaebriu.cyclo.data.cycloDay
 import com.gaebriu.cyclo.data.resolveDayLogs
 import com.gaebriu.cyclo.data.showsSleepPrompt
+import com.gaebriu.cyclo.data.CycloPrompt
+import com.gaebriu.cyclo.data.PromptMemory
+import com.gaebriu.cyclo.data.PromptRules
 import com.gaebriu.cyclo.data.trackingSummary
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
@@ -178,8 +181,14 @@ object FeedRevealItems {
  *   para adormecer hoje (o "Time to fall asleep" das definições mais o que a cafeína, os fatores, as
  *   emoções e o cronótipo pedem; ver [BedtimeEngine] e [bedtimesFor]); as duas com mais ciclos têm
  *   estrela. Mudam ~1 s depois do último toque, e rolam para a hora nova.
- * - O "..." da hora de acordar abre "Edit" / "Add as a widget" / "Remove". A cafeína e a água não
- *   têm botão de repor (beta-3.0, Figma 24:10): o "−" volta atrás.
+ * - O "..." da hora de acordar abre o action-menu: "Edit" / "Add as a widget" (Componentes 6065:171)
+ *   ou, com o sono de hoje por registar, o action-menu (w/ log sleep) com "Log sleep" à frente
+ *   (Componentes 2, 80:727). O "Remove" saiu na Cyclo 3.2.3 (apaga-se nas rotinas guardadas). A
+ *   cafeína e a água não têm botão de repor (beta-3.0, Figma 24:10): o "−" volta atrás.
+ * - Prompts (Cyclo 3.2.3, [PromptRules]): o sleep-evaluation-prompt e o never-miss-bedtime partilham
+ *   o lugar por cima do wake-time-recommendation-group (side swipe, [PromptSlot]); o
+ *   keep-the-water-flowing fica por cima do water-meter-group, dentro do bloco dele (anda com ele
+ *   quando se reordena).
  * - Os blocos da cafeína, da água, do que pode afetar o sono e de como se sente reordenam-se com
  *   long press e arrastar ([feedOrder], [onReorder]; ver [ReorderableColumn]): os outros abrem espaço
  *   com a mesma física das rotinas guardadas. O wake-time-recommendation-group fica de fora e não muda.
@@ -207,7 +216,6 @@ fun FeedScreen(
     wakeShadow: Color,
     wakeRim: Color,
     onEditRoutine: (Routine) -> Unit,
-    onRemoveRoutine: (Routine) -> Unit,
     onAddWakeWidget: () -> Unit,
     onCaffeineChange: (Int) -> Unit,
     onWaterChange: (Int) -> Unit,
@@ -216,10 +224,15 @@ fun FeedScreen(
     onReorder: (List<FeedSection>) -> Unit,
     modifier: Modifier = Modifier,
     isCurrentPage: Boolean = true,
-    promptDismissed: Boolean = false,
+    promptMemory: PromptMemory = PromptMemory(),
+    /** O lembrete da hora de dormir e o da água, como valem de facto (interruptor e autorização). */
+    bedtimeReminderOn: Boolean = true,
+    hydrationReminderOn: Boolean = true,
     promptGlow: () -> Color = { Color.Transparent },
     onLogSleep: () -> Unit = {},
-    onDismissPrompt: () -> Unit = {},
+    onDismissPrompt: (CycloPrompt) -> Unit = {},
+    onTurnOnBedtimeReminder: () -> Unit = {},
+    onTurnOnHydrationReminder: () -> Unit = {},
 ) {
     // O dia da Cyclo (beta-3.0): da meia-noite até à hora de acordar ainda é o dia anterior, por
     // isso o registo da noite e o wake-time-container só mudam quando passa a hora de acordar.
@@ -270,7 +283,27 @@ fun FeedScreen(
 
     // O que os gráficos dentro dos cartões mostram (só quando os registos, o dia ou a idade mudam).
     val summary = remember(logs, today, age) { trackingSummary(logs.history, logs.current, today, age) }
-    val showPrompt = showsSleepPrompt(routines, log, now, promptDismissed)
+    // Os prompts (só quando o minuto, os registos, o que se fechou ou os lembretes mudam).
+    val nowMs = remember(now) { now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }
+    val topPrompts = remember(routines, logs, now, promptMemory, bedtimeReminderOn) {
+        PromptRules.feedTop(routines, logs, now, nowMs, promptMemory, bedtimeReminderOn)
+    }
+    val waterPrompts = remember(logs, age, nowMs, promptMemory, hydrationReminderOn) {
+        PromptRules.feedWater(logs, age, nowMs, promptMemory, hydrationReminderOn)
+    }
+    // O sono de hoje por registar: o menu do "..." ganha o "Log sleep" (mesmo com o prompt fechado).
+    val canLogSleep = showsSleepPrompt(routines, log, now, dismissed = false)
+    val promptCard: @Composable (CycloPrompt, PromptChrome) -> Unit = { prompt, chrome ->
+        FeedPromptCard(
+            prompt = prompt,
+            chrome = chrome,
+            glow = promptGlow,
+            onLogSleep = onLogSleep,
+            onTurnOnBedtimeReminder = onTurnOnBedtimeReminder,
+            onTurnOnHydrationReminder = onTurnOnHydrationReminder,
+            onDismiss = onDismissPrompt,
+        )
+    }
     // Os hápticos dos gráficos só com o Feed escolhido; um só lambda, lembrado.
     val active = remember { { latestCurrent } }
 
@@ -292,14 +325,13 @@ fun FeedScreen(
         ) {
             Greeting(greeting = greeting, now = now, reveal = reveal)
 
-            // O log-sleep-card a 39 dp do header-greetings (o espaço abre e fecha com ele).
-            SleepPrompt(
-                visible = showPrompt,
-                glowColor = promptGlow,
-                onLogSleep = onLogSleep,
-                onDismiss = onDismissPrompt,
+            // O sleep-evaluation-prompt e o never-miss-bedtime a 39 dp do header-greetings, no mesmo
+            // lugar (o espaço abre e fecha com eles).
+            PromptSlot(
+                prompts = topPrompts,
                 topGap = SectionGap,
                 modifier = Modifier.staggeredReveal(reveal, FeedRevealItems.Prompt),
+                card = promptCard,
             )
 
             if (nextRoutine != null) {
@@ -364,6 +396,11 @@ fun FeedScreen(
                         .padding(CardShadowBleed),
                 ) {
                     Spacer(Modifier.height(SectionGap))
+                    // keep-the-water-flowing: por cima do water-meter-group, dentro do bloco (anda com
+                    // ele ao reordenar), fora do sítio por onde se agarra.
+                    if (section == FeedSection.Water) {
+                        PromptSlot(prompts = waterPrompts, bottomGap = SectionGap, card = promptCard)
+                    }
                     // Agarra-se pelo título ou pelo cartão; só o cartão se levanta (escala e sombra).
                     Column(modifier = handle) {
                         when (section) {
@@ -433,28 +470,74 @@ fun FeedScreen(
             bottomMargin = bottomReserve,
             alignEnd = true,
         ) {
+            // O menu fica com as opções com que abriu enquanto sai (o sono registado a meio não o muda).
+            val withLogSleep = remember(wakeMenuOpen) { canLogSleep }
+            val logSleep = stringResource(R.string.sleep_prompt_log)
+            val edit = stringResource(R.string.action_edit)
+            val addWidget = stringResource(R.string.action_add_widget)
             CycloActionMenu(
-                items = listOf(
-                    // action-menu (Componentes, 80:727): Edit, Add as a widget, Remove.
-                    ActionMenuItem(stringResource(R.string.action_edit)),
-                    ActionMenuItem(stringResource(R.string.action_add_widget)),
-                    ActionMenuItem(stringResource(R.string.action_remove)),
-                ),
+                // action-menu (w/ log sleep) (Componentes 2, 80:727): Log sleep, Edit, Add as a widget;
+                // action-menu (Componentes, 6065:171): Edit, Add as a widget.
+                items = remember(withLogSleep, logSleep, edit, addWidget) {
+                    listOfNotNull(
+                        ActionMenuItem(logSleep).takeIf { withLogSleep },
+                        ActionMenuItem(edit),
+                        ActionMenuItem(addWidget),
+                    )
+                },
                 selectedIndex = -1,
                 onItemClick = { index ->
                     wakeMenuOpen = false
                     val routine = nextRoutine ?: return@CycloActionMenu
-                    when (index) {
+                    when (index - if (withLogSleep) 1 else 0) {
+                        -1 -> onLogSleep()
                         0 -> onEditRoutine(routine)
                         // O Wake Time Widget: a mesma hora de acordar e as mesmas horas do Feed.
-                        1 -> onAddWakeWidget()
-                        else -> onRemoveRoutine(routine)
+                        else -> onAddWakeWidget()
                     }
                 },
             )
         }
         }
     }
+}
+
+/**
+ * Um prompt do Feed: o sleep-evaluation-prompt (2006:416), o never-miss-bedtime (6062:70) e o
+ * keep-the-water-flowing (6063:111), todos com o "fx blur type 01 (base)" na base do brilho da hora.
+ * "Turn on reminders" liga o lembrete pelo mesmo caminho dos interruptores das definições (pede a
+ * autorização que faltar).
+ */
+@Composable
+private fun FeedPromptCard(
+    prompt: CycloPrompt,
+    chrome: PromptChrome,
+    glow: () -> Color,
+    onLogSleep: () -> Unit,
+    onTurnOnBedtimeReminder: () -> Unit,
+    onTurnOnHydrationReminder: () -> Unit,
+    onDismiss: (CycloPrompt) -> Unit,
+) {
+    val (title, text, button) = when (prompt) {
+        CycloPrompt.SleepEvaluation -> Triple(R.string.sleep_prompt_title, R.string.sleep_prompt_text, R.string.sleep_prompt_log)
+        CycloPrompt.NeverMissBedtime -> Triple(R.string.prompt_never_miss_title, R.string.prompt_never_miss_text, R.string.prompt_turn_on_reminders)
+        CycloPrompt.KeepWaterFlowing -> Triple(R.string.prompt_water_title, R.string.prompt_water_text, R.string.prompt_turn_on_reminders)
+        else -> return
+    }
+    PromptCard(
+        title = stringResource(title),
+        text = stringResource(text),
+        buttonText = stringResource(button),
+        onButton = when (prompt) {
+            CycloPrompt.SleepEvaluation -> onLogSleep
+            CycloPrompt.NeverMissBedtime -> onTurnOnBedtimeReminder
+            else -> onTurnOnHydrationReminder
+        },
+        closeDescription = stringResource(R.string.sleep_prompt_close),
+        onClose = { onDismiss(prompt) },
+        glowColor = glow,
+        chrome = chrome,
+    )
 }
 
 /** Sombra dos textos do Feed: 0, 0, desfoque 15, preto a 24 %. */

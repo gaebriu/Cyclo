@@ -4,19 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
-import androidx.compose.animation.core.keyframes
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -107,6 +100,8 @@ import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.data.AgeRange
 import com.gaebriu.cyclo.data.Chronotype
 import com.gaebriu.cyclo.data.CycloData
+import com.gaebriu.cyclo.data.CycloPrompt
+import com.gaebriu.cyclo.data.PromptRules
 import com.gaebriu.cyclo.data.FallAsleepTime
 import com.gaebriu.cyclo.ui.components.ActionMenuItem
 import com.gaebriu.cyclo.ui.components.AnchoredMenuHost
@@ -134,6 +129,8 @@ import com.gaebriu.cyclo.ui.i18n.AppLanguage
 import com.gaebriu.cyclo.ui.icons.CycloAppIconPaths
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.main.MainEdgeFades
+import com.gaebriu.cyclo.ui.main.PromptCard
+import com.gaebriu.cyclo.ui.main.PromptSlot
 import com.gaebriu.cyclo.ui.screens.IntroSwipe
 import com.gaebriu.cyclo.ui.screens.introSwipeDecision
 import com.gaebriu.cyclo.ui.scroll.cycloVerticalScroll
@@ -141,6 +138,7 @@ import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloSprings
+import androidx.compose.animation.core.snap
 import com.gaebriu.cyclo.ui.theme.CycloType
 import com.gaebriu.cyclo.ui.time.LocalTimeFormat
 import kotlinx.coroutines.CancellationException
@@ -239,7 +237,8 @@ private enum class SettingsPage(
  * - Interface: "Advanced textures".
  * - Data: "Automatic backups", "Export my data" e "Restore my data".
  * - About: "View on GitHub" (mostra primeiro o action-menu-big-open-github) e a versão.
- * - O new-update-group fica no topo da página principal, só com uma versão nova.
+ * - O topo da página principal tem os prompts (Cyclo 3.2.3): o new-update-group (com uma versão nova)
+ *   e o keep-your-progress-safe, no mesmo lugar, a trocar de lado com o dedo (ver [SettingsPrompts]).
  * - Voltar (botão, gesto) fecha primeiro o menu, a folha ou a caixa da idade, se estiverem abertos.
  *
  * @param reminderOn o interruptor "Bedtime" como se vê: ligado nas definições e com autorização.
@@ -272,6 +271,10 @@ fun SettingsScreen(
     update: UpdateUi? = null,
     onUpdateOpen: () -> Unit = {},
     onUpdateDismiss: () -> Unit = {},
+    /** Os prompts do topo (Cyclo 3.2.3, [PromptRules.settings]): new-update-group e keep-your-progress-safe. */
+    prompts: List<CycloPrompt> = emptyList(),
+    onBackupTurnOn: () -> Unit = {},
+    onPromptDismiss: (CycloPrompt) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // A língua em que os textos estão (muda com eles).
@@ -304,7 +307,7 @@ fun SettingsScreen(
     val dragSlide = remember { mutableFloatStateOf(0f) }
     val slideNow: () -> Float = { if (dragging) dragSlide.floatValue else slide.value }
     val moving by remember { derivedStateOf { dragging || slide.isRunning } }
-    val pageSpring = if (effects.animationsEnabled) CycloSprings.Page.float else CycloMotion.FadeSpring
+    val pageSpring = if (effects.animationsEnabled) CycloSprings.Page.precise else CycloMotion.FadeSpring
 
     /** Leva as páginas para a subpágina [target] (-1 = a principal), a partir de onde estão. */
     fun goTo(target: Int, velocity: Float = slide.velocity) {
@@ -462,7 +465,7 @@ fun SettingsScreen(
                 },
                 veil = { slideNow() },
             ) {
-                UpdateSection(update, onUpdateOpen, onUpdateDismiss)
+                SettingsPrompts(prompts, update, onUpdateOpen, onUpdateDismiss, onBackupTurnOn, onPromptDismiss)
                 SettingsPage.entries.forEachIndexed { index, entry ->
                     if (index > 0) Spacer(Modifier.height(RowGap))
                     SettingsNavRow(
@@ -832,65 +835,63 @@ private fun SettingsNavRow(label: String, color: Color, icon: String, onClick: (
 }
 
 /**
- * new-update-group: só com uma versão nova no GitHub (e não dispensada há menos de 12 h), no topo da
- * página principal. Entra e sai com zoom, fade e o lugar a abrir e a fechar. O que se vê segue a
- * atualização disponível; um aviso que deixou de ser o disponível nunca responde, mesmo enquanto sai.
+ * O topo da página principal (Cyclo 3.2.3): o new-update-group (com uma versão nova, até ao X nesta
+ * abertura da app) e o keep-your-progress-safe ([PromptRules.settings]), no mesmo lugar, com o
+ * side swipe e a física dos prompts do Feed ([PromptSlot]). O que se vê do aviso segue a atualização
+ * disponível; um aviso que deixou de ser o disponível nunca responde, mesmo enquanto sai. Outra
+ * versão no lugar da que se via funde-se (a chave é a tag; o mesmo aviso não anima).
  */
 @Composable
-private fun UpdateSection(update: UpdateUi?, onUpdateOpen: () -> Unit, onUpdateDismiss: () -> Unit) {
+private fun SettingsPrompts(
+    prompts: List<CycloPrompt>,
+    update: UpdateUi?,
+    onUpdateOpen: () -> Unit,
+    onUpdateDismiss: () -> Unit,
+    onBackupTurnOn: () -> Unit,
+    onPromptDismiss: (CycloPrompt) -> Unit,
+) {
     val animationsEnabled = LocalVisualEffects.current.animationsEnabled
     val latestUpdate by rememberUpdatedState(update)
-    var shownTag by remember { mutableStateOf(update?.tag) }
+    // A sair, o aviso continua com a última versão que mostrou.
     var shownUpdate by remember { mutableStateOf(update) }
-    if (update != null && update.tag == shownTag) shownUpdate = update
-    LaunchedEffect(update?.tag) {
-        val target = latestUpdate?.tag
-        if (target == shownTag) return@LaunchedEffect
-        shownTag = target
-        latestUpdate?.let { shownUpdate = it }
-    }
+    if (update != null) shownUpdate = update
     fun forShown(tag: String, action: () -> Unit): () -> Unit = { if (latestUpdate?.tag == tag) action() }
-    AnimatedVisibility(
-        visible = shownTag != null,
-        enter = if (animationsEnabled) {
-            fadeIn(CycloSprings.Enter.float) + scaleIn(CycloSprings.Enter.float, initialScale = CycloMotion.MenuStartScale) +
-                expandVertically(CycloSprings.Enter.intSize, expandFrom = Alignment.Top)
-        } else {
-            fadeIn(CycloMotion.FadeSpring)
-        },
-        exit = if (animationsEnabled) {
-            fadeOut(CycloSprings.Exit.float) + scaleOut(CycloSprings.Exit.float, targetScale = CycloMotion.MenuStartScale) +
-                shrinkVertically(CycloSprings.Exit.intSize, shrinkTowards = Alignment.Top)
-        } else {
-            fadeOut(CycloMotion.FadeSpring)
-        },
-    ) {
-        shownUpdate?.let { first ->
-            // Outra versão no lugar da que se via: o conteúdo funde-se e a altura acompanha. O mesmo
-            // aviso não anima: a chave é a tag.
-            AnimatedContent(
-                targetState = first,
-                contentKey = { it.tag },
-                transitionSpec = {
-                    if (animationsEnabled) {
-                        (fadeIn(CycloSprings.Enter.float) togetherWith fadeOut(CycloSprings.Exit.float))
-                            .using(SizeTransform(clip = false) { _, _ -> CycloSprings.Enter.intSize })
-                    } else {
-                        fadeIn(CycloMotion.FadeSpring) togetherWith fadeOut(CycloMotion.FadeSpring)
-                    }
-                },
-                label = "update",
-            ) { state ->
-                val shown = shownUpdate?.takeIf { it.tag == state.tag } ?: state
-                Column {
+    PromptSlot(prompts = prompts, bottomGap = SectionGap) { prompt, promptChrome ->
+        when (prompt) {
+            CycloPrompt.NewUpdate -> shownUpdate?.let { first ->
+                AnimatedContent(
+                    targetState = first,
+                    contentKey = { it.tag },
+                    transitionSpec = {
+                        if (animationsEnabled) {
+                            (fadeIn(CycloSprings.Enter.float) togetherWith fadeOut(CycloSprings.Exit.float))
+                                .using(SizeTransform(clip = false) { _, _ -> CycloSprings.Enter.intSize })
+                        } else {
+                            fadeIn(CycloMotion.FadeSpring) togetherWith fadeOut(CycloMotion.FadeSpring)
+                        }
+                    },
+                    label = "update",
+                ) { state ->
                     UpdateGroup(
-                        update = shown,
-                        onOpen = forShown(shown.tag, onUpdateOpen),
-                        onDismiss = forShown(shown.tag, onUpdateDismiss),
+                        update = state,
+                        onOpen = forShown(state.tag, onUpdateOpen),
+                        onDismiss = forShown(state.tag, onUpdateDismiss),
+                        chrome = promptChrome,
                     )
-                    Spacer(Modifier.height(SectionGap))
                 }
             }
+            CycloPrompt.KeepProgressSafe -> PromptCard(
+                title = stringResource(R.string.prompt_backup_title),
+                text = stringResource(R.string.prompt_backup_text),
+                buttonText = stringResource(R.string.prompt_backup_turn_on),
+                onButton = onBackupTurnOn,
+                closeDescription = stringResource(R.string.sleep_prompt_close),
+                onClose = { onPromptDismiss(CycloPrompt.KeepProgressSafe) },
+                // "fx blur type 01" (6063:142): o roxo, como o do new-update-group.
+                glowColor = { CycloColors.Accent },
+                chrome = promptChrome,
+            )
+            else -> Unit
         }
     }
 }
@@ -1054,7 +1055,8 @@ private fun AgeRow(
     val effects = LocalVisualEffects.current
     Crossfade(
         targetState = editing,
-        animationSpec = tween(if (effects.animationsEnabled) 220 else 0),
+        // Cyclo 3.2.3: a mola dos fades (antes uma curva fixa de 220 ms), como o resto da app.
+        animationSpec = if (effects.animationsEnabled) CycloSprings.Gentle.float else snap(),
         label = "age",
     ) { isEditing ->
         if (isEditing) {
@@ -1154,24 +1156,20 @@ private fun AgeInputBox(initial: Int?, onDone: (Int) -> Unit, onCancel: () -> Un
     }
 }
 
-private const val ShakeDurationMs = 360
-
 /**
  * A recusa da caixa da idade (tap-to-write-box-age: um valor fora de 5–100): um abanão horizontal
  * curto que vai morrendo (dp). O háptico ([CycloHaptics.reject]) toca quem chama.
+ *
+ * Cyclo 3.2.3: um empurrão numa mola ([CycloSprings.Shake]) em vez de cinco pontos marcados: os mesmos
+ * ~8 dp para a esquerda primeiro e ~0,35 s, mas cada oscilação nasce da anterior (morre como uma
+ * coisa física, sem a esquina de cada ponto). Um segundo toque a meio continua do sítio onde está.
  */
 private suspend fun Animatable<Float, AnimationVector1D>.playRejectShake() {
-    snapTo(0f)
-    animateTo(0f, keyframes {
-        durationMillis = ShakeDurationMs
-        -8f at 50
-        7f at 110
-        -5f at 170
-        4f at 230
-        -2f at 290
-        0f at ShakeDurationMs
-    })
+    animateTo(0f, CycloSprings.Shake.float, initialVelocity = -ShakeKickDpPerSecond)
 }
+
+/** O empurrão do abanão (dp/s): dá ~8 dp no primeiro balanço, como antes. */
+private const val ShakeKickDpPerSecond = 600f
 
 /** O visto da caixa da idade (check, 24 x 24), do SVG do Componentes 3. */
 private const val AgeCheckPath =

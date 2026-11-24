@@ -45,6 +45,16 @@ class CycloSpring(val response: Float, val dampingFraction: Float) {
     /** A mola para valores Float (a mais usada). */
     val float: SpringSpec<Float> by lazy { spec() }
 
+    /**
+     * Para posições medidas em ecrãs ou folhas inteiras (0 a 1: o `cover`, as páginas, as folhas):
+     * acaba a [CycloMotion.PageThreshold] do alvo. Cyclo 3.2.3: o `visibilityThreshold` de um
+     * Animatable só vale para a mola de omissão DELE; com uma mola dada (ex.: [float]) valia o 0,01
+     * do Compose, e a subida das definições e do editor parava a 1 % do topo (~24 px num ecrã de
+     * 2400 px, depois de passos de ~3 px por fotograma a 120 Hz) e saltava o resto: o "corte" ao
+     * chegar ao topo. O limiar tem de vir na própria mola. Ver RiseEndTest.
+     */
+    val precise: SpringSpec<Float> by lazy { spec(CycloMotion.PageThreshold) }
+
     /** Para tamanhos e deslocações em píxeis (AnimatedVisibility, animateContentSize...). */
     val intSize: SpringSpec<IntSize> by lazy { spec(IntSize.VisibilityThreshold) }
     val intOffset: SpringSpec<IntOffset> by lazy { spec(IntOffset.VisibilityThreshold) }
@@ -257,8 +267,14 @@ object CycloSprings {
     /** Um valor do gráfico a mudar: mais rápido do que a entrada, sem tremer. */
     val ChartChange = CycloSpring(response = 0.42f, dampingFraction = 0.9f)
 
-    /** O sleep-evaluation-prompt a sair (registado ou fechado): encolhe sem ressalto, mais rápido do que entra. */
+    /** Um prompt a sair (registado ou fechado): encolhe sem ressalto, mais rápido do que entra. */
     val CardCollapse = CycloSpring(response = 0.38f, dampingFraction = 1f)
+
+    /**
+     * Cyclo 3.2.3, o abanão da recusa (a idade fora de 5–100): rápido e solto o bastante para dar
+     * três ou quatro balanços visíveis, a morrer em ~0,35 s (uma coisa a tremer, não um brinquedo).
+     */
+    val Shake = CycloSpring(response = 0.13f, dampingFraction = 0.22f)
 }
 
 /**
