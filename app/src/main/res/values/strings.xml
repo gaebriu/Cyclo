@@ -148,9 +148,7 @@
 
     <!-- Exportar e repor os dados -->
     <string name="export_done">Data exported</string>
-    <string name="export_cancelled">Your data wasn\'t exported</string>
     <string name="export_failed">Couldn\'t export your data</string>
-    <string name="restore_no_file">No file was chosen</string>
     <string name="restore_unreadable">Couldn\'t read this file</string>
     <string name="restore_invalid">This file isn\'t a Cyclo backup</string>
     <string name="restore_too_new">This backup needs a newer Cyclo</string>
