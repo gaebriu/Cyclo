@@ -129,8 +129,16 @@ object CycloMotion {
     /** Introduction 7: tempo de espera depois das animações, antes de ir para o Feed. */
     const val AllSetHoldMs = 1000L
 
-    /** Troca entre o botão Next e o "Done" roxo no último passo da criação de uma rotina. */
-    val ButtonSwapSpring = FadeSpring
+    /**
+     * Cyclo 3.2.4, o "Done" roxo do último passo do editor: entra quando a página aterra (falta
+     * menos do que [DoneLandReach] de ecrã), a subir [DoneRise] na mesma direção em que a página
+     * subiu, com a mola das entradas depois de uma transição (a cascata do Feed). Ao sair, vai com a
+     * página (sem mola própria). PROPOSTAS.
+     */
+    const val DoneLandReach = 0.01f
+    // A subida dos blocos do Feed ([FeedRevealRise]; declarado mais abaixo, por isso o valor aqui).
+    val DoneRise = 24.dp
+    val DoneRevealSpring = CycloSprings.Reveal.float
 
     /**
      * Entrada do Feed (ao abrir a app ou ao acabar o tutorial): cada bloco aparece com fade,

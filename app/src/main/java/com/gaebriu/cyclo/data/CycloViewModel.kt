@@ -325,14 +325,11 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     fun backupFileName(): String = "cyclo-backup-${LocalDate.now()}.json"
 
     /**
-     * Escreve a cópia no ficheiro escolhido no seletor ([uri] null = cancelado). Só diz que correu
-     * bem depois de o ficheiro estar escrito e fechado.
+     * Escreve a cópia no ficheiro escolhido no seletor ([uri] null = o utilizador voltou atrás: não se
+     * mostra nada). Só diz que correu bem depois de o ficheiro estar escrito e fechado.
      */
     fun exportTo(uri: Uri?) {
-        if (uri == null) {
-            showMessage(string(R.string.export_cancelled), string(R.string.try_again), isError = true, action = retry(FilePicker.Export))
-            return
-        }
+        if (uri == null) return
         val app = getApplication<Application>()
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
@@ -360,14 +357,11 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Lê e valida a cópia escolhida ([uri] null = nada escolhido). Se for válida, fica à espera da
-     * confirmação ([pendingRestore]); nada muda nos dados até lá.
+     * Lê e valida a cópia escolhida ([uri] null = o utilizador voltou atrás: não se mostra nada). Se
+     * for válida, fica à espera da confirmação ([pendingRestore]); nada muda nos dados até lá.
      */
     fun readBackup(uri: Uri?) {
-        if (uri == null) {
-            showMessage(string(R.string.restore_no_file), string(R.string.try_again), isError = true, action = retry(FilePicker.Restore))
-            return
-        }
+        if (uri == null) return
         val app = getApplication<Application>()
         viewModelScope.launch {
             val text = withContext(Dispatchers.IO) {
@@ -396,6 +390,12 @@ class CycloViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+    }
+
+    /** Não há nenhuma app para abrir o seletor de ficheiros: mostra o erro do exportar / ler. */
+    fun pickerUnavailable(picker: FilePicker) = when (picker) {
+        FilePicker.Export -> showMessage(string(R.string.export_failed), string(R.string.try_again), isError = true, action = retry(picker))
+        FilePicker.Restore -> showMessage(string(R.string.restore_unreadable), string(R.string.try_again), isError = true, action = retry(picker))
     }
 
     fun cancelRestore() {

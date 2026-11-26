@@ -274,7 +274,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                 FilePicker.Restore -> restorePicker.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
             }
         } catch (e: ActivityNotFoundException) {
-            if (picker == FilePicker.Export) viewModel.exportTo(null) else viewModel.readBackup(null)
+            viewModel.pickerUnavailable(picker)
         }
     }
     LaunchedEffect(viewModel) { viewModel.pickerRequests.collect { openPicker(it) } }
