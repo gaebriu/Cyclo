@@ -62,9 +62,10 @@ object FigmaBlur {
 
     /**
      * "fx progressive-blur-top" e "-bottom" do Feed, das rotinas guardadas e das definições:
-     * desfoque progressivo de 15 na borda do ecrã até 0 na borda de dentro (startRadius 15).
+     * desfoque progressivo de 24 na borda do ecrã até 0 na borda de dentro (startRadius 24, Cyclo 3.2.5;
+     * antes 15). O "fx spotlight" do Introduction 0 é à parte (imagem em tools/bake_spotlight.py).
      */
-    const val EdgeProgressive = 15f
+    const val EdgeProgressive = 24f
 
     /** Menus (action-menu) a abrir e a fechar: desfoque 6 a 0, como os títulos a aparecer. */
     const val MenuReveal = 6f

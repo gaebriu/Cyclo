@@ -37,8 +37,8 @@ import com.gaebriu.cyclo.ui.theme.CycloMotion
  * @param secondaryIconPath segundo ícone, que substitui o primeiro por fade cruzado;
  *                          [secondaryIconAmount] vai de 0 (só o primeiro) a 1 (só o segundo).
  * @param inCard o close-b dentro de um cartão (sleep-evaluation-prompt 2006:424, new-update-group
- *        56:246): #A3A2A7 a 15 % em Luminosity, borda #313233 a 24 / 9 / 24 % e sombra interior
- *        0, 6, desfoque 15 (preto a 15 %), sem sombra exterior. Sem isto, o do ecrã (Cyclo 3).
+ *        56:246): #A3A2A7 a 15 % em Luminosity e borda de 2 dp #313233 a 24 / 9 / 24 % (Cyclo 3.2.5:
+ *        sem a sombra interior 0, 6, desfoque 15), sem sombra exterior. Sem isto, o do ecrã (Cyclo 3).
  */
 @Composable
 fun CycloCircleButton(
@@ -79,17 +79,15 @@ fun CycloCircleButton(
 
                 if (inCard) {
                     drawPath(circle, color = CycloColors.TextSecondary.copy(alpha = 0.15f), blendMode = blend)
-                    rimTop.drawInnerShadow(this, circle, 15.dp.toPx(), Color.Black.copy(alpha = 0.15f), Offset(0f, 6.dp.toPx()))
-                    val stroke = 1.dp.toPx()
+                    val stroke = 2.dp.toPx()
                     drawCircle(cardBorder, radius = (size.minDimension - stroke) / 2f, style = Stroke(stroke), blendMode = blend)
                 } else {
-                    // close-b (Cyclo 3, beta-3.2): sem borda; sombra 0, 4, desfoque 39 (preto a 24 %) e um
-                    // fio de luz em cima e em baixo (sombras interiores #A3A2A7 a 15 %, 0,1 e 0,-1, desfoque 2).
+                    // close-b / back-b (Cyclo 3.2.5): sem borda; sombra 0, 4, desfoque 39 (preto a 24 %), o
+                    // vidro de duas camadas e o fio de luz (#A3A2A7 a 9 %, 0,2 e 0,-2, desfoque 2).
                     dropShadow.drawDropShadow(this, circle, 39.dp.toPx(), Color.Black.copy(alpha = 0.24f), Offset(0f, 4.dp.toPx()))
-                    drawPath(circle, color = CycloColors.GlassFill, blendMode = blend)
-                    val rim = CycloColors.TextSecondary.copy(alpha = 0.15f)
-                    rimTop.drawInnerShadow(this, circle, 2.dp.toPx(), rim, Offset(0f, 1.dp.toPx()))
-                    rimBottom.drawInnerShadow(this, circle, 2.dp.toPx(), rim, Offset(0f, -1.dp.toPx()))
+                    drawGlassFill(circle, blend)
+                    rimTop.drawInnerShadow(this, circle, 2.dp.toPx(), GlassRimColor, Offset(0f, 2.dp.toPx()))
+                    rimBottom.drawInnerShadow(this, circle, 2.dp.toPx(), GlassRimColor, Offset(0f, -2.dp.toPx()))
                 }
 
                 // O vetor vem em unidades do Figma (1 unidade = 1 dp).

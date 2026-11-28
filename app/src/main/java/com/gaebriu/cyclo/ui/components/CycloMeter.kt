@@ -37,12 +37,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -61,7 +59,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
-import com.gaebriu.cyclo.ui.effects.drawBlurredPath
 import com.gaebriu.cyclo.ui.effects.drawInnerShadow
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.main.excludeFromPageSwipe
@@ -81,10 +78,10 @@ import kotlin.math.roundToInt
 /**
  * O medidor de pontos do Cyclo: o emotion-meter do Feed ("How are you feeling tonight?", 6020:277) e
  * o sleep-quality-meter do action-menu-log-sleep (Componentes 5, 6045:111), iguais desde o Cyclo 3.2:
- * - o fundo: o gradiente das cinco cores (0, 25, 50, 75 e 100 %) a 63 %, um brilho #F6F4FF a 24 %
- *   por cima (0, -2, desfoque 9, só fora da forma) e duas sombras interiores #F6F4FF a 15 % (0, 4 e
- *   0, -4, desfoque 6);
- * - os pontos de 9 dp, #F6F4FF a 15 % em Luminosity, e a bola (ball-b) de 16 dp, #F6F4FF.
+ * - o fundo: o gradiente das cinco cores (0, 25, 50, 75 e 100 %) a 63 % e duas sombras interiores
+ *   #F6F4FF a 15 % (0, 4 e 0, -4, desfoque 6); sem o brilho de cima desde o Cyclo 3.2.5;
+ * - os pontos de 9 dp, #FCFCFE a 15 % em Luminosity, e a bola (ball-b) de 16 dp, #FCFCFE, por cima
+ *   dos pontos, só com os brilhos (sem sombras interiores nem contorno desde o Cyclo 3.2.5).
  *
  * Brilho (Cyclo 3.2): enquanto o dedo prime ou arrasta a bola, as sombras interiores do fundo
  * acendem de 15 % para 39 % (o fundo acende por dentro); a luz sobe depressa ([CycloSprings.LightIn])
@@ -373,9 +370,9 @@ fun CycloMeter(
 }
 
 /**
- * O fundo do medidor (gradiente e brilho de cima), as sombras interiores (que acendem com [glow]) e
- * os pontos. O fundo e os pontos desenham-se uma vez por tamanho; as sombras interiores são uma
- * imagem feita uma vez (os desfoques são caros) que só muda de opacidade.
+ * O fundo do medidor (gradiente), as sombras interiores (que acendem com [glow]) e os pontos. O
+ * fundo e os pontos desenham-se uma vez por tamanho; as sombras interiores são uma imagem feita uma
+ * vez (os desfoques são caros) que só muda de opacidade.
  */
 @Composable
 private fun MeterTrack(steps: Int, ballInset: Float, luminosity: BlendMode, glow: () -> Float) {
@@ -392,14 +389,7 @@ private fun MeterTrack(steps: Int, ballInset: Float, luminosity: BlendMode, glow
                     0.75f to CycloColors.MoodSky.copy(alpha = MoodGradientAlpha),
                     1f to CycloColors.MoodMint.copy(alpha = MoodGradientAlpha),
                 )
-                val lifted = Path().apply { addPath(pill, Offset(0f, -2.dp.toPx())) }
-                onDrawBehind {
-                    // O brilho de cima (0, -2, desfoque 9), só fora da forma ("show behind" desligado).
-                    clipPath(pill, ClipOp.Difference) {
-                        drawBlurredPath(lifted, CycloColors.MeterWhite.copy(alpha = 0.15f), 9.dp.toPx())
-                    }
-                    drawPath(pill, gradient)
-                }
+                onDrawBehind { drawPath(pill, gradient) }
             },
     )
     // As sombras interiores: gravadas a 24 % e mostradas de 15 % (parado) a 24 % (a premir).
@@ -418,14 +408,15 @@ private fun MeterTrack(steps: Int, ballInset: Float, luminosity: BlendMode, glow
         modifier = Modifier
             .fillMaxSize()
             .drawWithCache {
-                val dot = CycloColors.MeterWhite.copy(alpha = 0.15f)
+                val dot = CycloColors.TextPrimary.copy(alpha = 0.15f)
                 onDrawBehind {
                     val y = size.height / 2f
+                    val radius = 4.5.dp.toPx()
                     for (i in 0 until steps) {
                         val x = lerp(ballInset, size.width - ballInset, i / last.toFloat())
                         drawCircle(
                             color = dot,
-                            radius = 4.5.dp.toPx(),
+                            radius = radius,
                             center = Offset(x, y),
                             blendMode = luminosity,
                         )
@@ -474,9 +465,9 @@ private fun ballSprite(density: Density): BallSprite {
             center = center,
             scale = scale,
             diameterDp = BallDiameterDp,
-            color = CycloColors.MeterWhite,
-            shade = CycloColors.Background.copy(alpha = 0.15f),
-            shadeBlurDp = 4f,
+            color = CycloColors.TextPrimary,
+            // Cyclo 3.2.5: a bola dos medidores já não tem sombras interiores.
+            shade = Color.Transparent,
         )
     }
     return BallSprite(image, scale)

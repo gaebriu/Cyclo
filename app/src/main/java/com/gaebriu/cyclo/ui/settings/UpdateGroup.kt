@@ -7,7 +7,6 @@ import androidx.compose.ui.unit.dp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.main.PromptCard
 import com.gaebriu.cyclo.ui.main.PromptChrome
-import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloType
 
 /** O que o new-update-group mostra (vem de [com.gaebriu.cyclo.update.CycloUpdates]). */
@@ -45,7 +44,6 @@ internal fun UpdateGroup(
         onButton = onOpen,
         closeDescription = stringResource(R.string.update_dismiss),
         onClose = onDismiss,
-        glowColor = { CycloColors.Accent },
         chrome = chrome,
         textStyle = CycloType.SectionLabel,
         textToButton = 24.dp,

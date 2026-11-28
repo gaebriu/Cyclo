@@ -17,10 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -39,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gaebriu.cyclo.R
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
-import com.gaebriu.cyclo.ui.effects.drawInnerShadow
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.routine.Weekday
 import com.gaebriu.cyclo.ui.routine.hasDay
@@ -101,7 +97,6 @@ fun CycloDaysSheet(
         CycloPrimaryButton(
             text = stringResource(R.string.days_sheet_done),
             onClick = onDone,
-            size = CycloButtonSize.Compact,
         )
         Spacer(Modifier.height(Gap))
     }
@@ -199,33 +194,30 @@ private fun DayChip(day: Weekday, selected: Boolean, onToggle: () -> Unit) {
 }
 
 /**
- * O círculo de um dia, como nos SVG do Figma (background-off / background-on):
- * - preenchimento: #A3A2A7 a 24 % (desligado) ou #4A3C99 (ligado);
- * - sombra interior: preto a 15 %, (0, 6), desfoque 15;
- * - contorno de 1 dp por dentro (círculo de raio 19 com traço 1), em Luminosity: desligado, o
- *   #A3A2A7 a 24 % (Cyclo 3.2.3, 178:92; na 3.1 e na 3.2 foi o gradiente vertical #313233 a
- *   24 / 9 / 24 %); ligado, #4A3C99 a 24 %. Pelo meio, um passa para o outro.
+ * O círculo de um dia, como no Figma (Cyclo 3.2.5, 6092:83 background-off / 6092:86 background-on):
+ * - preenchimento: #A3A2A7 a 24 % (desligado) ou #4A3C99 liso (ligado);
+ * - desligado, contorno de 2 dp por dentro, #A3A2A7 a 9 % em Luminosity; ligado, sem contorno.
+ *   Pelo meio, um passa para o outro.
+ * Antes (3.2.3): sombra interior 0, 6, desfoque 15 e contornos de 1 dp a 24 %.
  */
 private fun DrawScope.drawDay(progress: Float, blend: BlendMode) {
     val radius = size.minDimension / 2f
     val center = Offset(size.width / 2f, size.height / 2f)
     drawCircle(color = lerp(DayFillOff, DayFillOn, progress), radius = radius, center = center)
-
-    val circle = Path().apply { addOval(Rect(center, radius)) }
-    drawInnerShadow(circle, DayShadow, Offset(0f, 6.dp.toPx()), 15.dp.toPx())
-
-    val strokeWidth = 1.dp.toPx()
-    val stroke = Stroke(width = strokeWidth)
-    val ring = radius - strokeWidth / 2f
     if (progress < 1f) {
-        drawCircle(brush = DayStrokeOff, radius = ring, center = center, alpha = 1f - progress, style = stroke, blendMode = blend)
-    }
-    if (progress > 0f) {
-        drawCircle(color = DayStrokeOn, radius = ring, center = center, alpha = progress, style = stroke, blendMode = blend)
+        val strokeWidth = 2.dp.toPx()
+        drawCircle(
+            color = DayStrokeOff,
+            radius = radius - strokeWidth / 2f,
+            center = center,
+            alpha = 1f - progress,
+            style = Stroke(width = strokeWidth),
+            blendMode = blend,
+        )
     }
 }
 
-// Medidas do Figma (178:97).
+// Medidas do Figma (178:97; na 3.2.5, 6092:79, as mesmas).
 private val SheetPadding = 15.dp
 private val Gap = 15.dp
 private val HandleTop = 22.dp
@@ -242,10 +234,8 @@ private val FigmaLine = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHe
 private val TitleStyle: TextStyle = CycloType.SheetTitle.copy(lineHeight = 18.sp, lineHeightStyle = FigmaLine)
 private val DescriptionStyle: TextStyle = CycloType.Body.copy(lineHeight = 18.sp, lineHeightStyle = FigmaLine)
 
-// Cores do Figma (178:92 background-off, 178:117 background-on, letras 178:114 / 178:118).
+// Cores do Figma (6092:83 background-off, 6092:86 background-on, letras 6092:84 / 6092:87).
 private val DayFillOff = CycloColors.TextSecondary.copy(alpha = 0.24f)
 private val DayFillOn = CycloColors.Accent
-private val DayStrokeOff = androidx.compose.ui.graphics.SolidColor(CycloColors.TextSecondary.copy(alpha = 0.24f))
-private val DayStrokeOn = CycloColors.Accent.copy(alpha = 0.24f)
+private val DayStrokeOff = CycloColors.TextSecondary.copy(alpha = 0.09f)
 private val DayLetterOff = CycloColors.TextPrimary.copy(alpha = 0.24f)
-private val DayShadow = Color.Black.copy(alpha = 0.15f)

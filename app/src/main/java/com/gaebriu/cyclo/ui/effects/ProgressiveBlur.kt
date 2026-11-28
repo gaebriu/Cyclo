@@ -79,7 +79,7 @@ private class EdgeStepLayer(val layer: GraphicsLayer) {
 
 /**
  * Faixa do topo ou do fundo do ecrã ("fx progressive-blur-top" / "-bottom"): o que passa por baixo
- * desfoca-se cada vez mais até à borda do ecrã (15 do Figma na borda, 0 na borda de dentro), com o
+ * desfoca-se cada vez mais até à borda do ecrã (24 do Figma na borda, 0 na borda de dentro), com o
  * gradiente escuro do Figma por cima.
  *
  * O desfoque progressivo faz-se com cópias do fundo ([LocalBackdrop]) desfocadas pelo desfoque do
@@ -161,7 +161,7 @@ fun ProgressiveBlurEdge(
 /**
  * O gradiente #010101 que substitui o desfoque progressivo (Advanced textures desligadas): começa
  * transparente na borda de dentro e fecha com uma curva suave até [FallbackEdgeAlpha] perto da borda
- * do ecrã, onde o desfoque do Figma é mais forte (15).
+ * do ecrã, onde o desfoque do Figma é mais forte (24).
  */
 private fun fallbackBrush(top: Boolean, amount: Float): Brush {
     val stops = Array(FallbackSteps + 1) { i ->

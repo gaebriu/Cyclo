@@ -23,8 +23,9 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /*
- * O ruído ("Noise") dos gradientes do Figma (Cyclo-2, Beta 2.0): MONOTONE, tamanho 2, densidade
- * 0,15, #FCFCFE a 39 %, só dentro da forma desfocada a que pertence. Está nos brilhos do topo do
+ * O ruído ("Noise") dos gradientes do Figma (Cyclo-2, Beta 2.0): MONOTONE, tamanho 2 (Cyclo 3.2.5:
+ * 1 no Introduction 0 e no Feed; 2 nas rotinas guardadas), densidade 0,15, #FCFCFE a 39 %, só dentro
+ * da forma desfocada a que pertence. O tamanho do grão é o inverso da frequência do SVG (2 → 0,5). Está nos brilhos do topo do
  * Introduction 0, do Feed, das rotinas guardadas e da Tracking, e nos "fx spotlight" dos Introduction
  * 1 a 5.
  *
@@ -51,6 +52,9 @@ object FigmaNoise {
     private const val Seed = 9000
 
     private const val BaseFrequency = 0.5
+
+    /** O tamanho do grão do Figma por omissão (o das rotinas guardadas). */
+    const val DefaultGrainSize = 2
     private const val Octaves = 3
 
     /** A faixa de luminância que fica (entradas 21 a 28 da tabela discreta de 100). */
@@ -61,27 +65,31 @@ object FigmaNoise {
     private const val GrainAlpha = 0.39f
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val tiles = HashMap<Float, State<ImageBitmap?>>()
+    private val tiles = HashMap<Pair<Float, Int>, State<ImageBitmap?>>()
 
-    /** A telha para esta densidade (null enquanto se calcula; quem desenha volta a desenhar quando chega). */
+    /**
+     * A telha para esta densidade e tamanho de grão do Figma ([grainSize]: 1 ou 2; null enquanto se
+     * calcula; quem desenha volta a desenhar quando chega).
+     */
     @Synchronized
-    fun tile(density: Float): State<ImageBitmap?> = tiles.getOrPut(density) {
+    fun tile(density: Float, grainSize: Int = DefaultGrainSize): State<ImageBitmap?> = tiles.getOrPut(density to grainSize) {
         val state = mutableStateOf<ImageBitmap?>(null)
         scope.launch {
-            val image = render(density)
+            val image = render(density, grainSize)
             state.value = image
         }
         state
     }
 
-    /** Começa a calcular já (no arranque), para estar pronta no primeiro fotograma. */
+    /** Começa a calcular já (no arranque), para estar pronta no primeiro fotograma (os dois grãos). */
     fun prewarm(density: Float) {
-        tile(density)
+        tile(density, 1)
+        tile(density, 2)
     }
 
-    private fun render(density: Float): ImageBitmap {
+    private fun render(density: Float, grainSize: Int): ImageBitmap {
         val size = (TileDp * density).roundToInt().coerceAtLeast(1)
-        val mask = grainMask(size, size, size.toDouble() / TileDp)
+        val mask = grainMask(size, size, size.toDouble() / TileDp, baseFrequency = 1.0 / grainSize)
         val alpha = (GrainAlpha * 255f).roundToInt()
         val white = (alpha shl 24) or 0xFCFCFE
         val pixels = IntArray(size * size) { if (mask[it]) white else 0 }
@@ -293,9 +301,10 @@ object FigmaNoise {
     }
 }
 
-/** A telha do ruído para a densidade do ecrã (lida ao desenhar; null até estar pronta). */
+/** A telha do ruído para a densidade do ecrã e o tamanho de grão do Figma (lida ao desenhar; null até estar pronta). */
 @Composable
-fun rememberFigmaNoise(): State<ImageBitmap?> = FigmaNoise.tile(LocalDensity.current.density)
+fun rememberFigmaNoise(grainSize: Int = FigmaNoise.DefaultGrainSize): State<ImageBitmap?> =
+    FigmaNoise.tile(LocalDensity.current.density, grainSize)
 
 /**
  * Põe o grão do Figma por cima do que já está desenhado, só onde a forma tem opacidade (o "in" do

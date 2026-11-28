@@ -714,7 +714,7 @@ fun CycloApp(viewModel: CycloViewModel) {
                 message = if (loadingData.holdsMessages) null else message,
                 onDismiss = viewModel::dismissMessage,
                 bottomMargin = bottomInset + CycloDimens.Spacing +
-                    if (overlayOpen) CycloDimens.ButtonHeight else NavigationBarHeight,
+                    if (overlayOpen) CycloDimens.InputHeight else NavigationBarHeight,
             )
         }
     }

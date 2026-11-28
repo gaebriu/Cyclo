@@ -64,6 +64,7 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.theme.figmaBlurPx
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 // Medidas do Figma (frame de 393 x 852).
@@ -114,6 +115,18 @@ private const val FeedFill = 0.63f
 private const val SavedFillEdge = 0.24f
 private const val SavedFillMiddle = 0.39f
 
+// Cyclo 3.2.5, só no Feed (6095:50, a mesma do Introduction 0): por cima da luz, uma sombra de
+// 267 x 165 dp com o topo no topo do ecrã, preto de 39 % (em cima) a 100 % (em baixo), desfoque 165.
+// Nas rotinas guardadas não existe: apaga-se com o deslize para lá.
+private val ShadeRadiusX = 133.5.dp
+private val ShadeRadiusY = 82.5.dp
+private const val ShadeFigmaBlur = 165f
+private val ShadeTop = Color.Black.copy(alpha = 0.39f).toArgb()
+private val ShadeBottom = Color.Black.toArgb()
+
+/** O perfil gaussiano do brilho acaba a 3,2 desvios-padrão do centro (GlowReach de GaussianGlow.kt). */
+private const val GlowReachSigmas = 3.2f
+
 /** O brilho ao mudar de página ("Fade" do Introduction 0, em pequeno): de onde volta a crescer e a acender. */
 private const val GlowPulseShape = 0.86f
 private const val GlowPulseIntensity = 0.55f
@@ -140,70 +153,100 @@ fun FeedTopGlow(
     modifier: Modifier = Modifier,
 ) {
     val effects = LocalVisualEffects.current
-    val tile = rememberFigmaNoise().value
-    // A telha do grão como shader, por cima do pixel 0,0 do brilho (como o drawRect de drawFigmaNoise).
-    val noiseShader = remember(tile) { tile?.let { BitmapShader(it.asAndroidBitmap(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) } }
+    // O grão do Figma: tamanho 1 no Feed, 2 nas rotinas guardadas (Cyclo 3.2.5).
+    val fineTile = rememberFigmaNoise(grainSize = 1).value
+    val coarseTile = rememberFigmaNoise(grainSize = 2).value
+    // As telhas como shaders, por cima do pixel 0,0 do brilho (como o drawRect de drawFigmaNoise).
+    val fineNoise = remember(fineTile) { fineTile?.let { BitmapShader(it.asAndroidBitmap(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) } }
+    val coarseNoise = remember(coarseTile) { coarseTile?.let { BitmapShader(it.asAndroidBitmap(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) } }
     val paint = remember { Paint().apply { filterQuality = FilterQuality.Low } }
     Spacer(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            // O grupo a 63 % (o Figma junta a luz e a sombra antes da opacidade).
+            .graphicsLayer {
+                compositingStrategy = CompositingStrategy.Offscreen
+                alpha = GlowGroupAlpha
+            }
             .drawBehind {
                 val g = growth().coerceIn(0f, 1f)
                 if (g <= 0f) return@drawBehind
                 val p = pulse().coerceIn(0f, 1f)
                 val shape = if (effects.animationsEnabled) g * lerp(GlowPulseShape, 1f, p) else 1f
                 val intensity = (if (effects.animationsEnabled) 1f else g) * lerp(GlowPulseIntensity, 1f, p)
-                val sigma = figmaBlurPx(FigmaBlur.FeedGlow)
-                val a = GlowRadiusX.toPx() * shape
-                val b = GlowRadiusY.toPx() * shape
-                val sigmaX = sqrt(sigma * sigma + a * a / 4f)
-                val sigmaY = sqrt(sigma * sigma + b * b / 4f)
-                // Cyclo 3.2.1: tudo num só desenho, com shaders do Android encadeados (os mesmos
-                // gradientes de antes). Antes eram cinco desenhos do tamanho do ecrã e uma segunda
-                // camada fora do ecrã para o grão, refeitos a cada fotograma da entrada (o brilho a
-                // crescer) e do deslize das páginas (o pulso). A conta é a mesma:
-                // Máscara (m): a mancha desfocada, com a opacidade do grupo.
-                val mask = gaussianGlowShader(
-                    center = Offset(size.width / 2f, b),
-                    sigmaX = sigmaX,
-                    sigmaY = sigmaY,
-                    peakAlpha = GlowGroupAlpha * a * b / (2f * sigmaX * sigmaY) * intensity,
-                ) ?: return@drawBehind
-                // Cor: o gradiente vertical da elipse (topo da elipse ao fundo dela).
                 val s = saved().coerceIn(0f, 1f)
+                val framework = paint.asFrameworkPaint()
+                // Até onde o brilho chega (px): a área desenhada acaba aí, não no fundo do ecrã.
+                var reach = 0f
+                // Uma elipse: máscara (a mancha desfocada) × cor (o gradiente vertical dela). No
+                // ComposeShader do Android, o primeiro é o destino e o segundo a fonte.
+                fun ellipse(halfW: Float, halfH: Float, figmaBlur: Float, peak: Float, fill: (Float) -> Shader): Shader? {
+                    if (peak <= 0f) return null
+                    val sigma = figmaBlurPx(figmaBlur)
+                    val a = halfW * shape
+                    val b = halfH * shape
+                    val sigmaX = sqrt(sigma * sigma + a * a / 4f)
+                    val sigmaY = sqrt(sigma * sigma + b * b / 4f)
+                    val mask = gaussianGlowShader(
+                        center = Offset(size.width / 2f, b),
+                        sigmaX = sigmaX,
+                        sigmaY = sigmaY,
+                        peakAlpha = a * b / (2f * sigmaX * sigmaY) * intensity * peak,
+                    ) ?: return null
+                    reach = maxOf(reach, b + GlowReachSigmas * sigmaY)
+                    return ComposeShader(mask, fill(b), android.graphics.BlendMode.SRC_IN)
+                }
+                // A luz: o gradiente vertical da elipse (topo da elipse ao fundo dela), da hora atual.
                 val c = sky()
                 val edgeFill = lerp(FeedFill, SavedFillEdge, s)
                 val middleFill = lerp(FeedFill, SavedFillMiddle, s)
-                val fill = LinearGradient(
-                    0f, 0f, 0f, b * 2f,
-                    intArrayOf(c.top.copy(alpha = edgeFill).toArgb(), c.top.copy(alpha = middleFill).toArgb(), c.base.copy(alpha = edgeFill).toArgb()),
-                    floatArrayOf(0f, 0.5f, 1f),
-                    Shader.TileMode.CLAMP,
-                )
-                // A cor só onde está a mancha (era o drawRect em SrcIn): cor × m. No ComposeShader
-                // do Android, o primeiro é o destino e o segundo a fonte.
-                val glowShader = ComposeShader(mask, fill, android.graphics.BlendMode.SRC_IN)
-                // Noise do Figma (Cyclo-2: MONOTONE 2, #FCFCFE a 39 %), só dentro do brilho: a opacidade
-                // da elipse desfocada (a mancha vezes o preenchimento) recorta o grão, e o grão fica
-                // por cima da cor (era a camada de drawFigmaNoise). É textura: desligada com as
-                // "Advanced textures".
-                val shader = if (effects.textures && noiseShader != null) {
-                    val grain = ComposeShader(glowShader, noiseShader, android.graphics.BlendMode.SRC_IN)
-                    ComposeShader(glowShader, grain, android.graphics.BlendMode.SRC_OVER)
-                } else {
-                    glowShader
+                val light = ellipse(GlowRadiusX.toPx(), GlowRadiusY.toPx(), FigmaBlur.FeedGlow, 1f) { b ->
+                    LinearGradient(
+                        0f, 0f, 0f, b * 2f,
+                        intArrayOf(c.top.copy(alpha = edgeFill).toArgb(), c.top.copy(alpha = middleFill).toArgb(), c.base.copy(alpha = edgeFill).toArgb()),
+                        floatArrayOf(0f, 0.5f, 1f),
+                        Shader.TileMode.CLAMP,
+                    )
                 }
-                val framework = paint.asFrameworkPaint()
-                framework.shader = shader
-                drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, framework) }
+                // A sombra (só no Feed): preto de 39 % a 100 %, por cima da luz.
+                val shade = ellipse(ShadeRadiusX.toPx(), ShadeRadiusY.toPx(), ShadeFigmaBlur, 1f - s) { b ->
+                    LinearGradient(0f, 0f, 0f, b * 2f, ShadeTop, ShadeBottom, Shader.TileMode.CLAMP)
+                }
+                val color: Shader = when {
+                    light != null && shade != null -> ComposeShader(light, shade, android.graphics.BlendMode.SRC_OVER)
+                    else -> light ?: shade ?: return@drawBehind
+                }
+                // O grão do Figma, recortado pelo brilho e por cima dele (textura: sem as "Advanced
+                // textures", sem grão). Parado (só um grão), tudo num só desenho, como desde a 3.2.1;
+                // só no deslize Feed ⇄ Saved o grão de cada página entra num desenho à parte.
+                val rest = if (s <= 0f) fineNoise else if (s >= 1f) coarseNoise else null
+                framework.shader = if (effects.textures && rest != null) {
+                    ComposeShader(color, ComposeShader(color, rest, android.graphics.BlendMode.SRC_IN), android.graphics.BlendMode.SRC_OVER)
+                } else {
+                    color
+                }
+                val bottom = minOf(reach, size.height)
+                drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, bottom, framework) }
+                if (effects.textures && rest == null) {
+                    if (fineNoise != null) {
+                        framework.shader = ComposeShader(color, fineNoise, android.graphics.BlendMode.SRC_IN)
+                        framework.alpha = ((1f - s) * 255f).roundToInt()
+                        drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, bottom, framework) }
+                    }
+                    if (coarseNoise != null) {
+                        framework.shader = ComposeShader(color, coarseNoise, android.graphics.BlendMode.SRC_IN)
+                        framework.alpha = (s * 255f).roundToInt()
+                        drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, bottom, framework) }
+                    }
+                    framework.alpha = 255
+                }
                 framework.shader = null
             },
     )
 }
 
 /**
- * "fx progressive-blur-top" e "fx progressive-blur-bottom": o conteúdo desfoca-se (15 na borda do
+ * "fx progressive-blur-top" e "fx progressive-blur-bottom": o conteúdo desfoca-se (24 na borda do
  * ecrã até 0) e escurece ao passar por baixo do topo (até #010101 a [topAlpha]) e do fundo (até #010101).
  * Usa o que está por baixo ([com.gaebriu.cyclo.ui.effects.LocalBackdrop]).
  *

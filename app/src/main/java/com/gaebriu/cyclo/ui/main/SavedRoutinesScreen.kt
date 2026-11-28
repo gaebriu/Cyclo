@@ -98,17 +98,23 @@ import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
 import com.gaebriu.cyclo.ui.theme.CycloSprings
 import com.gaebriu.cyclo.ui.components.ReorderableColumn
-import com.gaebriu.cyclo.ui.effects.ShatterOverlay
-import com.gaebriu.cyclo.ui.effects.ShatterState
+import com.gaebriu.cyclo.ui.effects.CardExitOverlay
+import com.gaebriu.cyclo.ui.effects.CardExitState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.platform.LocalGraphicsContext
+import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.coroutineScope
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.runtime.rememberUpdatedState
@@ -143,9 +149,10 @@ private const val SearchFinishDelayMs = 350L
  *
  * - Long press num cartão e arrastar muda a ordem (ver [ReorderableColumn]); a nova ordem guarda-se
  *   ao largar ([onReorder]). Com uma pesquisa escrita não se reordena (a lista está filtrada).
- * - Apagar: o cartão parte-se em partículas a partir do botão de apagar ([ShatterOverlay]) e os de
- *   baixo sobem para o lugar dele, em cascata. Repor (o "Undo"): volta com zoom, opacidade e um
- *   ligeiro overshoot, e os de baixo descem para lhe dar lugar.
+ * - Apagar (Cyclo 3.2.5, [CardExitOverlay]): o cartão recolhe para o botão de apagar e apaga-se (com as
+ *   texturas avançadas, também se desfoca, como o recuo da Cyclo); a meio da saída
+ *   ([DeleteCollapseAt]) os de baixo começam a subir para o lugar dele. Repor (o "Undo"): volta com
+ *   zoom, opacidade e um ligeiro overshoot, e os de baixo descem para lhe dar lugar.
  *
  * Com a pesquisa aberta ([searchOpen]), a caixa de pesquisa (search-box) aparece no topo da lista
  * e só ficam as rotinas que respondem à pesquisa ([RoutineSearch]: nome, dias, hora, estado...). [onSearchFinished] avisa quando se acaba de escrever
@@ -202,8 +209,29 @@ fun SavedRoutinesScreen(
     val visible = remember(routineSearch, query, searchOpen) {
         if (!filtering) routines else routineSearch.find(query)
     }
-    val shatter = remember { ShatterState() }
     val overlayCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    // A camada de cada cartão é do ecrã (não do cartão): ao apagar, continua a desenhar-se na saída
+    // mesmo depois de o cartão sair da lista. Libertam-se quando a rotina sai e quando o ecrã sai.
+    val graphicsContext = LocalGraphicsContext.current
+    val exits = remember(graphicsContext) { CardExitState(graphicsContext) }
+    val cardLayers = remember { HashMap<Long, GraphicsLayer>() }
+    DisposableEffect(graphicsContext) {
+        onDispose {
+            cardLayers.values.forEach(graphicsContext::releaseGraphicsLayer)
+            cardLayers.clear()
+        }
+    }
+    LaunchedEffect(routines) {
+        val ids = routines.mapTo(HashSet()) { it.id }
+        cardLayers.entries.removeAll { (id, layer) -> (id !in ids).also { gone -> if (gone) graphicsContext.releaseGraphicsLayer(layer) } }
+    }
+    // Os cartões a sair, à espera de saírem da lista (a escrita é assíncrona): não se desenham (a
+    // saída desenha-os) e não se apagam duas vezes. Saem daqui quando a rotina sai da lista (ou, se
+    // a escrita falhar, ao fim de [DeleteHideTimeoutMs], e o cartão volta a ver-se).
+    val exiting = remember { mutableStateListOf<Long>() }
+    // Os que já começaram a apagar-se (um segundo toque no botão não faz nada).
+    val deleting = remember { HashSet<Long>() }
+    val latestRoutines by rememberUpdatedState(routines)
 
     Box(modifier = modifier.fillMaxSize().onGloballyPositioned { overlayCoordinates[0] = it }) {
         Column(
@@ -233,43 +261,73 @@ fun SavedRoutinesScreen(
                 scrollState = scroll,
                 modifier = Modifier.padding(horizontal = CycloDimens.ScreenMargin),
             ) { routine, handle, surface ->
-                val snapshot = rememberGraphicsLayer()
+                val cardLayer = remember(routine.id) { cardLayers.getOrPut(routine.id) { graphicsContext.createGraphicsLayer() } }
                 val cardCoordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
                 Column {
                     PoppingIn(entering = routine.id in entering, onStarted = { entering -= routine.id }) {
                         RoutineCard(
                             routine = routine,
                             modifier = Modifier
+                                .graphicsLayer { alpha = if (routine.id in exiting) 0f else 1f }
                                 .then(handle)
                                 .then(surface)
                                 .onGloballyPositioned { cardCoordinates[0] = it }
-                                // O cartão desenha-se numa camada que também serve de fotografia
-                                // para as partículas, ao apagar.
+                                // O cartão desenha-se na sua camada, que a saída usa ao apagar.
                                 .drawWithContent {
-                                    snapshot.record { this@drawWithContent.drawContent() }
-                                    drawLayer(snapshot)
+                                    cardLayer.record { this@drawWithContent.drawContent() }
+                                    drawLayer(cardLayer)
                                 },
-                            onDelete = {
+                            onDelete = onDelete@{
+                                if (!deleting.add(routine.id)) return@onDelete
                                 val card = cardCoordinates[0]?.takeIf { it.isAttached }
                                 val overlay = overlayCoordinates[0]?.takeIf { it.isAttached }
                                 if (!effects.animationsEnabled || card == null || overlay == null) {
                                     onDelete(routine)
-                                } else {
-                                    scope.launch {
-                                        val image = snapshot.toImageBitmap()
-                                        val topLeft = overlay.localPositionOf(card, Offset.Zero)
-                                        // As partículas partem do botão de apagar (o primeiro dos quatro).
-                                        val origin = with(density) {
-                                            Offset(
-                                                card.size.width - (CardPadding + ActionButtonSize * 4 + 15.dp * 3 - ActionButtonSize / 2).toPx(),
-                                                card.size.height - (CardPadding + ActionButtonSize / 2).toPx(),
-                                            )
+                                    deleting -= routine.id
+                                    return@onDelete
+                                }
+                                val topLeft = overlay.localPositionOf(card, Offset.Zero)
+                                // A saída parte do botão de apagar (o primeiro dos quatro).
+                                val origin = with(density) {
+                                    Offset(
+                                        card.size.width - (CardPadding + ActionButtonSize * 4 + 15.dp * 3 - ActionButtonSize / 2).toPx(),
+                                        card.size.height - (CardPadding + ActionButtonSize / 2).toPx(),
+                                    )
+                                }
+                                // No mesmo fotograma: a saída começa a desenhar-se e o cartão deixa de se ver.
+                                val exit = exits.start(cardLayer, card.size, topLeft, origin, blur = effects.textures, density = density)
+                                exiting += routine.id
+                                // A camada passa a ser da saída (um cartão que volte com o "Undo" tem outra).
+                                cardLayers.remove(routine.id)
+                                returning.removed += routine.id
+                                CycloHaptics.shatter(view)
+                                scope.launch {
+                                    var deleted = false
+                                    try {
+                                        coroutineScope {
+                                            // A lista começa a fechar o espaço a meio da saída.
+                                            launch {
+                                                snapshotFlow { exit.progress.value >= DeleteCollapseAt }.first { it }
+                                                deleted = true
+                                                onDelete(routine)
+                                            }
+                                            exit.progress.animateTo(1f, CycloSprings.Exit.float)
                                         }
-                                        shatter.burst(image, topLeft, origin, density)
-                                        CycloHaptics.shatter(view)
-                                        returning.removed += routine.id
-                                        onDelete(routine)
+                                    } finally {
+                                        if (!deleted) onDelete(routine)
+                                        exits.finish(exit)
                                     }
+                                    val gone = withTimeoutOrNull(DeleteHideTimeoutMs) {
+                                        snapshotFlow { latestRoutines.none { it.id == routine.id } }.first { it }
+                                    } != null
+                                    if (gone) {
+                                        graphicsContext.releaseGraphicsLayer(cardLayer)
+                                    } else {
+                                        // A escrita falhou: o cartão volta a ver-se, com a sua camada.
+                                        cardLayers[routine.id] = cardLayer
+                                    }
+                                    exiting -= routine.id
+                                    deleting -= routine.id
                                 }
                             },
                             onEdit = { onEdit(routine) },
@@ -281,7 +339,7 @@ fun SavedRoutinesScreen(
                 }
             }
         }
-        ShatterOverlay(shatter, Modifier.fillMaxSize())
+        CardExitOverlay(exits, Modifier.fillMaxSize())
         if (routines.isEmpty()) {
             SavedEmptyState(reveal = emptyReveal, onShown = onEmptyShown, inView = inView)
         }
@@ -327,6 +385,12 @@ private fun SavedEmptyState(reveal: StaggeredReveal, onShown: () -> Unit, inView
     }
 }
 
+
+/** Apagar: a fração da saída em que a lista começa a fechar o espaço do cartão (a meio). */
+private const val DeleteCollapseAt = 0.5f
+
+/** Apagar: quanto tempo o cartão fica escondido à espera de sair da lista (escrita falhada: volta). */
+private const val DeleteHideTimeoutMs = 2_000L
 
 /**
  * Memória das rotinas apagadas neste ecrã, para que uma que volte (o "Undo") entre com zoom. Não é
@@ -598,7 +662,8 @@ private fun repeatSummary(routine: Routine): Pair<AnnotatedString, String> {
 
 /**
  * Botão redondo de 39 dp (delete-, add-routine-widget-, edit-routine-b): #A3A2A7 a 15 % em
- * Luminosity, borda em gradiente #313233 (24 %, 9 %, 24 %) e sombra interior 0, 6, desfoque 15.
+ * Luminosity e borda de 2 dp em gradiente #313233 (24 %, 9 %, 24 %). Cyclo 3.2.5: sem a sombra
+ * interior 0, 6, desfoque 15; a borda passou de 1 para 2 dp.
  * A zona de toque tem 48 dp (sobra para fora do círculo).
  */
 @Composable
@@ -610,7 +675,6 @@ private fun RoundActionButton(iconPath: String, description: String, onClick: ()
             val radius = size.width / 2f
             val circle = Path().apply { addOval(Rect(Offset(radius, radius), radius)) }
             drawPath(circle, CycloColors.TextSecondary.copy(alpha = 0.15f), blendMode = blend)
-            drawInnerShadow(circle, Color.Black.copy(alpha = 0.15f), Offset(0f, 6.dp.toPx()), 15.dp.toPx())
             val edge = CycloColors.GlassBorder
             drawCircle(
                 brush = Brush.verticalGradient(
@@ -618,8 +682,8 @@ private fun RoundActionButton(iconPath: String, description: String, onClick: ()
                     0.5f to edge.copy(alpha = 0.09f),
                     1f to edge.copy(alpha = 0.24f),
                 ),
-                radius = radius - 0.5.dp.toPx(),
-                style = Stroke(1.dp.toPx()),
+                radius = radius - 1.dp.toPx(),
+                style = Stroke(2.dp.toPx()),
                 blendMode = blend,
             )
         }
@@ -628,8 +692,9 @@ private fun RoundActionButton(iconPath: String, description: String, onClick: ()
 }
 
 /**
- * activate/deactivate-routine-b: ligado, círculo #4A3C99 com o visto branco; desligado, #A3A2A7
- * a 24 % com o visto a 24 %. Muda com uma mola.
+ * activate/deactivate-routine-b: ligado, círculo #4A3C99 liso com o visto branco; desligado,
+ * #A3A2A7 a 24 % com a borda de 2 dp #A3A2A7 a 9 % e o visto a 24 %. Muda com uma mola. Cyclo 3.2.5:
+ * sem a sombra interior 0, 6, desfoque 15; o ligado sem borda (antes as duas a 24 %, 1 dp).
  */
 @Composable
 private fun ActiveToggleButton(active: () -> Float, isActive: Boolean, description: String, onClick: () -> Unit) {
@@ -652,13 +717,15 @@ private fun ActiveToggleButton(active: () -> Float, isActive: Boolean, descripti
             val circle = Path().apply { addOval(Rect(Offset(radius, radius), radius)) }
             val offFill = CycloColors.TextSecondary.copy(alpha = 0.24f)
             drawPath(circle, lerpColor(offFill, CycloColors.Accent, a))
-            drawInnerShadow(circle, Color.Black.copy(alpha = 0.15f), Offset(0f, 6.dp.toPx()), 15.dp.toPx())
-            drawCircle(
-                color = lerpColor(CycloColors.TextSecondary, CycloColors.Accent, a).copy(alpha = 0.24f),
-                radius = radius - 0.5.dp.toPx(),
-                style = Stroke(1.dp.toPx()),
-                blendMode = blend,
-            )
+            // A borda só existe desligado: apaga-se a caminho do roxo.
+            if (a < 1f) {
+                drawCircle(
+                    color = CycloColors.TextSecondary.copy(alpha = 0.09f * (1f - a)),
+                    radius = radius - 1.dp.toPx(),
+                    style = Stroke(2.dp.toPx()),
+                    blendMode = blend,
+                )
+            }
         }
         CycloIcon(
             path = CycloAppIconPaths.RoutineActive,

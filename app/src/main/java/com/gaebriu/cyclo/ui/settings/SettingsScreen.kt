@@ -887,8 +887,6 @@ private fun SettingsPrompts(
                 onButton = onBackupTurnOn,
                 closeDescription = stringResource(R.string.sleep_prompt_close),
                 onClose = { onPromptDismiss(CycloPrompt.KeepProgressSafe) },
-                // "fx blur type 01" (6063:142): o roxo, como o do new-update-group.
-                glowColor = { CycloColors.Accent },
                 chrome = promptChrome,
             )
             else -> Unit
@@ -1141,7 +1139,7 @@ private fun AgeInputBox(initial: Int?, onDone: (Int) -> Unit, onCancel: () -> Un
                 }
             },
         )
-        // O visto (no Figma a camada chama-se voice-input-b): 24 dp a 15 dp da direita.
+        // O visto (no Figma a camada chama-se voice-input-b): 24 dp a 15 dp da direita, #FCFCFE (Cyclo 3.2.5; antes #A3A2A7).
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -1151,7 +1149,7 @@ private fun AgeInputBox(initial: Int?, onDone: (Int) -> Unit, onCancel: () -> Un
                 .semantics { contentDescription = saveLabel },
             contentAlignment = Alignment.Center,
         ) {
-            CycloIcon(path = AgeCheckPath, size = 24.dp, tint = CycloColors.TextSecondary)
+            CycloIcon(path = AgeCheckPath, size = 24.dp, tint = CycloColors.TextPrimary)
         }
     }
 }

@@ -30,13 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
@@ -56,12 +50,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.gaebriu.cyclo.data.CycloPrompt
-import com.gaebriu.cyclo.ui.components.CycloButtonSize
 import com.gaebriu.cyclo.ui.components.CycloCircleButton
 import com.gaebriu.cyclo.ui.components.CycloPrimaryButton
 import com.gaebriu.cyclo.ui.components.cycloCard
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
-import com.gaebriu.cyclo.ui.effects.drawBlurredPath
 import com.gaebriu.cyclo.ui.haptics.CycloHaptics
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
 import com.gaebriu.cyclo.ui.screens.introSwipeDecision
@@ -83,14 +75,6 @@ private val TitleToText = 9.dp
 
 /** O título e o texto param antes do close-b (39 dp e 15 dp de folga). */
 private val TextEnd = 39.dp + 15.dp
-
-/** O "fx blur type 01" (315 x 33, a 15 dp dos lados, no topo) e o desfoque dele pelo vidro (39). */
-private val GlowInset = 15.dp
-private val GlowHeight = 33.dp
-private val GlowBlur = 39.dp
-
-/** A cor do "fx blur type 01" entra a 24 % (#5FA2DB a 24 % nos do céu, #4A3C99 a 24 % nos roxos). */
-private const val GlowAlpha = 0.24f
 
 /**
  * card-indicator (sleep-evaluation-prompt (w/side swipe), 6062:69): dois pontos de 6 dp, 4 dp entre
@@ -136,12 +120,10 @@ internal val PromptTextStyle: TextStyle = CycloType.Body.copy(textAlign = TextAl
 /**
  * Um prompt (sleep-evaluation-prompt 2006:416, never-miss-bedtime 6062:70, keep-the-water-flowing
  * 6063:111, keep-your-progress-safe 6063:141, new-update-group 6031:80): 345 dp de largura, o vidro
- * dos cartões com a sombra (0, 4, desfoque 39, preto a 24 %) e o "fx blur type 01" por trás do topo;
+ * dos cartões com a sombra (0, 4, desfoque 39, preto a 24 %; Cyclo 3.2.5: sem o "fx blur type 01");
  * o título (Inter Semi Bold 15), [TitleToText], o texto, [textToButton], o botão roxo compacto e o
  * close-b no canto (39 dp a 15 dp do topo e da direita; a zona de toque de 48 dp sai 4,5 dp).
  *
- * @param glowColor a cor do "fx blur type 01" (a base do brilho da hora, ou o roxo); lê-se só ao
- *                  desenhar, por isso uma mudança de cor não recompõe o cartão.
  * @param minHeight a altura do Figma (156; o new-update-group, com uma linha de texto, 147).
  */
 @Composable
@@ -152,7 +134,6 @@ internal fun PromptCard(
     onButton: () -> Unit,
     closeDescription: String,
     onClose: () -> Unit,
-    glowColor: () -> Color,
     modifier: Modifier = Modifier,
     chrome: PromptChrome = StillChrome,
     textStyle: TextStyle = PromptTextStyle,
@@ -160,14 +141,11 @@ internal fun PromptCard(
     minHeight: Dp = 156.dp,
     textIsLive: Boolean = false,
 ) {
-    val glow = remember { PromptGlow() }
     Box(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = minHeight)
-            // O retângulo do "fx blur type 01" fica por baixo do vidro, desfocado por ele (uma vez
-            // por largura, ver PromptGlow: o cartão redesenha-se a cada fotograma do scroll).
-            .cycloCard(underFill = { glow.draw(this, glowColor()) })
+            .cycloCard()
             .padding(PromptPadding),
     ) {
         Column {
@@ -187,7 +165,7 @@ internal fun PromptCard(
                     .then(if (textIsLive) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier),
             )
             Spacer(Modifier.height(textToButton))
-            CycloPrimaryButton(text = buttonText, onClick = onButton, size = CycloButtonSize.Compact)
+            CycloPrimaryButton(text = buttonText, onClick = onButton)
             // O lugar do card-indicator (só com dois prompts no mesmo sítio); abre e fecha na medida.
             Box(Modifier.layout { _, constraints -> layout(constraints.minWidth, chrome.extraBottom().roundToInt()) {} })
         }
@@ -202,49 +180,6 @@ internal fun PromptCard(
                 .offset(x = (CycloDimens.TouchTarget - CycloDimens.CircleButtonSize) / 2, y = -(CycloDimens.TouchTarget - CycloDimens.CircleButtonSize) / 2)
                 .graphicsLayer { alpha = chrome.closeAlpha() },
         )
-    }
-}
-
-/**
- * O "fx blur type 01" de um prompt (315 x 33 a 15 dp dos lados, no topo, a cor a 24 %, desfocado
- * pelo vidro, 39). A forma desfocada (no CPU) desenha-se numa imagem branca e opaca, que serve de
- * máscara; a cor entra só ao copiar a imagem (tint SrcIn), por isso pode mudar a cada fotograma (a
- * transição entre faixas horárias) sem voltar a desfocar nada.
- *
- * Cyclo 3.2.3: a imagem depende só da LARGURA (o brilho está preso ao topo; a altura dela é a do
- * brilho desfocado, não a do cartão): o cartão pode crescer (o card-indicator a entrar) sem desfocar
- * de novo em cada fotograma.
- */
-internal class PromptGlow {
-    private var image: ImageBitmap? = null
-    private var forWidth = -1f
-    private var tintColor = Color.Unspecified
-    private var tint: ColorFilter? = null
-
-    fun draw(scope: DrawScope, color: Color) = with(scope) {
-        if (image == null || forWidth != size.width) {
-            forWidth = size.width
-            val blur = GlowBlur.toPx()
-            val w = size.width.roundToInt().coerceAtLeast(1)
-            // Três desvios-padrão (o desfoque do Figma é 2 sigma) abaixo do retângulo: o resto é < 1 %.
-            val h = (GlowHeight.toPx() + blur * 1.5f).roundToInt().coerceAtLeast(1)
-            val bitmap = ImageBitmap(w, h)
-            androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
-                this, layoutDirection, androidx.compose.ui.graphics.Canvas(bitmap), androidx.compose.ui.geometry.Size(w.toFloat(), h.toFloat()),
-            ) {
-                val glow = Path().apply {
-                    addRect(androidx.compose.ui.geometry.Rect(GlowInset.toPx(), 0f, w - GlowInset.toPx(), GlowHeight.toPx()))
-                }
-                drawBlurredPath(glow, Color.White, blur)
-            }
-            image = bitmap
-        }
-        val glowColor = color.copy(alpha = color.alpha * GlowAlpha)
-        if (tint == null || glowColor != tintColor) {
-            tintColor = glowColor
-            tint = ColorFilter.tint(glowColor, BlendMode.SrcIn)
-        }
-        image?.let { drawImage(it, colorFilter = tint) }
     }
 }
 

@@ -2,121 +2,41 @@
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
-import com.gaebriu.cyclo.ui.effects.drawInnerShadow
-import com.gaebriu.cyclo.ui.effects.cycloLightSheen
+import androidx.compose.ui.draw.drawWithCache
 import com.gaebriu.cyclo.ui.theme.CycloColors
 import com.gaebriu.cyclo.ui.theme.CycloDimens
 import com.gaebriu.cyclo.ui.theme.CycloType
 
-/** Tamanhos do botão principal: o grande (66 dp) e o compacto das folhas (48 dp). */
-enum class CycloButtonSize { Large, Compact }
-
-/** Botão principal roxo (get-started-b; "Done" na folha, em tamanho compacto). */
+/**
+ * Botão principal roxo: o done-b do Figma (Cyclo 3.2.5; Introduction 6 6092:50, menus e prompts):
+ * #4A3C99 liso, 48 dp de altura, raio 15 com o corner smoothing de 60 %, texto Inter Semi Bold 15
+ * ao centro. Sem contorno nem sombra interior (saíram do Figma na 3.2.5). A largura é a de quem o
+ * usa: 315 dp nos menus e prompts (margens de 15 num cartão de 345) e no Introduction 6 / editor
+ * (margens de 39 num ecrã de 393).
+ */
 @Composable
 fun CycloPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: CycloButtonSize = CycloButtonSize.Large,
     enabled: Boolean = true,
 ) {
-    val style = when (size) {
-        CycloButtonSize.Large -> ButtonStyle(
-            height = CycloDimens.ButtonHeight,
-            cornerRadius = CycloDimens.CornerRadius,
-            fill = CycloColors.Accent,
-            luminosity = false,
-            border = { SolidColor(CycloColors.Accent) },
-            innerShadowOffsetY = (-6).dp,
-        )
-        CycloButtonSize.Compact -> ButtonStyle(
-            height = CycloDimens.InputHeight,
-            cornerRadius = CycloDimens.InputRadius,
-            fill = CycloColors.Accent,
-            luminosity = false,
-            border = { SolidColor(CycloColors.Accent.copy(alpha = 0.24f)) },
-            innerShadowOffsetY = 6.dp,
-        )
-    }
-    CycloButtonSurface(text = text, onClick = onClick, style = style, enabled = enabled, modifier = modifier)
-}
-
-/** Tudo o que muda de um botão para outro. */
-private class ButtonStyle(
-    val height: Dp,
-    val cornerRadius: Dp,
-    val fill: Color,
-    val luminosity: Boolean,
-    val border: (Size) -> Brush,
-    val innerShadowOffsetY: Dp,
-)
-
-@Composable
-private fun CycloButtonSurface(
-    text: String,
-    onClick: () -> Unit,
-    style: ButtonStyle,
-    enabled: Boolean,
-    modifier: Modifier,
-) {
-    val effects = LocalVisualEffects.current
-
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(style.height)
+            // Os 48 dp do Figma; com letra grande o texto pode passar a duas linhas e o botão cresce.
+            .heightIn(min = CycloDimens.InputHeight)
             // O toque (zoom out + háptico) vem ANTES de desenhar, para o desenho também encolher.
             .cycloPressable(onClick = onClick, enabled = enabled)
-            .drawBehind {
-                val radius = style.cornerRadius.toPx()
-                val shape = smoothRoundRectPath(size.width, size.height, radius)
-
-                // Fundo. Sem efeitos, a mistura Luminosity passa a normal.
-                val blend = if (style.luminosity && effects.textures) BlendMode.Luminosity else BlendMode.SrcOver
-                drawPath(shape, color = style.fill, blendMode = blend)
-
-                // Sombra interior: 0, ±6, desfoque 15, preto a 15 %.
-                drawInnerShadow(
-                    shape = shape,
-                    color = Color.Black.copy(alpha = 0.15f),
-                    offset = Offset(0f, style.innerShadowOffsetY.toPx()),
-                    cssBlurPx = 15.dp.toPx(),
-                )
-
-                // Borda de 1 dp, por dentro.
-                val strokeWidth = 1.dp.toPx()
-                val inset = strokeWidth / 2f
-                val borderShape = Path().apply {
-                    addSmoothRoundRect(inset, inset, size.width - inset, size.height - inset, radius - inset)
-                }
-                drawPath(
-                    borderShape,
-                    brush = style.border(size),
-                    style = Stroke(width = strokeWidth),
-                    blendMode = blend,
-                )
-            }
-            // Vidro (Next): a luz segue o dedo, como nos menus. O botão roxo é opaco e fica igual.
-            .then(if (style.luminosity) Modifier.cycloLightSheen(style.cornerRadius, strength = 0.8f) else Modifier),
+            .drawWithCache {
+                val shape = smoothRoundRectPath(size.width, size.height, CycloDimens.InputRadius.toPx())
+                onDrawBehind { drawPath(shape, CycloColors.Accent) }
+            },
         contentAlignment = Alignment.Center,
     ) {
         BasicText(text = text, style = CycloType.Button)
