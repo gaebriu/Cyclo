@@ -8,12 +8,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -64,7 +62,7 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
             // Sombra exterior, só fora da forma.
             dropShadow.drawDropShadow(this, shape, 39.dp.toPx(), Color.Black.copy(alpha = 0.24f), Offset(0f, 4.dp.toPx()))
             if (effects.textures) drawBackdrop(sampler, backdrop, shape, figmaBlur)
-            drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+            drawGlassFill(shape, blend)
             // A pílula (raio ≥ meia altura) desenha os fios em fatias quando muda de largura (o
             // mini-menu no deslize das páginas; ver ShadowCache).
             drawGlassRim(this, shape, innerTop, innerBottom, blend, pill = cornerRadius.toPx() * 2f >= size.height)
@@ -72,19 +70,35 @@ fun Modifier.cycloGlassPill(cornerRadius: Dp, figmaBlur: Float = FigmaBlur.Navig
     }.cycloLightSheen(cornerRadius, strength = 0.8f)
 }
 
-/** O fio de luz do vidro (beta-3.2): sombras interiores #A3A2A7 a 15 %, 0,1 e 0,-1, desfoque 2. */
+/**
+ * O fio de luz do vidro (Cyclo 3.2.5): sombras interiores #A3A2A7 a 9 %, 0,2 e 0,-2, desfoque 2
+ * (antes 15 %, 0,±1). Barra de navegação, mini-menu, close-b e back-b.
+ */
 internal fun drawGlassRim(scope: DrawScope, shape: Path, top: ShadowCache, bottom: ShadowCache, blend: BlendMode, pill: Boolean = false) = with(scope) {
-    val rim = CycloColors.TextSecondary.copy(alpha = 0.15f)
-    top.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, 1.dp.toPx()), blend, pill)
-    bottom.drawInnerShadow(this, shape, 2.dp.toPx(), rim, Offset(0f, -1.dp.toPx()), blend, pill)
+    top.drawInnerShadow(this, shape, 2.dp.toPx(), GlassRimColor, Offset(0f, 2.dp.toPx()), blend, pill)
+    bottom.drawInnerShadow(this, shape, 2.dp.toPx(), GlassRimColor, Offset(0f, -2.dp.toPx()), blend, pill)
 }
+
+/** A cor dos fios de luz do vidro e dos menus (Cyclo 3.2.5): #A3A2A7 a 9 %. */
+internal val GlassRimColor = CycloColors.TextSecondary.copy(alpha = 0.09f)
+
+/**
+ * O fundo de vidro (Cyclo 3.2.5): #101011 em [blend] (Luminosity) e, por cima, uma segunda camada
+ * #101011 a 39 % em Normal. Todas as superfícies #101011 do Figma passaram a ter as duas.
+ */
+fun DrawScope.drawGlassFill(shape: Path, blend: BlendMode) {
+    drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+    drawPath(shape, GlassFillTop)
+}
+
+/** A camada de cima do vidro: #101011 a 39 %. */
+val GlassFillTop = CycloColors.GlassFill.copy(alpha = 0.39f)
 
 /**
  * Cartão do Feed e das rotinas guardadas ("background" dos grupos): #101011 em Luminosity, raio 15.
  * Não tem desfoque de fundo; desenha o que está por trás só para a mistura.
  *
  * @param shadowColor cor da sombra exterior (0, 4, desfoque [shadowBlur]); null = sem sombra.
- * @param underFill desenhado por cima do fundo e por baixo do vidro (recortado à forma).
  * @param rimTop / [rimBottom] beta-3.2 (wake-time-container, Cyclo 3): sombras interiores 0,2 e 0,-2,
  *        desfoque 2, com estas cores (as do céu, a 15 %); null = sem elas.
  */
@@ -93,7 +107,6 @@ fun Modifier.cycloCard(
     shadowColor: Color? = Color.Black.copy(alpha = 0.24f),
     shadowBlur: Dp = 39.dp,
     cornerRadius: Dp = 15.dp,
-    underFill: (DrawScope.() -> Unit)? = null,
     rimTop: Color? = null,
     rimBottom: Color? = null,
 ): Modifier {
@@ -114,9 +127,7 @@ fun Modifier.cycloCard(
                 shadow.drawDropShadow(this, shape, shadowBlur.toPx(), shadowColor, Offset(0f, 4.dp.toPx()))
             }
             if (effects.textures) drawBackdrop(sampler, backdrop, shape)
-            // O que fica entre o fundo e o vidro (ex.: o brilho roxo do new-update-group).
-            if (underFill != null) clipPath(shape) { underFill() }
-            drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+            drawGlassFill(shape, blend)
             if (rimTop != null) innerTop.drawInnerShadow(this, shape, 2.dp.toPx(), rimTop, Offset(0f, 2.dp.toPx()))
             if (rimBottom != null) innerBottom.drawInnerShadow(this, shape, 2.dp.toPx(), rimBottom, Offset(0f, -2.dp.toPx()))
         }
@@ -124,23 +135,17 @@ fun Modifier.cycloCard(
 }
 
 /**
- * Botão pequeno quadrado dos cartões (add-b, remove-b: 33 dp, raio 9) e opções da lista
- * (intense-exercise...: raio 15): #A3A2A7 a 15 % em Luminosity com sombra interior 0, 6,
- * desfoque 15 (preto a 15 %).
- *
- * @param innerShadow as opções não escolhidas não têm sombra interior.
+ * Botão pequeno quadrado dos cartões (add-b, remove-b: 33 dp, raio 9): #A3A2A7 a 15 % em
+ * Luminosity (Cyclo 3.2.5: sem a sombra interior 0, 6, desfoque 15).
  */
-fun DrawScope.drawCardControl(cornerRadius: Float, blend: BlendMode, innerShadow: Boolean = true) {
+fun DrawScope.drawCardControl(cornerRadius: Float, blend: BlendMode) {
     val shape = roundRectPath(size.width, size.height, cornerRadius)
     drawPath(shape, CycloColors.TextSecondary.copy(alpha = 0.15f), blendMode = blend)
-    if (innerShadow) {
-        drawInnerShadow(shape, Color.Black.copy(alpha = 0.15f), Offset(0f, 6.dp.toPx()), 15.dp.toPx())
-    }
 }
 
-/** Borda de 1 dp por dentro da forma. */
-fun DrawScope.drawInsideBorder(radius: Float, brush: Brush, blend: BlendMode = BlendMode.SrcOver) {
-    val strokeWidth = 1.dp.toPx()
+/** Borda de [width] (1 dp por omissão) por dentro da forma. */
+fun DrawScope.drawInsideBorder(radius: Float, brush: Brush, blend: BlendMode = BlendMode.SrcOver, width: Dp = 1.dp) {
+    val strokeWidth = width.toPx()
     val inset = strokeWidth / 2f
     val border = Path().apply {
         addSmoothRoundRect(inset, inset, size.width - inset, size.height - inset, (radius - inset).coerceAtLeast(0f))

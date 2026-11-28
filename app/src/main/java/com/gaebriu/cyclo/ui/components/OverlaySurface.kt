@@ -22,8 +22,9 @@ import com.gaebriu.cyclo.ui.theme.FigmaBlur
 
 /**
  * Fundo dos menus, das folhas e da barra de baixo (undo-action, action-menu, action-menu-big):
- * #101011 em Luminosity sobre o desfoque de fundo 39, brilho exterior (0, 0, desfoque 9) e duas
- * sombras interiores (0, ±2, desfoque 2), todos em #A3A2A7. Sem contorno (a borda de 1 dp foi
+ * #101011 em Luminosity e #101011 a 39 % por cima, sobre o desfoque de fundo 39, brilho exterior
+ * #A3A2A7 a 15 % (0, 0, desfoque 9) e duas sombras interiores #A3A2A7 a 9 % (0, ±2, desfoque 2;
+ * Cyclo 3.2.5, antes 15 %). Sem contorno (a borda de 1 dp foi
  * retirada a pedido). Com o dedo em cima, a luz segue-o ([cycloLightSheen]).
  *
  * O desfoque usa o que está por trás ([LocalBackdrop]). Sem as texturas avançadas não há desfoque
@@ -50,11 +51,11 @@ fun Modifier.cycloOverlaySurface(cornerRadius: Dp = CycloDimens.CornerRadius): M
 
             // Fundo desfocado e preenchimento. Sem as texturas avançadas, a mistura Luminosity passa a normal.
             if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
-            drawPath(shape, CycloColors.GlassFill, blendMode = effects.luminosity)
+            drawGlassFill(shape, effects.luminosity)
 
             // Sombras interiores, em cima e em baixo.
-            drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, -2.dp.toPx()), 2.dp.toPx())
-            drawInnerShadow(shape, edge.copy(alpha = 0.15f), Offset(0f, 2.dp.toPx()), 2.dp.toPx())
+            drawInnerShadow(shape, GlassRimColor, Offset(0f, -2.dp.toPx()), 2.dp.toPx())
+            drawInnerShadow(shape, GlassRimColor, Offset(0f, 2.dp.toPx()), 2.dp.toPx())
         }
     }.cycloLightSheen(cornerRadius)
 }

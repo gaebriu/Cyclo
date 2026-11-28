@@ -27,9 +27,9 @@ import com.gaebriu.cyclo.ui.theme.figmaBlurRadiusExact
  * - raio 24;
  * - "background blur" 39 (backdrop-blur 19,5: sigma 19,5 dp, com a força exata, ver
  *   [figmaBlurRadiusExact]);
- * - preenchimento #101011 a 100 % em Luminosity;
+ * - preenchimento #101011 a 100 % em Luminosity e #101011 a 39 % por cima (Cyclo 3.2.5);
  * - brilho exterior #A3A2A7 a 15 % (0, 0, desfoque 9);
- * - sombras interiores #A3A2A7 a 15 % (0, 2, desfoque 2) e (0, −2, desfoque 2).
+ * - sombras interiores #A3A2A7 a 9 % (0, 2, desfoque 2) e (0, −2, desfoque 2) (Cyclo 3.2.5, antes 15 %).
  *
  * Uma só composição opaca: o que se desfoca é o fundo da app (#010101) com o ecrã por cima
  * ([drawOpaqueBackdrop]), por isso nada do que está por trás aparece nítido através do vidro. A
@@ -59,19 +59,19 @@ internal fun Modifier.repeatMenuSurface(): Modifier {
 
             if (effects.textures) {
                 drawOpaqueBackdrop(sampler, backdrop, shape, base = CycloColors.Background, blurRadius = blurRadius)
-                drawPath(shape, CycloColors.GlassFill, blendMode = effects.luminosity)
+                drawGlassFill(shape, effects.luminosity)
             } else {
                 drawPath(shape, CycloColors.GlassFill)
                 drawPath(shape, fallbackShade)
             }
 
-            drawInnerShadow(shape, edge, Offset(0f, innerOffset), innerBlur)
-            drawInnerShadow(shape, edge, Offset(0f, -innerOffset), innerBlur)
+            drawInnerShadow(shape, GlassRimColor, Offset(0f, innerOffset), innerBlur)
+            drawInnerShadow(shape, GlassRimColor, Offset(0f, -innerOffset), innerBlur)
         }
     }.cycloLightSheen(CycloDimens.CornerRadius)
 }
 
-/** Opacidade do #A3A2A7 no brilho exterior e nas sombras interiores (Figma: 15 %). */
+/** Opacidade do #A3A2A7 no brilho exterior (Figma: 15 %; as sombras interiores são [GlassRimColor]). */
 private const val EdgeAlpha = 0.15f
 
 /** Gradiente #010101 sem as texturas avançadas: de transparente em cima até isto em baixo. */

@@ -453,7 +453,6 @@ fun MainScreen(
                                 promptMemory = promptMemory,
                                 bedtimeReminderOn = bedtimeReminderOn,
                                 hydrationReminderOn = hydrationReminderOn,
-                                promptGlow = { skyBase },
                                 onLogSleep = actions.onLogSleep,
                                 onDismissPrompt = actions.onDismissPrompt,
                                 onTurnOnBedtimeReminder = actions.onTurnOnBedtimeReminder,

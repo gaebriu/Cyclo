@@ -228,7 +228,6 @@ fun FeedScreen(
     /** O lembrete da hora de dormir e o da água, como valem de facto (interruptor e autorização). */
     bedtimeReminderOn: Boolean = true,
     hydrationReminderOn: Boolean = true,
-    promptGlow: () -> Color = { Color.Transparent },
     onLogSleep: () -> Unit = {},
     onDismissPrompt: (CycloPrompt) -> Unit = {},
     onTurnOnBedtimeReminder: () -> Unit = {},
@@ -297,7 +296,6 @@ fun FeedScreen(
         FeedPromptCard(
             prompt = prompt,
             chrome = chrome,
-            glow = promptGlow,
             onLogSleep = onLogSleep,
             onTurnOnBedtimeReminder = onTurnOnBedtimeReminder,
             onTurnOnHydrationReminder = onTurnOnHydrationReminder,
@@ -504,7 +502,7 @@ fun FeedScreen(
 
 /**
  * Um prompt do Feed: o sleep-evaluation-prompt (2006:416), o never-miss-bedtime (6062:70) e o
- * keep-the-water-flowing (6063:111), todos com o "fx blur type 01 (base)" na base do brilho da hora.
+ * keep-the-water-flowing (6063:111).
  * "Turn on reminders" liga o lembrete pelo mesmo caminho dos interruptores das definições (pede a
  * autorização que faltar).
  */
@@ -512,7 +510,6 @@ fun FeedScreen(
 private fun FeedPromptCard(
     prompt: CycloPrompt,
     chrome: PromptChrome,
-    glow: () -> Color,
     onLogSleep: () -> Unit,
     onTurnOnBedtimeReminder: () -> Unit,
     onTurnOnHydrationReminder: () -> Unit,
@@ -535,7 +532,6 @@ private fun FeedPromptCard(
         },
         closeDescription = stringResource(R.string.sleep_prompt_close),
         onClose = { onDismiss(prompt) },
-        glowColor = glow,
         chrome = chrome,
     )
 }
@@ -994,8 +990,9 @@ private fun SleepFactorsCard(selected: Set<SleepFactor>, onToggle: (SleepFactor)
 
 /**
  * Uma opção (intense-exercise...): 48 dp, raio 15, #A3A2A7 a 15 % em Luminosity. Escolhida, ganha
- * a borda (#A3A2A7 a 24 %), o brilho de cima (0, -6, desfoque 9), a sombra interior e o visto;
- * a mudança faz-se com uma mola.
+ * a borda (2 dp, gradiente vertical #A3A2A7 a 15 %, 0 % de 25 a 75 %, 15 %; Cyclo 3.2.5), o brilho
+ * de cima (0, -6, desfoque 9), a sombra interior (0, 6, desfoque 9; antes 15) e o visto; a mudança
+ * faz-se com uma mola.
  */
 @Composable
 private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () -> Unit) {
@@ -1046,8 +1043,13 @@ private fun SleepFactorOption(label: String, isSelected: Boolean, onClick: () ->
                     }
                     drawPath(shape, CycloColors.TextSecondary.copy(alpha = 0.15f), blendMode = blend)
                     if (on > 0f) {
-                        inner.drawInnerShadow(this, shape, 15.dp.toPx(), Color.Black.copy(alpha = 0.15f * on), Offset(0f, 6.dp.toPx()))
-                        drawInsideBorder(radius, Brush.linearGradient(List(2) { CycloColors.TextSecondary.copy(alpha = 0.24f * on) }))
+                        inner.drawInnerShadow(this, shape, 9.dp.toPx(), Color.Black.copy(alpha = 0.15f * on), Offset(0f, 6.dp.toPx()))
+                        val edge = CycloColors.TextSecondary.copy(alpha = 0.15f * on)
+                        drawInsideBorder(
+                            radius,
+                            Brush.verticalGradient(0f to edge, 0.25f to Color.Transparent, 0.75f to Color.Transparent, 1f to edge),
+                            width = 2.dp,
+                        )
                     }
                 }
             }

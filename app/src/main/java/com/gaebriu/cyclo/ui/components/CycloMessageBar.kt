@@ -35,15 +35,17 @@ import com.gaebriu.cyclo.ui.theme.CycloMotion
 import com.gaebriu.cyclo.ui.theme.CycloType
 import kotlinx.coroutines.delay
 
-// Medidas do Figma (undo-action: 345 x 66 dp, texto a 24 dp das pontas).
-private val BarHeight = 66.dp
-private val TextInset = 24.dp
+// Medidas do Figma (undo-action 78:602, Cyclo 3.2.5: 345 x 48 dp, raio 15, texto e "Undo" a 15 dp
+// das pontas; antes 66 dp, raio 24 e 24 dp).
+private val BarHeight = 48.dp
+private val BarRadius = 15.dp
+private val TextInset = 15.dp
 
 /**
  * Beta 2.4: um texto que não cabe numa linha (ex.: "Não conseguimos exportar os teus dados" ao lado
  * do "Tentar de novo") passa à linha seguinte e a barra cresce PARA CIMA (está presa ao fundo), com
  * 15 dp por cima e por baixo do texto; antes ficava cortado com reticências. Com uma linha continua
- * com os 66 dp do Figma, e o botão fica sempre ao centro da altura da barra.
+ * com os 48 dp do Figma, e o botão fica sempre ao centro da altura da barra.
  */
 private val TextVerticalMargin = 15.dp
 
@@ -97,7 +99,7 @@ fun CycloMessageBar(
                 }
                 .fillMaxWidth()
                 .heightIn(min = BarHeight)
-                .cycloOverlaySurface()
+                .cycloOverlaySurface(cornerRadius = BarRadius)
                 .semantics { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -111,7 +113,7 @@ fun CycloMessageBar(
             )
             val action = current.action
             if (current.actionLabel != null && action != null) {
-                // A área de toque tem pelo menos 48 dp, o texto fica a 24 dp da ponta.
+                // A área de toque tem pelo menos 48 dp, o texto fica a 15 dp da ponta.
                 Box(
                     modifier = Modifier
                         .height(CycloDimens.TouchTarget)

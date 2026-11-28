@@ -66,7 +66,7 @@ object CycloSprings {
     fun fromStiffness(stiffness: Float, dampingRatio: Float) =
         CycloSpring((2.0 * PI / kotlin.math.sqrt(stiffness.toDouble())).toFloat(), dampingRatio)
 
-    /** Sair (menus a fechar, cartões apagados): depressa e sem ressalto. */
+    /** Sair (menus a fechar, cartões apagados a recolher): depressa e sem ressalto. */
     val Exit = fromStiffness(700f, Spring.DampingRatioNoBouncy)
 
     /** Pegar num elemento (long press do arrastar): cresce logo, com um ressalto curto. */

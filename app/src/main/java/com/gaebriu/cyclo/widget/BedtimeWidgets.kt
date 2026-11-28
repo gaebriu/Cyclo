@@ -304,11 +304,12 @@ object BedtimeWidgets {
             // edit-routine-b: #A3A2A7 a 15 % e a borda #313233 a 24 %, já misturados sobre o #101011.
             circleButton(EditX, ButtonsY, fill = 0xFF262628.toInt(), border = 0x3D313233)
             icon(CycloAppIconPaths.RoutineEdit, EditX, ButtonsY, WidgetCanvas.White)
-            // activate/deactivate-routine-b: ligado #4A3C99; desligado #A3A2A7 a 24 % e o visto a 24 %.
+            // activate/deactivate-routine-b (Cyclo 3.2.5, 244:62): ligado #4A3C99 liso, sem borda; desligado
+            // (como o das rotinas guardadas, 78:571) #A3A2A7 a 24 %, borda de 2 #A3A2A7 a 9 % e o visto a 24 %.
             if (active) {
-                circleButton(ToggleX, ButtonsY, fill = 0xFF4A3C99.toInt(), border = 0x3D4A3C99)
+                circleButton(ToggleX, ButtonsY, fill = 0xFF4A3C99.toInt(), border = null)
             } else {
-                circleButton(ToggleX, ButtonsY, fill = 0xFF333335.toInt(), border = 0x3DA3A2A7)
+                circleButton(ToggleX, ButtonsY, fill = 0xFF333335.toInt(), border = 0x17A3A2A7, borderWidth = 2f)
             }
             icon(CycloAppIconPaths.RoutineActive, ToggleX, ButtonsY, WidgetCanvas.White, alpha = if (active) 1f else 0.24f)
         }

@@ -41,13 +41,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.PathParser
@@ -65,7 +63,6 @@ import com.gaebriu.cyclo.ui.effects.LocalBackdrop
 import com.gaebriu.cyclo.ui.effects.LocalVisualEffects
 import com.gaebriu.cyclo.ui.effects.backdropSampler
 import com.gaebriu.cyclo.ui.effects.drawBackdrop
-import com.gaebriu.cyclo.ui.effects.drawBlurredPath
 import com.gaebriu.cyclo.ui.effects.rememberBackdropSampler
 import com.gaebriu.cyclo.ui.theme.FigmaBlur
 import com.gaebriu.cyclo.ui.icons.CycloIconPaths
@@ -213,9 +210,9 @@ private fun rememberListeningShimmer(listening: State<Float>): State<Float> {
 /**
  * Fundo da caixa (#101011, raio 15).
  *
- * Na pesquisa ([search], search-box do Figma) é vidro: #101011 em Luminosity sobre o desfoque de
- * fundo 39, brilho exterior (0, 0, desfoque 9, #A3A2A7 a 15 %) e borda de 1 dp em gradiente da
- * esquerda para a direita (#A3A2A7 a 24 %, 9 % a meio, 0 %).
+ * Na pesquisa ([search], search-box do Figma) é vidro: #101011 em Luminosity e #101011 a 39 % por
+ * cima, sobre o desfoque de fundo 39, e borda de 2 dp em gradiente da esquerda para a direita
+ * (#A3A2A7 a 9 % até 0 %). Cyclo 3.2.5: sem o brilho exterior; antes, borda de 1 dp a 24 / 9 / 0 %.
  */
 @Composable
 private fun BoxScope.NameFieldFill(search: Boolean) {
@@ -233,26 +230,20 @@ private fun BoxScope.NameFieldFill(search: Boolean) {
         val shape = roundedShape(radius)
         val edge = CycloColors.TextSecondary
         val blend = effects.luminosity
-        clipPath(shape, clipOp = ClipOp.Difference) {
-            drawBlurredPath(shape, edge.copy(alpha = 0.15f), 9.dp.toPx())
-        }
         if (effects.textures) drawBackdrop(sampler, backdrop, shape, FigmaBlur.Overlay)
-        drawPath(shape, CycloColors.GlassFill, blendMode = blend)
+        drawGlassFill(shape, blend)
         drawInsideBorder(
             radius,
-            Brush.horizontalGradient(
-                0f to edge.copy(alpha = 0.24f),
-                0.5f to edge.copy(alpha = 0.09f),
-                1f to edge.copy(alpha = 0f),
-            ),
+            Brush.horizontalGradient(0f to edge.copy(alpha = 0.09f), 1f to edge.copy(alpha = 0f)),
             blend,
+            width = 2.dp,
         )
     }
 }
 
 private fun DrawScope.roundedShape(radius: Float): Path = smoothRoundRectPath(size.width, size.height, radius)
 
-/** Tudo o que só existe ao ouvir: brilho exterior, borda em gradiente e o texto "Listening...". */
+/** Tudo o que só existe ao ouvir: a borda em gradiente e o texto "Listening..." (sem brilho desde a 3.2.5). */
 @Composable
 private fun BoxScope.ListeningLayer(
     listening: State<Float>,
@@ -273,18 +264,7 @@ private fun BoxScope.ListeningLayer(
     ) {
         Canvas(modifier = Modifier.matchParentSize()) {
             val amount = listening.value.coerceIn(0f, 1f)
-            if (amount > 0f) {
-                val radius = CycloDimens.InputRadius.toPx()
-                // Sombra exterior do Figma (0, 0, desfoque 9, #A3A2A7 a 15 %): só fora da caixa.
-                clipPath(roundedShape(radius), clipOp = ClipOp.Difference) {
-                    drawBlurredPath(
-                        roundedShape(radius),
-                        CycloColors.TextSecondary.copy(alpha = 0.15f * amount),
-                        9.dp.toPx(),
-                    )
-                }
-                drawListeningBorder(radius, shimmer.value, amount)
-            }
+            if (amount > 0f) drawListeningBorder(CycloDimens.InputRadius.toPx(), shimmer.value, amount)
         }
         Box(
             modifier = Modifier
@@ -297,22 +277,25 @@ private fun BoxScope.ListeningLayer(
     }
 }
 
-/** Borda de 1 dp em gradiente (#A3A2A7 a 24 %, 9 % no meio, 24 %), que corre da esquerda para a direita. */
+/**
+ * Borda de 2 dp em gradiente (#A3A2A7 a 9 %, 0 % no meio, 9 %; Cyclo 3.2.5, antes 1 dp a 24 / 9 / 24 %),
+ * que corre da esquerda para a direita.
+ */
 private fun DrawScope.drawListeningBorder(radius: Float, phase: Float, amount: Float) {
     val color = CycloColors.TextSecondary
-    val inset = 0.5.dp.toPx()
+    val inset = 1.dp.toPx()
     val start = phase * size.width
     drawPath(
         Path().apply { addSmoothRoundRect(inset, inset, size.width - inset, size.height - inset, radius - inset) },
         brush = Brush.linearGradient(
-            0f to color.copy(alpha = 0.24f),
-            0.5f to color.copy(alpha = 0.09f),
-            1f to color.copy(alpha = 0.24f),
+            0f to color.copy(alpha = 0.09f),
+            0.5f to color.copy(alpha = 0f),
+            1f to color.copy(alpha = 0.09f),
             start = Offset(start, 0f),
             end = Offset(start + size.width, 0f),
             tileMode = TileMode.Repeated,
         ),
-        style = Stroke(width = 1.dp.toPx()),
+        style = Stroke(width = 2.dp.toPx()),
         alpha = amount,
     )
 }

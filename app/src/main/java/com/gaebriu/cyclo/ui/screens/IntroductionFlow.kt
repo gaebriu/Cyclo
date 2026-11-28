@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -150,8 +151,10 @@ private fun guideDelays(step: Int): List<Long> = when (step) {
  *   deslizar de novo no 0 sobe direto para ela. Voltar do sistema anda uma página para trás (no 1,
  *   desce para o 0).
  * - Do 1 ao 6, o "swipe up to continue" em baixo: some ao começar a mudar e acende ao assentar.
- * - Passar do Introduction 6 guarda a rotina, o tutorial e os lembretes numa só escrita ([onSave])
- *   enquanto o 7 sobe; se falhar, o 7 volta a descer (o erro aparece com "Try again").
+ * - Cyclo 3.2.5: o Introduction 6 tem o done-b (6092:50), o mesmo "Done" do editor. Só ele passa
+ *   para o 7 (subir no 6 só dá a resistência, e não há a demonstração do gesto): guarda a rotina, o
+ *   tutorial e os lembretes numa só escrita ([onSave]) enquanto o 7 sobe; se falhar, o 7 volta a
+ *   descer (o erro aparece com "Try again").
  * - No Introduction 7 ("You're all set!"), o X sai com um fade, o anel chega aos 100 % e só então
  *   sai; os gestos ficam bloqueados; no fim das animações chama [onFinished].
  *
@@ -160,8 +163,12 @@ private fun guideDelays(step: Int): List<Long> = when (step) {
  *   (a hora de acordar, Cyclo 3.1), não há passo antes: o gesto para baixo leva o editor inteiro a
  *   descer com o dedo e fecha-o, de volta a onde foi aberto (o Feed ou as rotinas guardadas), como o
  *   grupo do Introduction 1 desce para o 0 no tutorial ([LocalCoverDrag]).
- * - No passo 5, o botão roxo "Done" guarda a rotina (subir não faz nada). É parte da página 5: sai
- *   com ela, a seguir o dedo; entra só quando ela aterra, a continuar a subida (Cyclo 3.2.4).
+ * - No passo 5, o botão roxo "Done" guarda a rotina (subir não faz nada).
+ *
+ * O "Done" (done-b, Cyclo 3.2.5: 315 x 48 a 39 dp dos lados, assente na barra de navegação) é parte
+ * da página dele (doneStep: 5 no editor, 6 no tutorial) e desenha-se DENTRO dela: sobe, recua (por
+ * baixo do 7 que sobe) e desce com ela, a seguir o dedo. Só a entrada é dele: começa quando a página
+ * aterra (e, no tutorial, quando o grupo acabou de subir), a continuar a subida (Cyclo 3.2.4).
  *
  * Em ambos:
  * - Com um menu aberto (repetição), voltar fecha o menu e as páginas não se mexem.
@@ -198,6 +205,8 @@ fun IntroductionFlow(
     // Primeira página empilhada: a 1 no tutorial, a 2 no editor.
     val firstPage = if (isEditor) EditorFirstStep else 1
     val lastStep = if (isEditor) LastRoutineStep else TutorialStepCount
+    // A página com o "Done" (done-b): a última do editor, o Introduction 6 no tutorial.
+    val doneStep = if (isEditor) LastRoutineStep else NotificationsStep
     var step by rememberSaveable { mutableIntStateOf(if (isEditor) EditorFirstStep else 0) }
     // Tutorial: a página a que o Introduction 0 volta a subir (o X guarda aqui onde estava).
     var resumeStep by rememberSaveable { mutableIntStateOf(1) }
@@ -389,6 +398,8 @@ fun IntroductionFlow(
     val canForward: () -> Boolean = {
         if (isEditor) step < LastRoutineStep else step < TutorialStepCount
     }
+    // O dedo (e o "Next" do TalkBack) não passa da página do "Done": quem avança é o botão.
+    val swipeForward: () -> Boolean = { canForward() && step != doneStep }
     val canBack: () -> Boolean = {
         if (isEditor) step > EditorFirstStep else step in 1 until TutorialStepCount
     }
@@ -473,7 +484,7 @@ fun IntroductionFlow(
     // primeira vez ao fim de [guideDelays] (mais tempo no Introduction 1, que é para ler), depois com
     // intervalos maiores; no máximo três por página. Sem animações (ou com o TalkBack) não há.
     LaunchedEffect(step, effects.animationsEnabled) {
-        if (isEditor || !effects.animationsEnabled || touchExploration || step == TutorialStepCount) return@LaunchedEffect
+        if (isEditor || !effects.animationsEnabled || touchExploration || step == TutorialStepCount || step == doneStep) return@LaunchedEffect
         lastInteraction[0] = maxOf(lastInteraction[0], SystemClock.uptimeMillis())
         val settled = {
             !dragging && !touching && !saving && !repeat.isOverlayOpen && !latestKeyboardOpen &&
@@ -537,7 +548,7 @@ fun IntroductionFlow(
                     hi = 1f
                 } else {
                     lo = (if (canBack()) from - 1 else from).toFloat()
-                    hi = (if (canForward()) from + 1 else from).toFloat()
+                    hi = (if (swipeForward()) from + 1 else from).toFloat()
                 }
                 val base = if (enterMode) raw - dragPosition.floatValue + 1f else raw
                 // Editor no primeiro passo, a puxar para baixo: em vez da resistência, desce o editor.
@@ -565,7 +576,7 @@ fun IntroductionFlow(
                     dragPosition.floatValue = shown
                 }
                 val offset = if (enterMode) shown else shown - from
-                val past = abs(offset) > 0.5f && offset in -1f..1f && (if (offset > 0f) canForward() || enterMode else canBack())
+                val past = abs(offset) > 0.5f && offset in -1f..1f && (if (offset > 0f) swipeForward() || enterMode else canBack())
                 if (past != dragBeyond[0]) {
                     dragBeyond[0] = past
                     CycloHaptics.thresholdCrossed(view, past)
@@ -594,7 +605,7 @@ fun IntroductionFlow(
                     dragPosition.floatValue - from
                 }
                 var direction = introSwipeDecision(offset, pagesPerSecond)
-                if (direction > 0 && !(canForward() || enterMode)) direction = 0
+                if (direction > 0 && !(swipeForward() || enterMode)) direction = 0
                 if (direction < 0 && (enterMode || !canBack())) direction = 0
                 // Um lançamento curto não passou o limite: o tique de "vai mudar" chega aqui.
                 if (direction != 0 && !dragBeyond[0]) CycloHaptics.thresholdCrossed(view, true)
@@ -670,24 +681,25 @@ fun IntroductionFlow(
         label = "ringAlpha",
     )
 
-    // Editor (Cyclo 3.2.4): o "Done" roxo é parte da página 5. Move-se com ela (o dedo, a mola, o
-    // voltar do sistema), sem fade próprio; só a ENTRADA é dele: começa quando a página aterra e
-    // continua a subida dela. doneIn nunca volta a 0 a animar: volta a 0 quando a página 5 sai.
-    val doneIn = remember { Animatable(if (isEditor && step == LastRoutineStep) 1f else 0f) }
-    val doneShown by remember { derivedStateOf { isEditor && LastRoutineStep in shownPages && doneIn.value > 0f } }
-    if (isEditor) {
-        LaunchedEffect(effects.animationsEnabled) {
-            snapshotFlow {
-                step == LastRoutineStep && !dragging && abs(position.value - LastRoutineStep) < CycloMotion.DoneLandReach
-            }.collectLatest { landed ->
-                // Com o dedo outra vez na página, a entrada pára onde está (a página manda).
-                if (landed) doneIn.animateTo(1f, if (effects.animationsEnabled) CycloMotion.DoneRevealSpring else CycloMotion.FadeSpring)
-            }
-        }
-        LaunchedEffect(Unit) {
-            snapshotFlow { LastRoutineStep in shownPages }.collect { if (!it) doneIn.snapTo(0f) }
+    // O "Done" (Cyclo 3.2.4, no tutorial desde a 3.2.5) é parte da página [doneStep]: move-se com
+    // ela (o dedo, a mola, o voltar do sistema, o recuo por baixo do 7), sem fade próprio; só a
+    // ENTRADA é dele: começa quando a página aterra (no tutorial, também com o grupo já em cima) e
+    // continua a subida dela. doneIn nunca volta a 0 a animar: volta a 0 quando a página sai de vista
+    // (com o 7 a voltar a descer depois de uma gravação falhada, o 6 nunca saiu: não entra outra vez).
+    val doneIn = remember { Animatable(if (step == doneStep) 1f else 0f) }
+    LaunchedEffect(effects.animationsEnabled) {
+        snapshotFlow {
+            step == doneStep && !dragging && abs(position.value - doneStep) < CycloMotion.DoneLandReach &&
+                (isEditor || abs(enter.value - 1f) < CycloMotion.DoneLandReach)
+        }.collectLatest { landed ->
+            // Com o dedo outra vez na página, a entrada pára onde está (a página manda).
+            if (landed) doneIn.animateTo(1f, if (effects.animationsEnabled) CycloMotion.DoneRevealSpring else CycloMotion.FadeSpring)
         }
     }
+    LaunchedEffect(Unit) {
+        snapshotFlow { doneStep in shownPages }.collect { if (!it) doneIn.snapTo(0f) }
+    }
+    val doneShown by remember { derivedStateOf { doneIn.value > 0f } }
     // O indicador: só na primeira página (Introduction 1; no editor, a hora de acordar, beta-3.2.1).
     // Apaga-se assim que a página começa a mudar e acende quando assenta.
     val hintAlpha: () -> Float = {
@@ -767,7 +779,7 @@ fun IntroductionFlow(
                     // TalkBack: sem gestos, as páginas mudam pelas ações do contentor e pelo indicador.
                     .semantics {
                         customActions = buildList {
-                            if (canForward() && !(isEditor && step == LastRoutineStep)) add(CustomAccessibilityAction(nextLabel) { navigate(1); true })
+                            if (swipeForward()) add(CustomAccessibilityAction(nextLabel) { navigate(1); true })
                             if (canBack()) add(CustomAccessibilityAction(backLabel) { navigate(-1); true })
                         }
                     },
@@ -780,6 +792,15 @@ fun IntroductionFlow(
                 val pagesBackdrop = rememberBackdropLayer()
                 Box(modifier = Modifier.fillMaxSize().backdropSource(pagesBackdrop)) {
                     Box(modifier = Modifier.fillMaxSize()) {
+                        val doneBar: @Composable BoxScope.() -> Unit = {
+                            DoneButton(
+                                enabled = step == doneStep && !saving,
+                                onClick = { if (isEditor) saveEditor() else navigate(1) },
+                                bottomInset = bottomInset,
+                                reveal = { doneIn.value },
+                                effects = effects,
+                            )
+                        }
                         val page: @Composable (Int, @Composable () -> Unit) -> Unit = { index, content ->
                             if (index in shownPages) {
                                 IntroPage(
@@ -792,6 +813,8 @@ fun IntroductionFlow(
                                     top = contentTop,
                                     bottom = contentBottom,
                                     content = content,
+                                    // O "Done" desenha-se dentro da página dele (sobe, recua e desce com ela).
+                                    bottomBar = if (index == doneStep && doneShown) doneBar else null,
                                 )
                             }
                         }
@@ -901,36 +924,6 @@ fun IntroductionFlow(
                             .zIndex(1f),
                     )
 
-                    // Editor: o "Done" roxo, com a transformação da página 5 (a de [stackedPage]: a
-                    // camada de fora tem a altura das páginas) e, por dentro, a sua entrada.
-                    if (doneShown) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .zIndex(1f)
-                                .graphicsLayer {
-                                    val local = shownPosition() - LastRoutineStep
-                                    if (effects.animationsEnabled) translationY = -local * size.height else alpha = (1f + local).coerceIn(0f, 1f)
-                                },
-                            contentAlignment = Alignment.BottomCenter,
-                        ) {
-                            CycloPrimaryButton(
-                                text = stringResource(R.string.editor_done),
-                                enabled = step == LastRoutineStep,
-                                onClick = ::saveEditor,
-                                modifier = Modifier
-                                    .padding(horizontal = CycloDimens.ScreenMargin)
-                                    .padding(bottom = bottomInset)
-                                    .graphicsLayer {
-                                        val p = doneIn.value
-                                        // A opacidade chega cedo: quem se lê é a subida, não um fade.
-                                        alpha = if (effects.animationsEnabled) smoothStep(p, 0f, DoneOpaqueAt) else p
-                                        if (effects.animationsEnabled) translationY = (1f - p) * CycloMotion.DoneRise.toPx()
-                                    },
-                            )
-                        }
-                    }
-
                     // FIXO: o indicador (no editor, só na primeira página).
                     Box(
                         modifier = Modifier
@@ -950,7 +943,7 @@ fun IntroductionFlow(
                     }
                 }
 
-                // Menus por cima de tudo, incluindo o "Done" (zIndex 1).
+                // Menus por cima de tudo (as páginas com o "Done", o X e o indicador).
                 Box(Modifier.fillMaxSize().zIndex(2f)) {
                     CompositionLocalProvider(LocalBackdrop provides Backdrop.of(pagesBackdrop)) {
                         RepeatOverlays(selection = repeat, bottomMargin = bottomInset)
@@ -963,6 +956,38 @@ fun IntroductionFlow(
 
 /** A entrada do "Done": a fração de [CycloMotion.DoneRevealSpring] em que já está opaco. */
 private const val DoneOpaqueAt = 0.6f
+
+/** done-b: 315 dp num ecrã de 393 (39 dp de cada lado). */
+private val DoneMargin = 39.dp
+
+/**
+ * O done-b (Cyclo 3.2.5, Introduction 6 6092:50; também o "Done" do editor): o botão roxo, assente
+ * na barra de navegação. [reveal] (0 a 1) é a entrada dele: sobe [CycloMotion.DoneRise] e fica opaco
+ * cedo (quem se lê é a subida, não um fade); sem animações, só o fade.
+ */
+@Composable
+private fun BoxScope.DoneButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    bottomInset: Dp,
+    reveal: () -> Float,
+    effects: VisualEffects,
+) {
+    CycloPrimaryButton(
+        text = stringResource(R.string.editor_done),
+        enabled = enabled,
+        onClick = onClick,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(horizontal = DoneMargin)
+            .padding(bottom = bottomInset)
+            .graphicsLayer {
+                val p = reveal()
+                alpha = if (effects.animationsEnabled) smoothStep(p, 0f, DoneOpaqueAt) else p
+                if (effects.animationsEnabled) translationY = (1f - p) * CycloMotion.DoneRise.toPx()
+            },
+    )
+}
 
 /** Do indicador à barra de navegação: 24 dp do texto (18 dp) num alvo de 48 dp, centrado. */
 private val HintBottomGap = CycloDimens.ScreenMargin - (CycloDimens.TouchTarget - 18.dp) / 2
@@ -1024,7 +1049,8 @@ private fun IntroductionZero(
 
 /**
  * Uma página do fluxo, empilhada ([stackedPage]) e opaca (tapa a que recua). O conteúdo fica entre
- * o X e o anel ([top]) e o indicador ([bottom]). Só a do passo atual chega ao TalkBack.
+ * o X e o anel ([top]) e o indicador ([bottom]); [bottomBar] (o "Done") fica no fundo da página
+ * inteira, com a mesma transformação. Só a do passo atual chega ao TalkBack.
  */
 @Composable
 private fun IntroPage(
@@ -1037,6 +1063,7 @@ private fun IntroPage(
     top: Dp,
     bottom: Dp,
     content: @Composable () -> Unit,
+    bottomBar: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     Box(
         modifier = Modifier
@@ -1045,9 +1072,9 @@ private fun IntroPage(
             .graphicsLayer { translationY = -lift() * size.height }
             .stackedPage(index, position, hasNext, effects)
             .background(CycloColors.Background)
-            .padding(top = top, bottom = bottom)
             .then(if (active) Modifier else Modifier.clearAndSetSemantics { }),
     ) {
-        content()
+        Box(modifier = Modifier.fillMaxSize().padding(top = top, bottom = bottom)) { content() }
+        bottomBar?.invoke(this)
     }
 }

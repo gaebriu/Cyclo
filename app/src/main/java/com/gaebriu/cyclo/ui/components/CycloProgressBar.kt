@@ -28,8 +28,7 @@ import com.gaebriu.cyclo.ui.theme.CycloDimens
 /**
  * O anel de progresso das Introduction e do editor (progress-bar, Cyclo 3, beta-3.2; antes uma barra
  * horizontal): um círculo de 39 dp #101011 com a sombra 0, 4, desfoque 39 (preto a 24 %), o arco
- * #4A3C99 de 4 dp por dentro da borda e, por cima, o fio de luz (sombras interiores #FCFCFE a 15 %,
- * 0,1 e 0,-1, desfoque 2).
+ * #4A3C99 de 4 dp por dentro da borda (Cyclo 3.2.5: o "fx" com o fio de luz por cima saiu do Figma).
  *
  * O arco começa às 12 horas e enche no sentido dos ponteiros (o Figma desenha o círculo inteiro e
  * não diz onde começa). As duas pontas são SEMPRE redondas, também quase a 100 %, quando a ponta
@@ -45,8 +44,6 @@ fun CycloProgressRing(
     modifier: Modifier = Modifier,
 ) {
     val dropShadow = remember { ShadowCache() }
-    val rimTop = remember { ShadowCache() }
-    val rimBottom = remember { ShadowCache() }
     Spacer(
         modifier = modifier
             .size(CycloDimens.CircleButtonSize)
@@ -60,7 +57,6 @@ fun CycloProgressRing(
                 val arcTopLeft = Offset(stroke / 2f, stroke / 2f)
                 val arcSize = Size(size.width - stroke, size.height - stroke)
                 val arcStyle = Stroke(width = stroke, cap = StrokeCap.Round)
-                val rim = CycloColors.TextPrimary.copy(alpha = 0.15f)
                 onDrawBehind {
                     dropShadow.drawDropShadow(this, circle, 39.dp.toPx(), Color.Black.copy(alpha = 0.24f), Offset(0f, 4.dp.toPx()))
                     drawPath(circle, CycloColors.GlassFill)
@@ -77,8 +73,6 @@ fun CycloProgressRing(
                             style = arcStyle,
                         )
                     }
-                    rimTop.drawInnerShadow(this, circle, 2.dp.toPx(), rim, Offset(0f, 1.dp.toPx()))
-                    rimBottom.drawInnerShadow(this, circle, 2.dp.toPx(), rim, Offset(0f, -1.dp.toPx()))
                 }
             },
     )

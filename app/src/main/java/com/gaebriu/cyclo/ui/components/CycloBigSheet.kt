@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -52,7 +51,7 @@ fun CycloBigSheet(
         Box(
             modifier = Modifier
                 .size(width = 39.dp, height = 2.dp)
-                .background(CycloColors.TextPrimary.copy(alpha = 0.15f), RoundedCornerShape(1.dp)),
+                .background(CycloColors.TextPrimary.copy(alpha = 0.15f), SmoothRoundedCornerShape(1.dp)),
         )
         Spacer(Modifier.height(15.dp))
         BasicText(text = title, style = CycloType.SheetTitle, modifier = Modifier.semantics { heading() })
@@ -74,7 +73,7 @@ fun CycloBigSheet(
             extra()
         }
         Spacer(Modifier.height(15.dp))
-        CycloPrimaryButton(text = buttonText, onClick = onButtonClick, size = CycloButtonSize.Compact)
+        CycloPrimaryButton(text = buttonText, onClick = onButtonClick)
         Spacer(Modifier.height(15.dp))
     }
 }

@@ -106,7 +106,7 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
      * sólido): [fill] e [border] já são as cores que o Figma dá sobre o #101011. A sombra do grupo
      * (0, 0, 15, preto a 24 %) fica só por fora, como no Figma (não se vê através do botão).
      */
-    fun Canvas.circleButton(x: Float, y: Float, fill: Int, border: Int) {
+    fun Canvas.circleButton(x: Float, y: Float, fill: Int, border: Int?, borderWidth: Float = 1f) {
         val r = ButtonSize / 2f
         val cx = x + r
         val cy = y + r
@@ -119,14 +119,15 @@ internal class WidgetCanvas(context: Context, val pxPerUnit: Float) {
         drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) })
         restore()
         drawCircle(cx, cy, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = fill })
+        if (border == null) return
         drawCircle(
             cx,
             cy,
-            r - 0.5f,
+            r - borderWidth / 2f,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = border
                 style = Paint.Style.STROKE
-                strokeWidth = 1f
+                strokeWidth = borderWidth
             },
         )
     }

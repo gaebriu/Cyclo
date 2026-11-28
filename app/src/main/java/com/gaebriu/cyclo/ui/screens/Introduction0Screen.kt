@@ -71,7 +71,7 @@ private val TopShadeHeight = 130.dp
 //   #4A3C99 de 39 % (em cima) a 100 % (em baixo), desfoque 267;
 // - por cima, a sombra: elipse de 267 x 165 dp, também com o topo no topo do ecrã (centro a 82,5 dp),
 //   preto de 39 % a 100 %, desfoque 165;
-// - cada uma com o Noise do Figma (MONOTONE 2, #FCFCFE a 39 %), recortado por ela.
+// - cada uma com o Noise do Figma (MONOTONE 1 desde a 3.2.5, #FCFCFE a 39 %), recortado por ela.
 private const val GlowGroupAlpha = 0.63f
 private val LightRadiusX = 216.dp
 private val LightRadiusY = 133.5.dp
@@ -199,7 +199,8 @@ fun Introduction0Screen(
  */
 @Composable
 private fun TopGlow(glow: Progress, clock: MutableFloatState, recede: () -> Float, effects: VisualEffects) {
-    val noise = rememberFigmaNoise()
+    // Cyclo 3.2.5: grão de tamanho 1 (23:5, 2012:43).
+    val noise = rememberFigmaNoise(grainSize = 1)
     // O relógio da cena (s): a entrada e a respiração leem-no ao desenhar (nada se recompõe), e as
     // letras do "Hello!" também (ver Introduction0Screen).
     LaunchedEffect(effects.animationsEnabled) {
